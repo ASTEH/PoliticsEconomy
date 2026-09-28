@@ -85,9 +85,11 @@ public final class EconomyFragment extends Fragment {
         Button overviewTab = tabButton(context, "▦  ОБЗОР");
         Button countryTab = tabButton(context, "⚙  СТРАНА");
         Button effectsTab = tabButton(context, "◆  ЭФФЕКТЫ");
+        Button citiesTab = tabButton(context, "⌂  ГОРОДА");
         tabs.addView(overviewTab, new LinearLayout.LayoutParams(0, dp(42), 1));
         tabs.addView(countryTab, marginTab());
         tabs.addView(effectsTab, marginTab());
+        tabs.addView(citiesTab, marginTab());
         LinearLayout.LayoutParams tabParams = new LinearLayout.LayoutParams(-1, dp(42));
         tabParams.setMargins(0, dp(8), 0, dp(8));
         root.addView(tabs, tabParams);
@@ -100,6 +102,7 @@ public final class EconomyFragment extends Fragment {
         overviewTab.setOnClickListener(v -> showOverview(context));
         countryTab.setOnClickListener(v -> showCountrySettings(context));
         effectsTab.setOnClickListener(v -> showEffects(context));
+        citiesTab.setOnClickListener(v -> showCities(context));
 
         showOverview(context);
         return background;
@@ -278,6 +281,37 @@ public final class EconomyFragment extends Fragment {
             13, TEXT));
         policy.addView(label(context, snapshot.policySummary(), 11, MUTED));
         pageHost.addView(policy, marginPanel());
+    }
+
+    private void showCities(Context context) {
+        pageHost.removeAllViews();
+
+        LinearLayout intro = panel(context);
+        intro.addView(sectionTitle(context, "⌂  ГОРОДА СЕРВЕРА"));
+        intro.addView(label(context,
+            "Сводка по городам всех государств. Экономика показывает текущую городскую казну и доход за цикл.",
+            12, MUTED));
+        pageHost.addView(intro);
+
+        for (int i = 0; i < snapshot.cityNames().length; i++) {
+            LinearLayout card = panel(context);
+            String title = (snapshot.cityCapitals()[i] ? "★ " : "⌂ ") + snapshot.cityNames()[i];
+            if (snapshot.cityMine()[i]) title += "  •  ВАШ";
+            card.addView(label(context, title + "  •  " + snapshot.cityCountries()[i], 13, TEXT));
+            card.addView(infoLine(context, "₿", "Казна", "$" + format(snapshot.cityTreasuries()[i])));
+            card.addView(infoLine(context, "↗", "Доход / цикл", "$" + format(snapshot.cityIncome()[i])));
+            card.addView(infoLine(context, "👥", "Население", format(snapshot.cityPopulation()[i])));
+            card.addView(infoLine(context, "▦", "Инфраструктура", format(snapshot.cityInfrastructure()[i])));
+            card.addView(infoLine(context, "⌂", "Налоговые блоки", format(snapshot.cityTaxBlocks()[i])));
+            card.addView(infoLine(context, "♟", "Мэр", snapshot.cityMayors()[i]));
+            pageHost.addView(card, marginPanel());
+        }
+
+        if (snapshot.cityNames().length == 0) {
+            LinearLayout empty = panel(context);
+            empty.addView(label(context, "На сервере пока нет зарегистрированных городов.", 12, MUTED));
+            pageHost.addView(empty, marginPanel());
+        }
     }
 
     private void addChoice(
