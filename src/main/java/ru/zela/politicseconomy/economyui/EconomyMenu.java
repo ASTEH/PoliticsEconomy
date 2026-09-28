@@ -96,6 +96,16 @@ public final class EconomyMenu {
         double workforce = CountryPolicyBonusService.workforcePercent(player.getServer(), countryName);
         String policySummary = CountryPolicyBonusService.summary(player.getServer(), countryName);
         CountryPolicyProfile policy = CountryPolicyBonusService.profile(player.getServer(), countryName);
+        java.util.List<CityDirectoryService.CitySnapshot> cities = CityDirectoryService.build(player.getServer(), player);
+        String[] cityNames = new String[cities.size()], cityCountries = new String[cities.size()], cityMayors = new String[cities.size()];
+        int[] cityTreasuries = new int[cities.size()], cityIncome = new int[cities.size()], cityInfrastructure = new int[cities.size()], cityPopulation = new int[cities.size()], cityTaxBlocks = new int[cities.size()];
+        boolean[] cityCapitals = new boolean[cities.size()], cityMine = new boolean[cities.size()];
+        for (int i = 0; i < cities.size(); i++) {
+            CityDirectoryService.CitySnapshot city = cities.get(i);
+            cityNames[i]=city.name(); cityCountries[i]=city.country(); cityMayors[i]=city.mayor();
+            cityTreasuries[i]=city.treasury(); cityIncome[i]=city.incomePerCycle(); cityInfrastructure[i]=city.infrastructureBlocks();
+            cityPopulation[i]=city.population(); cityTaxBlocks[i]=city.taxBlocks(); cityCapitals[i]=city.capital(); cityMine[i]=city.mine();
+        }
 
         java.util.List<String> modifierNames = new java.util.ArrayList<>();
         java.util.List<Double> modifierValues = new java.util.ArrayList<>();
