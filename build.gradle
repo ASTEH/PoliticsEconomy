@@ -1,0 +1,87 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'net.neoforged.moddev' version '2.0.147'
+    id 'idea'
+}
+
+group = mod_group_id
+version = mod_version
+
+base {
+    archivesName = mod_id
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+repositories {
+    maven { name = 'NeoForged'; url = 'https://maven.neoforged.net/releases' }
+    maven { name = 'CurseMaven'; url = 'https://cursemaven.com' }
+    maven { name = 'CreateMaven'; url = 'https://maven.createmod.net' }
+    maven { name = 'IThundXR'; url = 'https://maven.ithundxr.dev/snapshots' }
+    maven { name = 'Modrinth'; url = 'https://api.modrinth.com/maven' }
+}
+
+neoForge {
+    version = neo_version
+
+    runs {
+        client {
+            client()
+        }
+        server {
+            server()
+        }
+    }
+}
+
+dependencies {
+    // PoliticsMod 0.3 for Minecraft 1.21.1 / NeoForge.
+    compileOnly 'curse.maven:politicsmod-1409021:8890598'
+    runtimeOnly 'curse.maven:politicsmod-1409021:8890598'
+
+    // Match the user's actual runtime: Create 6.0.10 for Minecraft 1.21.1.
+    implementation("com.simibubi.create:create-${minecraft_version}:${create_version}:slim") { transitive = false }
+
+    // Create's Basin classes reference Ponder's API (VirtualBlockEntity, etc.).
+    implementation("net.createmod.ponder:ponder-neoforge:${ponder_version}")
+
+    // Create: Diesel Generators 1.21.1-1.3.15. Used only for the economy integration.
+    compileOnly("maven.modrinth:ZM3tt6p1:UoPH8lO1")
+    runtimeOnly("maven.modrinth:ZM3tt6p1:UoPH8lO1")
+
+    // Modern UI 3.13.0.1 for Minecraft 1.21.1 / NeoForge.
+    // Provides the modern country economy dashboard.
+    compileOnly 'curse.maven:modern-ui-352491:8206075'
+    runtimeOnly 'curse.maven:modern-ui-352491:8206075'
+}
+
+
+processResources {
+    def props = [
+        mod_id: mod_id,
+        mod_name: mod_name,
+        mod_version: mod_version,
+        mod_license: mod_license,
+        minecraft_version_range: minecraft_version_range,
+        loader_version_range: loader_version_range,
+        description: mod_description
+    ]
+
+    inputs.properties props
+
+    filesMatching('META-INF/neoforge.mods.toml') {
+        expand props
+    }
+}
+
+jar {
+    manifest {
+        attributes([
+            'Specification-Title': mod_name,
+            'Specification-Version': mod_version,
+            'Implementation-Title': mod_name,
+            'Implementation-Version': project.version
+        ])
+    }
+}

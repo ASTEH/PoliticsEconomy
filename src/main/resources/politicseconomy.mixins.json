@@ -1,0 +1,27 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "ru.zela.politicseconomy.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "MarketServiceMixin",
+    "MarketDataPayloadMixin",
+    "SequencedAssemblyRecipeMixin",
+    "BasinOperatingBlockEntityMixin",
+    "MechanicalPressBlockEntityMixin",
+    "MechanicalCrafterBlockEntityMixin",
+    "SpoutBlockEntityMixin",
+    "FillingBySpoutMixin",
+    "RecipeGridHandlerMixin",
+    "RecipeApplierMixin",
+    "DeployerBlockEntityMixin",
+    "BeltDeployerCallbacksMixin",
+    "SmartBlockEntityMixin",
+    "DieselEngineBlockEntityMixin",
+    "ModularDieselEngineBlockEntityMixin",
+    "HugeDieselEngineBlockEntityMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
