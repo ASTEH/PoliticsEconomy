@@ -117,7 +117,7 @@ public final class EconomyMenu {
 
         return new EconomySnapshotPayload(
             countryName,
-            direction.displayName(),
+            selectedDirection == null ? "Не выбрано" : selectedDirection.displayName(),
             government == null ? "Не выбрано" : government.displayName(),
             religion == null ? "Не выбрано" : religion.displayName(),
             population,
