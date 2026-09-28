@@ -20,7 +20,8 @@ public final class CountrySettingsService {
             return new Result(false, "Ты не состоишь ни в одной стране.");
         }
 
-        boolean operator = player.hasPermissions(2);
+        // OP alone never bypasses reform costs. The privileged path is Creative + OP only.
+        boolean operator = player.hasPermissions(2) && player.isCreative();
         if (!operator && PoliticsModIntegration.role(player, country) != CountryRole.LEADER) {
             return new Result(false, "Изменять настройки страны может только лидер.");
         }
