@@ -142,10 +142,9 @@ public final class EconomyMenu {
             developmentNextPerk
         );
     }
-}
-
 
     private static void addModifier(java.util.List<String> names, java.util.List<Double> values, String name, double value) {
         names.add(name);
         values.add(value);
     }
+}
