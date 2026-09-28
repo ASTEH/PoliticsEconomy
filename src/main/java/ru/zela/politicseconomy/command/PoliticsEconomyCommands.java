@@ -1099,22 +1099,17 @@ public final class PoliticsEconomyCommands {
         }
         Country country = PoliticsModIntegration.playerCountry(player).orElse(null);
         if (country == null) { source.sendFailure(Component.literal("Сначала вступи или создай страну.")); return 0; }
-        boolean op = source.hasPermission(2);
-        if (!op && PoliticsModIntegration.role(player, country) != CountryRole.LEADER) {
-            source.sendFailure(Component.literal("Выбрать форму правления может только лидер страны.")); return 0;
+        CountryRole role = PoliticsModIntegration.role(player, country);
+        if (!player.isCreative() && role != CountryRole.LEADER) {
+            source.sendFailure(Component.literal("Изменять форму правления может только лидер страны."));
+            return 0;
         }
         GovernmentType value = GovernmentType.fromCommandName(raw);
         if (value == null) { source.sendFailure(Component.literal("Используй: democracy, communism, monarchy или fascism.")); return 0; }
-        boolean changed;
-        if (op) {
-            CountryPolicyManager.forceSetGovernment(player.getServer(), country.getName(), value);
-            changed = true;
-        } else {
-            changed = CountryPolicyManager.setGovernment(player.getServer(), country.getName(), value);
-        }
-        if (!changed) { source.sendFailure(Component.literal("Форма правления уже выбрана и в обычном режиме не меняется.")); return 0; }
-        source.sendSuccess(() -> Component.literal("Форма правления: " + value.displayName()).withStyle(ChatFormatting.GREEN), true);
-        return 1;
+        CountrySettingsService.Result result = CountrySettingsService.apply(player, "government", raw);
+        source.sendSuccess(() -> Component.literal(result.message())
+            .withStyle(result.success() ? ChatFormatting.GREEN : ChatFormatting.RED), true);
+        return result.success() ? 1 : 0;
     }
 
     private static int showReligion(CommandSourceStack source) {
@@ -1136,22 +1131,17 @@ public final class PoliticsEconomyCommands {
         }
         Country country = PoliticsModIntegration.playerCountry(player).orElse(null);
         if (country == null) { source.sendFailure(Component.literal("Сначала вступи или создай страну.")); return 0; }
-        boolean op = source.hasPermission(2);
-        if (!op && PoliticsModIntegration.role(player, country) != CountryRole.LEADER) {
-            source.sendFailure(Component.literal("Выбрать религию может только лидер страны.")); return 0;
+        CountryRole role = PoliticsModIntegration.role(player, country);
+        if (!player.isCreative() && role != CountryRole.LEADER) {
+            source.sendFailure(Component.literal("Изменять религию может только лидер страны."));
+            return 0;
         }
         ReligionType value = ReligionType.fromCommandName(raw);
         if (value == null) { source.sendFailure(Component.literal("Используй: secular, christianity, islam, buddhism или judaism.")); return 0; }
-        boolean changed;
-        if (op) {
-            CountryPolicyManager.forceSetReligion(player.getServer(), country.getName(), value);
-            changed = true;
-        } else {
-            changed = CountryPolicyManager.setReligion(player.getServer(), country.getName(), value);
-        }
-        if (!changed) { source.sendFailure(Component.literal("Религия уже выбрана и в обычном режиме не меняется.")); return 0; }
-        source.sendSuccess(() -> Component.literal("Религия: " + value.displayName()).withStyle(ChatFormatting.GREEN), true);
-        return 1;
+        CountrySettingsService.Result result = CountrySettingsService.apply(player, "religion", raw);
+        source.sendSuccess(() -> Component.literal(result.message())
+            .withStyle(result.success() ? ChatFormatting.GREEN : ChatFormatting.RED), true);
+        return result.success() ? 1 : 0;
     }
 
     private static int showDirection(CommandSourceStack source) {
@@ -1205,65 +1195,28 @@ public final class PoliticsEconomyCommands {
             return 0;
         }
 
-        Optional<Country> playerCountry = PoliticsModIntegration.playerCountry(player);
-        if (playerCountry.isEmpty()) {
+        Country country = PoliticsModIntegration.playerCountry(player).orElse(null);
+        if (country == null) {
             source.sendFailure(Component.literal("Сначала вступи или создай страну."));
             return 0;
         }
 
-        Country country = playerCountry.get();
-        boolean cheatsMode = source.hasPermission(2);
-        if (!cheatsMode && PoliticsModIntegration.role(player, country) != CountryRole.LEADER) {
+        CountryRole role = PoliticsModIntegration.role(player, country);
+        if (!player.isCreative() && role != CountryRole.LEADER) {
             source.sendFailure(Component.literal("Выбрать направление может только лидер страны."));
             return 0;
         }
 
         CountryDirection direction = CountryDirection.fromCommandName(rawDirection);
         if (direction == null) {
-            source.sendFailure(
-                Component.literal("Неизвестное направление. Используй: industrial, resource или trade.")
-            );
+            source.sendFailure(Component.literal("Неизвестное направление. Используй: industrial, resource или trade."));
             return 0;
         }
 
-        if (cheatsMode) {
-            CountryDirectionManager.forceSetDirection(
-                player.getServer(),
-                country.getName(),
-                direction
-            );
-
-            source.sendSuccess(
-                () -> Component.literal("[Тест] Направление страны изменено на: " + direction.displayName())
-                    .withStyle(ChatFormatting.YELLOW),
-                true
-            );
-            return 1;
-        }
-
-        boolean changed = CountryDirectionManager.setDirection(
-            player.getServer(),
-            country.getName(),
-            direction
-        );
-
-        if (!changed) {
-            CountryDirection current = CountryDirectionManager.getDirection(
-                player.getServer(),
-                country.getName()
-            );
-            source.sendFailure(
-                Component.literal("Направление уже выбрано: " + directionText(current) + ". Изменить его нельзя.")
-            );
-            return 0;
-        }
-
-        source.sendSuccess(
-            () -> Component.literal("Направление страны установлено: " + direction.displayName())
-                .withStyle(ChatFormatting.GREEN),
-            true
-        );
-        return 1;
+        CountrySettingsService.Result result = CountrySettingsService.apply(player, "direction", rawDirection);
+        source.sendSuccess(() -> Component.literal(result.message())
+            .withStyle(result.success() ? ChatFormatting.GREEN : ChatFormatting.RED), true);
+        return result.success() ? 1 : 0;
     }
 
     private static String directionText(CountryDirection direction) {
