@@ -2,6 +2,7 @@ package ru.zela.politicseconomy.client;
 
 import icyllis.modernui.core.Context;
 import icyllis.modernui.fragment.Fragment;
+import icyllis.modernui.graphics.BitmapFactory;
 import icyllis.modernui.graphics.Image;
 import icyllis.modernui.graphics.drawable.ImageDrawable;
 import icyllis.modernui.graphics.drawable.ShapeDrawable;
@@ -24,6 +25,8 @@ import ru.zela.politicseconomy.country.ReligionType;
 import ru.zela.politicseconomy.network.EconomyNetwork;
 import ru.zela.politicseconomy.network.EconomySnapshotPayload;
 
+import java.lang.ref.WeakReference;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
@@ -43,6 +46,7 @@ public final class EconomyFragment extends Fragment {
     private static final int WARNING = 0xFFC89C4E;
     private static final int DANGER = 0xFFC85D5D;
     private static final int PURPLE = 0xFF9485B0;
+    private static final Map<String, WeakReference<Image>> ITEM_ICON_CACHE = new HashMap<>();
 
     private final EconomySnapshotPayload snapshot;
     private FrameLayout screenRoot;
@@ -418,12 +422,14 @@ public final class EconomyFragment extends Fragment {
 
     private String reformCostText(String action, boolean firstChoice) {
         if (firstChoice) return "ПЕРВЫЙ ВЫБОР • БЕСПЛАТНО";
-        return switch (action) {
-            case "direction" -> "$1500 • 32 железа • 16 золота";
-            case "government" -> "$2000 • 16 железа • 16 золота • 16 бумаги";
-            case "religion" -> "$1200 • 8 золота • 32 бумаги • 16 пшеницы";
-            default -> "Стоимость определяется сервером";
-        };
+        return CountryReformCostTable
+            .cost(
+                action,
+                false,
+                snapshot.population(),
+                snapshot.developmentLevel()
+            )
+            .summary();
     }
 
     private void showConfirmation(
@@ -469,35 +475,42 @@ public final class EconomyFragment extends Fragment {
         if (firstChoice) {
             costBox.addView(label(context, "Бесплатно", 16, SUCCESS));
         } else {
-            String money = switch (action) {
-                case "direction" -> "$1500";
-                case "government" -> "$2000";
-                case "religion" -> "$1200";
-                default -> "$0";
-            };
-            modalCostLine(context, costBox, "minecraft:emerald", money,
-                "Казна", true);
-            if (action.equals("direction")) {
-                modalCostLine(context, costBox, "minecraft:iron_ingot", "32",
-                    "железа", true);
-                modalCostLine(context, costBox, "minecraft:gold_ingot", "16",
-                    "золота", true);
-            } else if (action.equals("government")) {
-                modalCostLine(context, costBox, "minecraft:iron_ingot", "16",
-                    "железа", true);
-                modalCostLine(context, costBox, "minecraft:gold_ingot", "16",
-                    "золота", true);
-                modalCostLine(context, costBox, "minecraft:paper", "16",
-                    "бумаги", true);
-            } else {
-                modalCostLine(context, costBox, "minecraft:gold_ingot", "8",
-                    "золота", true);
-                modalCostLine(context, costBox, "minecraft:paper", "32",
-                    "бумаги", true);
-                modalCostLine(context, costBox, "minecraft:wheat", "16",
-                    "пшеницы", true);
+            CountryReformCostTable.Cost cost =
+                CountryReformCostTable.cost(
+                    action,
+                    false,
+                    snapshot.population(),
+                    snapshot.developmentLevel()
+                );
+
+            modalCostLine(
+                context,
+                costBox,
+                "minecraft:emerald",
+                "$" + Integer.toString(cost.money()),
+                "Казна",
+                snapshot.treasury() >= cost.money()
+            );
+
+            for (Map.Entry<String, Integer> entry : cost.materials().entrySet()) {
+                modalCostLine(
+                    context,
+                    costBox,
+                    entry.getKey(),
+                    Integer.toString(entry.getValue()),
+                    "государственный склад",
+                    true
+                );
             }
+
+            costBox.addView(label(
+                context,
+                "Стоимость зависит от населения и уровня развития страны.",
+                10,
+                MUTED
+            ));
         }
+
         modal.addView(costBox);
 
         LinearLayout buttons = row(context);
@@ -674,35 +687,132 @@ public final class EconomyFragment extends Fragment {
     }
 
     private View itemIcon(Context context, String itemId, int size) {
-        ImageView imageView = new ImageView(context);
+        FrameLayout box = new FrameLayout(context);
+        box.setBackground(solid(PANEL_3, dp(6)));
+
         Image image = loadItemImage(itemId);
         if (image != null) {
+            ImageView imageView = new ImageView(context);
             imageView.setImageDrawable(new ImageDrawable(image));
             imageView.setScaleType(ImageView.ScaleType.FIT_CENTER);
+
+            FrameLayout.LayoutParams iconParams =
+                new FrameLayout.LayoutParams(-1, -1);
+            iconParams.setMargins(dp(3), dp(3), dp(3), dp(3));
+            box.addView(imageView, iconParams);
         } else {
-            imageView.setBackground(solid(PANEL_2, dp(6)));
+            TextView fallback = label(context, iconFallback(itemId), 9, STEEL);
+            fallback.setGravity(Gravity.CENTER);
+            box.addView(
+                fallback,
+                new FrameLayout.LayoutParams(-1, -1)
+            );
         }
-        return imageView;
+
+        return box;
     }
 
+    /**
+     * Loads a real Minecraft item/block texture through Minecraft's ResourceManager.
+     * This bypasses the unreliable legacy Image.create(namespace, path) bridge.
+     */
     private Image loadItemImage(String itemId) {
         if (itemId == null || itemId.isBlank()) {
             return null;
         }
 
-        try {
-            ResourceLocation id = ResourceLocation.parse(itemId);
-            Image image = Image.create(id.getNamespace(),
-                "item/" + id.getPath() + ".png");
-            if (image != null) {
+        WeakReference<Image> cached = ITEM_ICON_CACHE.get(itemId);
+        if (cached != null) {
+            Image image = cached.get();
+            if (image != null && !image.isClosed()) {
                 return image;
             }
+        }
 
-            return Image.create(id.getNamespace(),
-                "block/" + id.getPath() + ".png");
-        } catch (IllegalArgumentException ignored) {
+        try {
+            ResourceLocation id = ResourceLocation.parse(itemId);
+
+            Image image = loadTexture(
+                ResourceLocation.fromNamespaceAndPath(
+                    id.getNamespace(),
+                    "textures/item/" + id.getPath() + ".png"
+                )
+            );
+
+            if (image == null) {
+                image = loadTexture(
+                    ResourceLocation.fromNamespaceAndPath(
+                        id.getNamespace(),
+                        "textures/block/" + id.getPath() + ".png"
+                    )
+                );
+            }
+
+            if (image != null) {
+                ITEM_ICON_CACHE.put(itemId, new WeakReference<>(image));
+            }
+
+            return image;
+        } catch (Exception ignored) {
             return null;
         }
+    }
+
+    private Image loadTexture(ResourceLocation location) {
+        try (var resource = Minecraft.getInstance()
+            .getResourceManager()
+            .getResource(location)
+            .orElse(null)) {
+
+            if (resource == null) {
+                return null;
+            }
+
+            try (var stream = resource.open();
+                 var bitmap = BitmapFactory.decodeStream(stream)) {
+                if (bitmap == null) {
+                    return null;
+                }
+                return Image.createTextureFromBitmap(bitmap);
+            }
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private String iconFallback(String itemId) {
+        if (itemId == null) return "?";
+
+        String path = itemId;
+        int colon = path.indexOf(':');
+        if (colon >= 0) {
+            path = path.substring(colon + 1);
+        }
+
+        return switch (path) {
+            case "emerald" -> "EM";
+            case "iron_ingot" -> "FE";
+            case "gold_ingot" -> "AU";
+            case "coal" -> "CO";
+            case "gunpowder" -> "GP";
+            case "paper" -> "PA";
+            case "wheat" -> "WH";
+            case "bread" -> "BR";
+            case "book" -> "BK";
+            case "compass" -> "CP";
+            case "iron_sword" -> "SW";
+            case "player_head" -> "PO";
+            case "anvil" -> "AN";
+            case "redstone" -> "RS";
+            case "lectern" -> "LT";
+            default -> {
+                String clean = path.replace('_', ' ').trim();
+                yield clean.isEmpty()
+                    ? "?"
+                    : clean.substring(0, Math.min(2, clean.length()))
+                        .toUpperCase(Locale.ROOT);
+            }
+        };
     }
 
     private String iconForChoice(String action) {
