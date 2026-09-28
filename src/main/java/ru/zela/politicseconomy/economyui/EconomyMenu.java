@@ -96,6 +96,24 @@ public final class EconomyMenu {
         int population = CountryPopulationService.population(player.getServer(), countryName);
         double workforce = CountryPolicyBonusService.workforcePercent(player.getServer(), countryName);
         String policySummary = CountryPolicyBonusService.summary(player.getServer(), countryName);
+        CountryPolicyProfile policy = CountryPolicyBonusService.profile(player.getServer(), countryName);
+
+        java.util.List<String> modifierNames = new java.util.ArrayList<>();
+        java.util.List<Double> modifierValues = new java.util.ArrayList<>();
+        addModifier(modifierNames, modifierValues, "Промышленное производство", profile == null ? 0 : profile.industrialProduction() + policy.industrialProduction());
+        addModifier(modifierNames, modifierValues, "Добыча сырья", profile == null ? 0 : profile.resourceProduction() + policy.resourceProduction());
+        addModifier(modifierNames, modifierValues, "Сельское хозяйство", profile == null ? 0 : profile.agriculturalProduction() + policy.agriculturalProduction());
+        addModifier(modifierNames, modifierValues, "Военное производство", profile == null ? 0 : profile.militaryProduction() + policy.militaryProduction());
+        addModifier(modifierNames, modifierValues, "Доход от торговли", profile == null ? 0 : profile.tradeIncome() + policy.tradeIncome());
+        addModifier(modifierNames, modifierValues, "Комиссия торговли", profile == null ? 0 : profile.tradeFee() + policy.tradeFee());
+        addModifier(modifierNames, modifierValues, "Содержание промышленности", profile == null ? 0 : profile.industrialMaintenance() + policy.industrialMaintenance());
+        addModifier(modifierNames, modifierValues, "Расход дизельного топлива", profile == null ? 0 : profile.dieselFuelConsumption());
+        addModifier(modifierNames, modifierValues, "Содержание ресурсной инфраструктуры", profile == null ? 0 : profile.resourceMaintenance() + policy.resourceMaintenance());
+        addModifier(modifierNames, modifierValues, "Содержание транспорта", profile == null ? 0 : profile.transportMaintenance() + policy.transportMaintenance());
+        addModifier(modifierNames, modifierValues, "Потребление еды", profile == null ? 0 : profile.foodConsumption());
+        addModifier(modifierNames, modifierValues, "Рост населения", profile == null ? 0 : profile.populationGrowth());
+        addModifier(modifierNames, modifierValues, "Стоимость сложной промышленности", profile == null ? 0 : profile.advancedIndustryCost());
+        addModifier(modifierNames, modifierValues, "Рабочая сила", workforce);
 
         return new EconomySnapshotPayload(
             countryName,
@@ -115,6 +133,8 @@ public final class EconomyMenu {
             materialStockpile,
             materialDebt,
             materialPerCycle,
+            modifierNames.toArray(String[]::new),
+            modifierValues.stream().mapToDouble(Double::doubleValue).toArray(),
             developmentLevel,
             developmentPoints,
             developmentNextThreshold,
@@ -123,3 +143,9 @@ public final class EconomyMenu {
         );
     }
 }
+
+
+    private static void addModifier(java.util.List<String> names, java.util.List<Double> values, String name, double value) {
+        names.add(name);
+        values.add(value);
+    }
