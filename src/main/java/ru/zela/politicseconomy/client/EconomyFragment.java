@@ -469,8 +469,14 @@ public final class EconomyFragment extends Fragment {
         if (firstChoice) {
             costBox.addView(label(context, "Бесплатно", 16, SUCCESS));
         } else {
-            modalCostLine(context, costBox, "minecraft:emerald", "$1500",
-                "Казна", action.equals("direction"));
+            String money = switch (action) {
+                case "direction" -> "$1500";
+                case "government" -> "$2000";
+                case "religion" -> "$1200";
+                default -> "$0";
+            };
+            modalCostLine(context, costBox, "minecraft:emerald", money,
+                "Казна", true);
             if (action.equals("direction")) {
                 modalCostLine(context, costBox, "minecraft:iron_ingot", "32",
                     "железа", true);
