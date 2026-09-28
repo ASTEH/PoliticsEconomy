@@ -18,6 +18,16 @@ public final class BlockResourceContentService {
     private BlockResourceContentService() {}
 
     public static BlockResourceContent analyze(ServerLevel level, String blockId) {
+        NaturalBlockMaterialService.Material natural = NaturalBlockMaterialService.analyze(blockId);
+        if (natural != null) {
+            return new BlockResourceContent(
+                blockId,
+                "natural",
+                1,
+                List.of(new MaterialChoice(List.of(natural.itemId()), natural.unitsPerBlock()))
+            );
+        }
+
         RecipeAnalysis analysis = RecipeAnalyzer.findCraftingRecipeForBlock(level, blockId).orElse(null);
         if (analysis == null || analysis.ingredients().isEmpty()) {
             return new BlockResourceContent(blockId, "", 1, List.of());
