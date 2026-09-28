@@ -12,15 +12,12 @@ import ru.zela.politicseconomy.infrastructure.EconomyCycleEvents;
 import ru.zela.politicseconomy.economy.ResourceExtractionEvents;
 import ru.zela.politicseconomy.economy.NationalMaterialConsumptionService;
 import ru.zela.politicseconomy.network.EconomyNetwork;
+import ru.zela.politicseconomy.country.CountryWorkforceCycleService;
 
-/**
- * Main entry point of Politics Economy.
- */
 @Mod(PoliticsEconomy.MOD_ID)
 public final class PoliticsEconomy {
     public static final String MOD_ID = "politicseconomy";
     public static final String VERSION = "2.1.1";
-
     private static final Logger LOGGER = LogUtils.getLogger();
 
     public PoliticsEconomy(IEventBus modEventBus, ModContainer modContainer) {
@@ -31,6 +28,7 @@ public final class PoliticsEconomy {
         NeoForge.EVENT_BUS.addListener(EconomyCycleEvents::onServerTick);
         NeoForge.EVENT_BUS.addListener(NationalMaterialConsumptionService::onServerTick);
         NeoForge.EVENT_BUS.addListener(ResourceExtractionEvents::onBlockDrops);
+        NeoForge.EVENT_BUS.addListener(CountryWorkforceCycleService::onServerTick);
         LOGGER.info("Politics Economy {} loaded for Minecraft 1.21.1 / NeoForge 21.1.x", VERSION);
         LOGGER.info("PoliticsMod integration enabled.");
     }
