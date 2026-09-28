@@ -11,6 +11,7 @@ import ru.zela.politicseconomy.country.CountryDevelopmentService;
 import ru.zela.politicseconomy.country.CountryDirectionProfile;
 import ru.zela.politicseconomy.country.CountryPolicyBonusService;
 import ru.zela.politicseconomy.country.CountryPolicyManager;
+import ru.zela.politicseconomy.country.CountryPolicyProfile;
 import ru.zela.politicseconomy.country.CountryPopulationService;
 import ru.zela.politicseconomy.economy.NationalMaterialDemandService;
 import ru.zela.politicseconomy.economy.NationalMaterialConsumptionService;
@@ -51,10 +52,8 @@ public final class EconomyMenu {
 
     public static EconomySnapshotPayload buildSnapshot(ServerPlayer player, Country country) {
         String countryName = country.getName();
-        CountryDirection direction = CountryDirectionManager.getDirection(player.getServer(), countryName);
-        if (direction == null) {
-            direction = CountryDirection.INDUSTRIAL;
-        }
+        CountryDirection selectedDirection = CountryDirectionManager.getDirection(player.getServer(), countryName);
+        CountryDirection direction = selectedDirection == null ? CountryDirection.INDUSTRIAL : selectedDirection;
 
         NationalMaterialLedgerSavedData national = NationalMaterialConsumptionService.getLedger(player.getServer());
         national.initializeCountry(countryName);
