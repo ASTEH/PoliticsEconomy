@@ -13,6 +13,8 @@ import net.neoforged.neoforge.event.level.BlockDropsEvent;
 import ru.zela.politicseconomy.country.CountryDirectionBonusService;
 import ru.zela.politicseconomy.integration.CountryContext;
 import ru.zela.politicseconomy.country.CountryDirectionProfile;
+import ru.zela.politicseconomy.country.CountryPolicyBonusService;
+import ru.zela.politicseconomy.country.CountryPolicyProfile;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -70,8 +72,19 @@ public final class ResourceExtractionService {
             return;
         }
 
+        CountryPolicyProfile policy = CountryPolicyBonusService.profile(
+            player.getServer(), playerCountry.getName()
+        );
+        double productionModifier = profile.extractionProduction(category)
+            + (category == ResourceExtractionCategory.AGRICULTURE
+                ? policy.agriculturalProduction()
+                : policy.resourceProduction());
         double lossPercent = clamp(profile.extractionLoss(category), -100.0D, 100.0D);
-        double totalMultiplier = profile.extractionMultiplier(category);
+        double productionMultiplier = Math.max(0.0D, 1.0D + productionModifier / 100.0D);
+        double lossMultiplier = Math.max(0.0D, 1.0D - lossPercent / 100.0D);
+        double totalMultiplier = productionMultiplier
+            * lossMultiplier
+            * CountryPolicyBonusService.workforceMultiplier(player.getServer(), playerCountry.getName());
 
         // No effective change: avoid touching drops or creating ledger data.
         if (Math.abs(totalMultiplier - 1.0D) <= EPSILON) {

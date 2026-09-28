@@ -58,7 +58,10 @@ public final class MaterialShortageResolutionService {
                 if (placed.machine()) {
                     continue;
                 }
-                if (!placed.materialChoiceKeys().contains(materialKey)) {
+                if (placed.protectedBlock()) {
+                    continue;
+                }
+                if (!choicesIntersect(materialKey, placed.materialChoiceKeys())) {
                     continue;
                 }
 
@@ -104,17 +107,48 @@ public final class MaterialShortageResolutionService {
                     continue;
                 }
 
+                String blockId = entry.getValue();
                 result.add(new PlacedBlock(
                     pos,
-                    entry.getValue(),
+                    blockId,
                     content.choices().stream().map(BlockResourceContentService.MaterialChoice::key).toList(),
-                    isMachine(level, pos)
+                    content.choices().stream()
+                        .mapToDouble(BlockResourceContentService.MaterialChoice::unitsPerBlock)
+                        .sum(),
+                    isMachine(level, pos),
+                    isProtectedSystemBlock(blockId)
                 ));
             }
         }
 
         result.sort(Comparator.comparingLong(block -> block.pos().asLong()));
         return result;
+    }
+
+    private static boolean choicesIntersect(String debtKey, List<String> materialChoices) {
+        if (debtKey == null || debtKey.isBlank()) return false;
+        for (String debtItem : debtKey.split("\\|")) {
+            if (debtItem.isBlank()) continue;
+            for (String choice : materialChoices) {
+                for (String requiredItem : choice.split("\\|")) {
+                    if (debtItem.equals(requiredItem)) return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean isProtectedSystemBlock(String blockId) {
+        return switch (blockId.toLowerCase(java.util.Locale.ROOT)) {
+            case "politicsmod:founding_stone",
+                 "politicsmod:city_stone",
+                 "politicsmod:trade_warehouse",
+                 "politicsmod:tax_block",
+                 "politicsmod:embassy_block",
+                 "politicsmod:radar_block",
+                 "politicsmod:vault_block" -> true;
+            default -> false;
+        };
     }
 
     private static boolean isMachine(ServerLevel level, BlockPos pos) {
@@ -172,6 +206,8 @@ public final class MaterialShortageResolutionService {
         BlockPos pos,
         String blockId,
         List<String> materialChoiceKeys,
-        boolean machine
+        double resourceScore,
+        boolean machine,
+        boolean protectedBlock
     ) {}
 }

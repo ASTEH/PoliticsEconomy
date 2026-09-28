@@ -54,7 +54,7 @@ public final class EconomyFragment extends Fragment {
 
         LinearLayout header = column(context);
         TextView title = label(context, "ГОСУДАРСТВЕННАЯ ЭКОНОМИКА", 23, TEXT);
-        TextView subtitle = label(context, snapshot.countryName() + "  •  " + snapshot.direction(), 14, ACCENT);
+        TextView subtitle = label(context, snapshot.countryName() + "  •  " + snapshot.direction() + "  •  " + snapshot.government() + "  •  " + snapshot.religion(), 14, ACCENT);
         header.addView(title);
         header.addView(subtitle, new LinearLayout.LayoutParams(-1, -2));
         LinearLayout.LayoutParams headerParams = new LinearLayout.LayoutParams(-1, -2);
@@ -72,6 +72,16 @@ public final class EconomyFragment extends Fragment {
         metrics.addView(metricCard(context, "ДИЗЕЛЬ", diesel, snapshot.dieselModifier() < 0 ? ACCENT : MUTED),
             marginWeight(1));
         root.addView(metrics);
+
+        LinearLayout policy = column(context);
+        policy.setBackground(solid(PANEL, dp(12)));
+        policy.setPadding(dp(14), dp(9), dp(14), dp(9));
+        LinearLayout.LayoutParams policyParams = new LinearLayout.LayoutParams(-1, dp(88));
+        policyParams.setMargins(0, dp(10), 0, dp(8));
+        root.addView(policy, policyParams);
+        policy.addView(label(context, "ПОЛИТИКА И НАСЕЛЕНИЕ", 11, MUTED));
+        policy.addView(label(context, "Форма: " + snapshot.government() + " • Религия: " + snapshot.religion() + " • Население: " + format(snapshot.population()), 12, TEXT));
+        policy.addView(label(context, String.format(Locale.ROOT, "Рабочая сила %+.0f%% • %s", snapshot.populationWorkforceModifier(), snapshot.policySummary()), 11, snapshot.populationWorkforceModifier() >= 0 ? ACCENT : DANGER));
 
         LinearLayout development = column(context);
         development.setBackground(solid(PANEL, dp(12)));

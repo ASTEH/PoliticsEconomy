@@ -9,6 +9,9 @@ import ru.zela.politicseconomy.country.CountryDirectionBonusService;
 import ru.zela.politicseconomy.country.CountryDirectionManager;
 import ru.zela.politicseconomy.country.CountryDevelopmentService;
 import ru.zela.politicseconomy.country.CountryDirectionProfile;
+import ru.zela.politicseconomy.country.CountryPolicyBonusService;
+import ru.zela.politicseconomy.country.CountryPolicyManager;
+import ru.zela.politicseconomy.country.CountryPopulationService;
 import ru.zela.politicseconomy.economy.NationalMaterialDemandService;
 import ru.zela.politicseconomy.economy.NationalMaterialConsumptionService;
 import ru.zela.politicseconomy.economy.NationalMaterialLedgerSavedData;
@@ -88,9 +91,20 @@ public final class EconomyMenu {
         String developmentPerk = CountryDevelopmentService.currentPerk(direction, developmentLevel);
         String developmentNextPerk = CountryDevelopmentService.nextPerk(direction, developmentLevel);
 
+        var government = CountryPolicyManager.getGovernment(player.getServer(), countryName);
+        var religion = CountryPolicyManager.getReligion(player.getServer(), countryName);
+        int population = CountryPopulationService.population(player.getServer(), countryName);
+        double workforce = CountryPolicyBonusService.workforcePercent(player.getServer(), countryName);
+        String policySummary = CountryPolicyBonusService.summary(player.getServer(), countryName);
+
         return new EconomySnapshotPayload(
             countryName,
             direction.displayName(),
+            government == null ? "Не выбрано" : government.displayName(),
+            religion == null ? "Не выбрано" : religion.displayName(),
+            population,
+            workforce,
+            policySummary,
             country.balance,
             infrastructureCost,
             moneyDebt,

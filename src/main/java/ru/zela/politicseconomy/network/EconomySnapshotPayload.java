@@ -10,6 +10,11 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 public record EconomySnapshotPayload(
     String countryName,
     String direction,
+    String government,
+    String religion,
+    int population,
+    double populationWorkforceModifier,
+    String policySummary,
     int treasury,
     double infrastructureCost,
     double moneyDebt,
@@ -35,6 +40,11 @@ public record EconomySnapshotPayload(
             public EconomySnapshotPayload decode(RegistryFriendlyByteBuf buf) {
                 String countryName = buf.readUtf(128);
                 String direction = buf.readUtf(64);
+                String government = buf.readUtf(64);
+                String religion = buf.readUtf(64);
+                int population = buf.readVarInt();
+                double populationWorkforceModifier = buf.readDouble();
+                String policySummary = buf.readUtf(512);
                 int treasury = buf.readInt();
                 double infrastructureCost = buf.readDouble();
                 double moneyDebt = buf.readDouble();
@@ -50,7 +60,8 @@ public record EconomySnapshotPayload(
                 int developmentNextThreshold = buf.readVarInt();
                 String developmentPerk = buf.readUtf(256);
                 String developmentNextPerk = buf.readUtf(256);
-                return new EconomySnapshotPayload(countryName, direction, treasury, infrastructureCost, moneyDebt,
+                return new EconomySnapshotPayload(countryName, direction, government, religion, population,
+                    populationWorkforceModifier, policySummary, treasury, infrastructureCost, moneyDebt,
                     dieselModifier, totalMaterialPerCycle, materialIds, materialNames, materialStockpile, materialDebt,
                     materialPerCycle, developmentLevel, developmentPoints, developmentNextThreshold, developmentPerk,
                     developmentNextPerk);
@@ -60,6 +71,11 @@ public record EconomySnapshotPayload(
             public void encode(RegistryFriendlyByteBuf buf, EconomySnapshotPayload value) {
                 buf.writeUtf(limitUtf(value.countryName, 128), 128);
                 buf.writeUtf(limitUtf(value.direction, 64), 64);
+                buf.writeUtf(limitUtf(value.government, 64), 64);
+                buf.writeUtf(limitUtf(value.religion, 64), 64);
+                buf.writeVarInt(Math.max(0, value.population));
+                buf.writeDouble(value.populationWorkforceModifier);
+                buf.writeUtf(limitUtf(value.policySummary, 512), 512);
                 buf.writeInt(value.treasury);
                 buf.writeDouble(value.infrastructureCost);
                 buf.writeDouble(value.moneyDebt);

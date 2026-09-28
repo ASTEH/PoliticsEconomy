@@ -10,6 +10,8 @@ import net.neoforged.neoforge.fluids.FluidStack;
 import net.minecraft.core.registries.BuiltInRegistries;
 import ru.zela.politicseconomy.country.CountryDirectionBonusService;
 import ru.zela.politicseconomy.country.CountryDirectionProfile;
+import ru.zela.politicseconomy.country.CountryPolicyBonusService;
+import ru.zela.politicseconomy.country.CountryPolicyProfile;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -36,7 +38,10 @@ public final class CreateProductionService {
             return 1.0D;
         }
 
-        return Math.max(0.0D, 1.0D + profile.industrialProduction() / 100.0D);
+        CountryPolicyProfile policy = CountryPolicyBonusService.profile(server, country.getName());
+        double modifier = profile.industrialProduction() + policy.industrialProduction();
+        return Math.max(0.0D, 1.0D + modifier / 100.0D)
+            * CountryPolicyBonusService.workforceMultiplier(server, country.getName());
     }
 
     /**
@@ -227,13 +232,15 @@ public final class CreateProductionService {
             return 1.0D;
         }
 
-        double modifier = profile.industrialProduction();
+        CountryPolicyProfile policy = CountryPolicyBonusService.profile(server, country.getName());
+        double modifier = profile.industrialProduction() + policy.industrialProduction();
         var itemKey = BuiltInRegistries.ITEM.getKey(output.getItem());
         if (itemKey != null && "createbigcannons".equals(itemKey.getNamespace())) {
-            modifier += profile.militaryProduction();
+            modifier += profile.militaryProduction() + policy.militaryProduction();
         }
 
-        return Math.max(0.0D, 1.0D + modifier / 100.0D);
+        return Math.max(0.0D, 1.0D + modifier / 100.0D)
+            * CountryPolicyBonusService.workforceMultiplier(server, country.getName());
     }
 
     private static List<FluidStack> copyFluidOutputs(List<FluidStack> outputs) {

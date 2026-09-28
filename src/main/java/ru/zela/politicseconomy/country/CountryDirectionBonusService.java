@@ -1,14 +1,15 @@
 package ru.zela.politicseconomy.country;
 
 import net.minecraft.server.MinecraftServer;
-
-import java.util.function.ToDoubleFunction;
+import net.minecraft.server.level.ServerLevel;
+import ru.zela.politicseconomy.economy.ResourceExtractionCategory;
 import net.krona.politicsmod.config.PoliticsConfig;
 
+import java.util.function.ToDoubleFunction;
+
 /**
- * Single access point for direction modifiers.
- * Future economy systems should use this service rather than hard-coding
- * direction checks in multiple places.
+ * Single access point for direction modifiers, with government/religion policy
+ * modifiers layered on top.
  */
 public final class CountryDirectionBonusService {
     private CountryDirectionBonusService() {}
@@ -19,14 +20,18 @@ public final class CountryDirectionBonusService {
             return null;
         }
         int developmentLevel = CountryDevelopmentService.level(server, countryName);
-        return CountryDirectionProfile.forDirection(direction).withDevelopmentLevel(direction, developmentLevel);
+        return CountryDirectionProfile.forDirection(direction)
+            .withDevelopmentLevel(direction, developmentLevel);
     }
 
-    /** Effective integer market fee percentage used by both server logic and the market UI. */
+    /** Effective market fee percentage used by both server logic and the market UI. */
     public static int effectiveTradeFeePercent(MinecraftServer server, String countryName) {
         double base = PoliticsConfig.get().marketFeePercent;
-        double modifier = modifier(server, countryName, CountryDirectionProfile::tradeFee);
-        return Math.max(0, (int) Math.round(base * (1.0D + modifier / 100.0D)));
+        double directionModifier = modifier(server, countryName, CountryDirectionProfile::tradeFee);
+        double policyModifier = CountryPolicyBonusService.profile(server, countryName).tradeFee();
+        return Math.max(0, (int) Math.round(
+            base * (1.0D + (directionModifier + policyModifier) / 100.0D)
+        ));
     }
 
     public static double modifier(
@@ -36,5 +41,13 @@ public final class CountryDirectionBonusService {
     ) {
         CountryDirectionProfile profile = profile(server, countryName);
         return profile == null ? 0.0 : selector.applyAsDouble(profile);
+    }
+
+    public static double populationWorkforceMultiplier(MinecraftServer server, String countryName) {
+        return CountryPolicyBonusService.workforceMultiplier(server, countryName);
+    }
+
+    public static ServerLevel overworld(MinecraftServer server) {
+        return server == null ? null : server.overworld();
     }
 }

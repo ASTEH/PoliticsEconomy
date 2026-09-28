@@ -14,6 +14,11 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import ru.zela.politicseconomy.country.CountryDirection;
+import ru.zela.politicseconomy.country.GovernmentType;
+import ru.zela.politicseconomy.country.ReligionType;
+import ru.zela.politicseconomy.country.CountryPolicyManager;
+import ru.zela.politicseconomy.country.CountryPolicyBonusService;
+import ru.zela.politicseconomy.country.CountryPopulationService;
 import ru.zela.politicseconomy.country.CountryDirectionManager;
 import ru.zela.politicseconomy.country.CountryDirectionBonusService;
 import ru.zela.politicseconomy.country.CountryDirectionProfile;
@@ -59,6 +64,22 @@ public final class PoliticsEconomyCommands {
                             context.getSource(),
                             StringArgumentType.getString(context, "direction")
                         ))))
+                .then(Commands.literal("government")
+                    .executes(context -> showGovernment(context.getSource()))
+                    .then(Commands.argument("government", StringArgumentType.word())
+                        .suggests((context, builder) -> {
+                            for (GovernmentType type : GovernmentType.values()) builder.suggest(type.commandName());
+                            return builder.buildFuture();
+                        })
+                        .executes(context -> setGovernment(context.getSource(), StringArgumentType.getString(context, "government")))))
+                .then(Commands.literal("religion")
+                    .executes(context -> showReligion(context.getSource()))
+                    .then(Commands.argument("religion", StringArgumentType.word())
+                        .suggests((context, builder) -> {
+                            for (ReligionType type : ReligionType.values()) builder.suggest(type.commandName());
+                            return builder.buildFuture();
+                        })
+                        .executes(context -> setReligion(context.getSource(), StringArgumentType.getString(context, "religion")))))
                 .then(Commands.literal("infrastructure")
                     .executes(context -> showInfrastructure(context.getSource(), false))
                     .then(Commands.literal("country")
@@ -1024,6 +1045,17 @@ public final class PoliticsEconomyCommands {
         sendModifier(source, "Потери добычи: сельхозресурсы", -profile.extractionLoss(ResourceExtractionCategory.AGRICULTURE));
         sendModifier(source, "Потери добычи: топливо", -profile.extractionLoss(ResourceExtractionCategory.FUEL));
         sendModifier(source, "Потери добычи: прочее сырьё", -profile.extractionLoss(ResourceExtractionCategory.RAW_MATERIAL));
+        var policy = CountryPolicyBonusService.profile(player.getServer(), country.getName());
+        GovernmentType government = CountryPolicyManager.getGovernment(player.getServer(), country.getName());
+        ReligionType religion = CountryPolicyManager.getReligion(player.getServer(), country.getName());
+        source.sendSuccess(() -> Component.literal("Политика: " + (government == null ? "не выбрана" : government.displayName()) +
+            " • " + (religion == null ? "не выбрана" : religion.displayName())).withStyle(ChatFormatting.GOLD), false);
+        sendModifier(source, "Политика: промышленность", policy.industrialProduction());
+        sendModifier(source, "Политика: сырьё", policy.resourceProduction());
+        sendModifier(source, "Политика: сельское хозяйство", policy.agriculturalProduction());
+        sendModifier(source, "Политика: военное производство", policy.militaryProduction());
+        sendModifier(source, "Политика: торговая комиссия", policy.tradeFee());
+        sendModifier(source, "Рабочая сила (население + политика)", CountryPolicyBonusService.workforcePercent(player.getServer(), country.getName()));
 
         return 1;
     }
@@ -1046,6 +1078,70 @@ public final class PoliticsEconomyCommands {
             return Integer.toString((int) percent);
         }
         return String.format(java.util.Locale.ROOT, "%.1f", percent);
+    }
+
+    private static int showGovernment(CommandSourceStack source) {
+        ServerPlayer player;
+        try { player = source.getPlayerOrException(); } catch (Exception e) {
+            source.sendFailure(Component.literal("Эта команда доступна только игроку.")); return 0;
+        }
+        Country country = PoliticsModIntegration.playerCountry(player).orElse(null);
+        if (country == null) { source.sendFailure(Component.literal("Ты не состоишь ни в одной стране.")); return 0; }
+        GovernmentType current = CountryPolicyManager.getGovernment(player.getServer(), country.getName());
+        source.sendSuccess(() -> Component.literal("Форма правления: " + (current == null ? "не выбрана" : current.displayName())).withStyle(ChatFormatting.AQUA), false);
+        return 1;
+    }
+
+    private static int setGovernment(CommandSourceStack source, String raw) {
+        ServerPlayer player;
+        try { player = source.getPlayerOrException(); } catch (Exception e) {
+            source.sendFailure(Component.literal("Эта команда доступна только игроку.")); return 0;
+        }
+        Country country = PoliticsModIntegration.playerCountry(player).orElse(null);
+        if (country == null) { source.sendFailure(Component.literal("Сначала вступи или создай страну.")); return 0; }
+        boolean op = source.hasPermission(2);
+        if (!op && PoliticsModIntegration.role(player, country) != CountryRole.LEADER) {
+            source.sendFailure(Component.literal("Выбрать форму правления может только лидер страны.")); return 0;
+        }
+        GovernmentType value = GovernmentType.fromCommandName(raw);
+        if (value == null) { source.sendFailure(Component.literal("Используй: democracy, communism, monarchy или fascism.")); return 0; }
+        boolean changed = op ? (CountryPolicyManager.forceSetGovernment(player.getServer(), country.getName(), value), true)
+            : CountryPolicyManager.setGovernment(player.getServer(), country.getName(), value);
+        if (!changed) { source.sendFailure(Component.literal("Форма правления уже выбрана и в обычном режиме не меняется.")); return 0; }
+        source.sendSuccess(() -> Component.literal("Форма правления: " + value.displayName()).withStyle(ChatFormatting.GREEN), true);
+        return 1;
+    }
+
+    private static int showReligion(CommandSourceStack source) {
+        ServerPlayer player;
+        try { player = source.getPlayerOrException(); } catch (Exception e) {
+            source.sendFailure(Component.literal("Эта команда доступна только игроку.")); return 0;
+        }
+        Country country = PoliticsModIntegration.playerCountry(player).orElse(null);
+        if (country == null) { source.sendFailure(Component.literal("Ты не состоишь ни в одной стране.")); return 0; }
+        ReligionType current = CountryPolicyManager.getReligion(player.getServer(), country.getName());
+        source.sendSuccess(() -> Component.literal("Религия: " + (current == null ? "не выбрана" : current.displayName())).withStyle(ChatFormatting.AQUA), false);
+        return 1;
+    }
+
+    private static int setReligion(CommandSourceStack source, String raw) {
+        ServerPlayer player;
+        try { player = source.getPlayerOrException(); } catch (Exception e) {
+            source.sendFailure(Component.literal("Эта команда доступна только игроку.")); return 0;
+        }
+        Country country = PoliticsModIntegration.playerCountry(player).orElse(null);
+        if (country == null) { source.sendFailure(Component.literal("Сначала вступи или создай страну.")); return 0; }
+        boolean op = source.hasPermission(2);
+        if (!op && PoliticsModIntegration.role(player, country) != CountryRole.LEADER) {
+            source.sendFailure(Component.literal("Выбрать религию может только лидер страны.")); return 0;
+        }
+        ReligionType value = ReligionType.fromCommandName(raw);
+        if (value == null) { source.sendFailure(Component.literal("Используй: secular, christianity, islam, buddhism или judaism.")); return 0; }
+        boolean changed = op ? (CountryPolicyManager.forceSetReligion(player.getServer(), country.getName(), value), true)
+            : CountryPolicyManager.setReligion(player.getServer(), country.getName(), value);
+        if (!changed) { source.sendFailure(Component.literal("Религия уже выбрана и в обычном режиме не меняется.")); return 0; }
+        source.sendSuccess(() -> Component.literal("Религия: " + value.displayName()).withStyle(ChatFormatting.GREEN), true);
+        return 1;
     }
 
     private static int showDirection(CommandSourceStack source) {
