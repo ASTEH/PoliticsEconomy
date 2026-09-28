@@ -15,9 +15,7 @@ import java.util.Map;
  * treasury/materials and cause a small development setback.
  */
 public final class CountryReformService {
-    private static final int DIRECTION_MONEY = 1500;
-    private static final int GOVERNMENT_MONEY = 2000;
-    private static final int RELIGION_MONEY = 1200;
+    private static final int DEVELOPMENT_LOSS_PERCENT = 5;
     private static final double DEVELOPMENT_LOSS_PERCENT = 0.05D;
 
     private CountryReformService() {}
@@ -41,25 +39,8 @@ public final class CountryReformService {
     }
 
     public static Cost cost(String action, boolean firstChoice) {
-        if (firstChoice) return new Cost(0, Map.of());
-
-        return switch (normalize(action)) {
-            case "direction" -> new Cost(
-                DIRECTION_MONEY,
-                materials(Map.entry("minecraft:iron_ingot", 32), Map.entry("minecraft:gold_ingot", 16))
-            );
-            case "government" -> new Cost(
-                GOVERNMENT_MONEY,
-                materials(Map.entry("minecraft:iron_ingot", 16), Map.entry("minecraft:gold_ingot", 16),
-                    Map.entry("minecraft:paper", 16))
-            );
-            case "religion" -> new Cost(
-                RELIGION_MONEY,
-                materials(Map.entry("minecraft:gold_ingot", 8), Map.entry("minecraft:paper", 32),
-                    Map.entry("minecraft:wheat", 16))
-            );
-            default -> new Cost(0, Map.of());
-        };
+        CountryReformCostTable.Cost base = CountryReformCostTable.cost(action, firstChoice);
+        return new Cost(base.money(), base.materials());
     }
 
     public static Result apply(
@@ -100,7 +81,7 @@ public final class CountryReformService {
             }
 
             int currentPoints = CountryDevelopmentService.points(server, country.getName());
-            int setback = (int) Math.floor(currentPoints * DEVELOPMENT_LOSS_PERCENT);
+            int setback = (int) Math.floor(currentPoints * (DEVELOPMENT_LOSS_PERCENT / 100.0D));
             if (setback > 0) {
                 CountryDevelopmentSavedData development =
                     CountryDevelopmentService.get(server);
@@ -115,7 +96,7 @@ public final class CountryReformService {
             firstChoice
                 ? "Первоначальный выбор сделан бесплатно."
                 : "Реформа проведена. Затрачено: " + cost.display() +
-                    " • развитие −" + (int) Math.round(DEVELOPMENT_LOSS_PERCENT * 100) + "%"
+                    " • развитие −" + (int) DEVELOPMENT_LOSS_PERCENT + "%"
         );
     }
 
