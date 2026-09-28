@@ -35,6 +35,10 @@ public final class CountrySettingsService {
         };
     }
 
+    private static Country playerCountry(ServerPlayer player) {
+        return PoliticsModIntegration.playerCountry(player).orElseThrow();
+    }
+
     private static Result applyDirection(
         ServerPlayer player,
         String countryName,
@@ -56,14 +60,14 @@ public final class CountrySettingsService {
             return new Result(true, "Экономическое направление изменено: " + value.displayName());
         }
 
-        boolean changed = CountryDirectionManager.setDirection(
-            player.getServer(),
-            countryName,
-            value
+        boolean firstChoice = current == null;
+        CountryReformService.Result reform = CountryReformService.apply(
+            player.getServer(), playerCountry(player), "direction", firstChoice,
+            () -> CountryDirectionManager.forceSetDirection(player.getServer(), countryName, value)
         );
-        return changed
-            ? new Result(true, "Экономическое направление выбрано: " + value.displayName())
-            : new Result(false, "Экономическое направление уже закреплено.");
+        return reform.success()
+            ? new Result(true, reform.message() + " Экономическое направление: " + value.displayName())
+            : new Result(false, reform.message());
     }
 
     private static Result applyGovernment(
@@ -87,14 +91,14 @@ public final class CountrySettingsService {
             return new Result(true, "Форма правления изменена: " + value.displayName());
         }
 
-        boolean changed = CountryPolicyManager.setGovernment(
-            player.getServer(),
-            countryName,
-            value
+        boolean firstChoice = current == null;
+        CountryReformService.Result reform = CountryReformService.apply(
+            player.getServer(), playerCountry(player), "government", firstChoice,
+            () -> CountryPolicyManager.forceSetGovernment(player.getServer(), countryName, value)
         );
-        return changed
-            ? new Result(true, "Форма правления выбрана: " + value.displayName())
-            : new Result(false, "Форма правления уже закреплена.");
+        return reform.success()
+            ? new Result(true, reform.message() + " Форма правления: " + value.displayName())
+            : new Result(false, reform.message());
     }
 
     private static Result applyReligion(
@@ -118,13 +122,13 @@ public final class CountrySettingsService {
             return new Result(true, "Религия изменена: " + value.displayName());
         }
 
-        boolean changed = CountryPolicyManager.setReligion(
-            player.getServer(),
-            countryName,
-            value
+        boolean firstChoice = current == null;
+        CountryReformService.Result reform = CountryReformService.apply(
+            player.getServer(), playerCountry(player), "religion", firstChoice,
+            () -> CountryPolicyManager.forceSetReligion(player.getServer(), countryName, value)
         );
-        return changed
-            ? new Result(true, "Религия выбрана: " + value.displayName())
-            : new Result(false, "Религия уже закреплена.");
+        return reform.success()
+            ? new Result(true, reform.message() + " Религия: " + value.displayName())
+            : new Result(false, reform.message());
     }
 }
