@@ -16,7 +16,6 @@ import java.util.Map;
  */
 public final class CountryReformService {
     private static final int DEVELOPMENT_LOSS_PERCENT = 5;
-    private static final double DEVELOPMENT_LOSS_PERCENT = 0.05D;
 
     private CountryReformService() {}
 
@@ -102,16 +101,6 @@ public final class CountryReformService {
 
     public record Result(boolean success, String message) {}
 
-    private static String normalize(String value) {
-        return value == null ? "" : value.toLowerCase(Locale.ROOT);
-    }
 
-    @SafeVarargs
-    private static Map<String, Integer> materials(Map.Entry<String, Integer>... entries) {
-        Map<String, Integer> result = new LinkedHashMap<>();
-        for (Map.Entry<String, Integer> entry : entries) {
-            result.put(entry.getKey(), entry.getValue());
-        }
-        return Map.copyOf(result);
-    }
+
 }
