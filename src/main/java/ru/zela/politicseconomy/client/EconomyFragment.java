@@ -2,6 +2,8 @@ package ru.zela.politicseconomy.client;
 
 import icyllis.modernui.core.Context;
 import icyllis.modernui.fragment.Fragment;
+import icyllis.modernui.graphics.Image;
+import icyllis.modernui.graphics.drawable.ImageDrawable;
 import icyllis.modernui.graphics.drawable.ShapeDrawable;
 import icyllis.modernui.util.DataSet;
 import icyllis.modernui.view.Gravity;
@@ -11,6 +13,7 @@ import icyllis.modernui.view.ViewGroup;
 import icyllis.modernui.widget.Button;
 import icyllis.modernui.widget.FrameLayout;
 import icyllis.modernui.widget.LinearLayout;
+import icyllis.modernui.widget.ImageView;
 import icyllis.modernui.widget.ScrollView;
 import icyllis.modernui.widget.TextView;
 import net.minecraft.client.Minecraft;
@@ -432,10 +435,14 @@ public final class EconomyFragment extends Fragment {
 
     private View effectRow(Context context, String name, double value, boolean positive) {
         LinearLayout row = row(context);
-        String icon = value > 0.0001D ? "▲" : value < -0.0001D ? "▼" : "○";
         int color = value > 0.0001D ? ACCENT : value < -0.0001D ? DANGER : MUTED;
-        TextView iconView = label(context, icon, 14, color);
-        row.addView(iconView, new LinearLayout.LayoutParams(dp(28), dp(34)));
+        ImageView iconView = new ImageView(context);
+        Image icon = Image.create("minecraft", iconForModifier(name));
+        if (icon != null) {
+            iconView.setImageDrawable(new ImageDrawable(icon));
+            iconView.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        }
+        row.addView(iconView, new LinearLayout.LayoutParams(dp(30), dp(34)));
 
         row.addView(label(context, name, 12, TEXT),
             new LinearLayout.LayoutParams(0, dp(34), 1));
@@ -455,6 +462,19 @@ public final class EconomyFragment extends Fragment {
         LinearLayout wrapper = new LinearLayout(requireContext());
         wrapper.addView(view, params);
         return wrapper;
+    }
+
+    private String iconForModifier(String name) {
+        String n = name.toLowerCase(java.util.Locale.ROOT);
+        if (n.contains("промышлен")) return "item/iron_ingot.png";
+        if (n.contains("военн")) return "item/iron_sword.png";
+        if (n.contains("ресурс") || n.contains("добыч")) return "item/coal.png";
+        if (n.contains("сель") || n.contains("ед")) return "item/wheat.png";
+        if (n.contains("торгов")) return "item/emerald.png";
+        if (n.contains("дизел")) return "item/coal.png";
+        if (n.contains("населен") || n.contains("рабоч")) return "item/bread.png";
+        if (n.contains("содержан") || n.contains("стоимость")) return "item/iron_ingot.png";
+        return "item/paper.png";
     }
 
     private void addResourceRow(Context context, LinearLayout parent, int index) {
