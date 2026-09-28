@@ -86,10 +86,15 @@ public final class EconomyFragment extends Fragment {
         Button countryTab = tabButton(context, "⚙  СТРАНА");
         Button effectsTab = tabButton(context, "◆  ЭФФЕКТЫ");
         Button citiesTab = tabButton(context, "⌂  ГОРОДА");
+        Button adminTab = tabButton(context, "АДМИН");
         tabs.addView(overviewTab, new LinearLayout.LayoutParams(0, dp(42), 1));
         tabs.addView(countryTab, marginTab());
         tabs.addView(effectsTab, marginTab());
         tabs.addView(citiesTab, marginTab());
+        if (Minecraft.getInstance().player != null && Minecraft.getInstance().player.isCreative()) {
+            tabs.addView(adminTab, marginTab());
+            adminTab.setOnClickListener(v -> showAdmin(context));
+        }
         LinearLayout.LayoutParams tabParams = new LinearLayout.LayoutParams(-1, dp(42));
         tabParams.setMargins(0, dp(8), 0, dp(8));
         root.addView(tabs, tabParams);
@@ -337,12 +342,92 @@ public final class EconomyFragment extends Fragment {
         button.setBackground(solid(selected ? 0xFF18392F : PANEL_2, dp(8)));
         button.setEnabled(!selected);
         if (!selected) {
-            button.setOnClickListener(v -> EconomyNetwork.sendAction(action, command));
+            button.setOnClickListener(v -> showConfirmation(
+                context,
+                action,
+                command,
+                title,
+                reformCostText(action, isFirstChoice(action))
+            ));
         }
 
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, dp(40));
         params.setMargins(0, dp(6), 0, 0);
         parent.addView(button, params);
+    }
+
+    private boolean isFirstChoice(String action) {
+        return switch (action) {
+            case "direction" -> "Не выбрано".equals(snapshot.direction());
+            case "government" -> "Не выбрано".equals(snapshot.government());
+            case "religion" -> "Не выбрано".equals(snapshot.religion());
+            default -> true;
+        };
+    }
+
+    private String reformCostText(String action, boolean firstChoice) {
+        if (firstChoice) return "Первый выбор — БЕСПЛАТНО";
+        return switch (action) {
+            case "direction" -> "$1500  •  32 железа  •  16 золота";
+            case "government" -> "$2000  •  16 железа  •  16 золота  •  16 бумаги";
+            case "religion" -> "$1200  •  8 золота  •  32 бумаги  •  16 пшеницы";
+            default -> "Стоимость определяется сервером";
+        };
+    }
+
+    private void showConfirmation(Context context, String action, String command, String title, String cost) {
+        pageHost.removeAllViews();
+
+        LinearLayout confirm = panel(context);
+        confirm.addView(sectionTitle(context, "⚠  ПОДТВЕРЖДЕНИЕ РЕФОРМЫ"));
+        confirm.addView(label(context, title, 18, TEXT));
+        confirm.addView(label(context,
+            "Изменение вступит в силу после подтверждения. Это изменение страны, а не временный бонус.",
+            12, MUTED));
+        LinearLayout costBox = panel(context);
+        costBox.setBackground(solid(PANEL_3, dp(9)));
+        costBox.addView(sectionTitle(context, "СТОИМОСТЬ"));
+        costBox.addView(label(context, cost, 14, cost.startsWith("Первый") ? ACCENT : WARNING));
+        confirm.addView(costBox, marginPanel());
+
+        Button yes = tabButton(context, "✓  ПОДТВЕРДИТЬ");
+        yes.setTextColor(ACCENT);
+        yes.setOnClickListener(v -> EconomyNetwork.sendAction(action, command));
+        confirm.addView(yes, marginPanel());
+
+        Button no = tabButton(context, "←  ОТМЕНА");
+        no.setOnClickListener(v -> showCountrySettings(context));
+        confirm.addView(no, marginPanel());
+
+        pageHost.addView(confirm);
+    }
+
+    private void showAdmin(Context context) {
+        pageHost.removeAllViews();
+
+        LinearLayout panel = panel(context);
+        panel.addView(sectionTitle(context, "АДМИНИСТРАТОРСКАЯ ПАНЕЛЬ"));
+        panel.addView(label(context,
+            "Доступна только при нахождении игрока в Creative. Сервер дополнительно проверяет права.",
+            12, MUTED));
+
+        Button forceDirection = tabButton(context, "Изменить экономическое направление без затрат");
+        forceDirection.setOnClickListener(v -> showCountrySettings(context));
+        panel.addView(forceDirection, marginPanel());
+
+        Button forceGovernment = tabButton(context, "Изменить форму правления без затрат");
+        forceGovernment.setOnClickListener(v -> showCountrySettings(context));
+        panel.addView(forceGovernment, marginPanel());
+
+        Button forceReligion = tabButton(context, "Изменить религию без затрат");
+        forceReligion.setOnClickListener(v -> showCountrySettings(context));
+        panel.addView(forceReligion, marginPanel());
+
+        panel.addView(label(context,
+            "Админские действия намеренно не смешаны с обычной экономикой страны.",
+            11, MUTED), marginPanel());
+
+        pageHost.addView(panel);
     }
 
     private View effectRow(Context context, String name, double value, boolean positive) {
