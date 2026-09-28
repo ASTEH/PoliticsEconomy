@@ -1105,8 +1105,13 @@ public final class PoliticsEconomyCommands {
         }
         GovernmentType value = GovernmentType.fromCommandName(raw);
         if (value == null) { source.sendFailure(Component.literal("Используй: democracy, communism, monarchy или fascism.")); return 0; }
-        boolean changed = op ? (CountryPolicyManager.forceSetGovernment(player.getServer(), country.getName(), value), true)
-            : CountryPolicyManager.setGovernment(player.getServer(), country.getName(), value);
+        boolean changed;
+        if (op) {
+            CountryPolicyManager.forceSetGovernment(player.getServer(), country.getName(), value);
+            changed = true;
+        } else {
+            changed = CountryPolicyManager.setGovernment(player.getServer(), country.getName(), value);
+        }
         if (!changed) { source.sendFailure(Component.literal("Форма правления уже выбрана и в обычном режиме не меняется.")); return 0; }
         source.sendSuccess(() -> Component.literal("Форма правления: " + value.displayName()).withStyle(ChatFormatting.GREEN), true);
         return 1;
@@ -1137,8 +1142,13 @@ public final class PoliticsEconomyCommands {
         }
         ReligionType value = ReligionType.fromCommandName(raw);
         if (value == null) { source.sendFailure(Component.literal("Используй: secular, christianity, islam, buddhism или judaism.")); return 0; }
-        boolean changed = op ? (CountryPolicyManager.forceSetReligion(player.getServer(), country.getName(), value), true)
-            : CountryPolicyManager.setReligion(player.getServer(), country.getName(), value);
+        boolean changed;
+        if (op) {
+            CountryPolicyManager.forceSetReligion(player.getServer(), country.getName(), value);
+            changed = true;
+        } else {
+            changed = CountryPolicyManager.setReligion(player.getServer(), country.getName(), value);
+        }
         if (!changed) { source.sendFailure(Component.literal("Религия уже выбрана и в обычном режиме не меняется.")); return 0; }
         source.sendSuccess(() -> Component.literal("Религия: " + value.displayName()).withStyle(ChatFormatting.GREEN), true);
         return 1;
