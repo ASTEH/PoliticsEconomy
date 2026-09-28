@@ -104,8 +104,15 @@ public final class EconomyFragment extends Fragment {
         effectsTab.setOnClickListener(v -> showEffects(context));
         citiesTab.setOnClickListener(v -> showCities(context));
 
-        showOverview(context);
+        if (needsInitialCountrySetup()) showCountrySettings(context);
+        else showOverview(context);
         return background;
+    }
+
+    private boolean needsInitialCountrySetup() {
+        return "Не выбрано".equals(snapshot.direction())
+            || "Не выбрано".equals(snapshot.government())
+            || "Не выбрано".equals(snapshot.religion());
     }
 
     private void showOverview(Context context) {
@@ -176,14 +183,14 @@ public final class EconomyFragment extends Fragment {
         intro.addView(sectionTitle(context, "⚙  НАСТРОЙКА СТРАНЫ"));
         intro.addView(label(context,
             "Здесь лидер государства выбирает основные параметры страны. " +
-                "После выбора обычным игрокам изменить их нельзя.",
+                "Первый выбор каждого параметра бесплатный. Повторная реформа требует денег и ресурсов.",
             12, MUTED));
         pageHost.addView(intro);
 
         LinearLayout direction = panel(context);
         direction.addView(sectionTitle(context, "⚑  ЭКОНОМИЧЕСКОЕ НАПРАВЛЕНИЕ"));
         direction.addView(label(context,
-            "Определяет основной профиль экономики государства.",
+            "Первый выбор бесплатно. Повторная смена: $1500 + 32 железа + 16 золота.",
             11, MUTED));
 
         for (CountryDirection value : CountryDirection.values()) {
@@ -196,7 +203,7 @@ public final class EconomyFragment extends Fragment {
         LinearLayout government = panel(context);
         government.addView(sectionTitle(context, "♜  ФОРМА ПРАВЛЕНИЯ"));
         government.addView(label(context,
-            "Игровой набор экономических модификаторов государства.",
+            "Первый выбор бесплатно. Повторная смена: $2000 + 16 железа + 16 золота + 16 бумаги.",
             11, MUTED));
         for (GovernmentType value : GovernmentType.values()) {
             addChoice(government, context, value.displayName(),
@@ -208,7 +215,7 @@ public final class EconomyFragment extends Fragment {
         LinearLayout religion = panel(context);
         religion.addView(sectionTitle(context, "◇  РЕЛИГИЯ"));
         religion.addView(label(context,
-            "Игровой набор дополнительных экономических модификаторов.",
+            "Первый выбор бесплатно. Повторная смена: $1200 + 8 золота + 32 бумаги + 16 пшеницы.",
             11, MUTED));
         for (ReligionType value : ReligionType.values()) {
             addChoice(religion, context, value.displayName(),
