@@ -12,11 +12,12 @@ import icyllis.modernui.view.View;
 import icyllis.modernui.view.ViewGroup;
 import icyllis.modernui.widget.Button;
 import icyllis.modernui.widget.FrameLayout;
-import icyllis.modernui.widget.LinearLayout;
 import icyllis.modernui.widget.ImageView;
+import icyllis.modernui.widget.LinearLayout;
 import icyllis.modernui.widget.ScrollView;
 import icyllis.modernui.widget.TextView;
 import net.minecraft.client.Minecraft;
+import net.minecraft.resources.ResourceLocation;
 import ru.zela.politicseconomy.country.CountryDirection;
 import ru.zela.politicseconomy.country.GovernmentType;
 import ru.zela.politicseconomy.country.ReligionType;
@@ -24,97 +25,129 @@ import ru.zela.politicseconomy.network.EconomyNetwork;
 import ru.zela.politicseconomy.network.EconomySnapshotPayload;
 
 import java.util.Locale;
+import java.util.Map;
 
-/**
- * Country dashboard: overview, country settings and all active gameplay modifiers.
- * Political choices are submitted to the server; the client never applies them locally.
- */
 public final class EconomyFragment extends Fragment {
-    private static final int BG = 0xFF080D13;
-    private static final int SHEET = 0xFF101923;
-    private static final int PANEL = 0xFF172330;
-    private static final int PANEL_2 = 0xFF202E3D;
-    private static final int PANEL_3 = 0xFF0F1923;
-    private static final int TEXT = 0xFFF3F6F8;
-    private static final int MUTED = 0xFF8FA1B2;
-    private static final int ACCENT = 0xFF55D6A2;
-    private static final int WARNING = 0xFFFFC857;
-    private static final int DANGER = 0xFFFF7070;
-    private static final int INFO = 0xFF6EB7FF;
-    private static final int PURPLE = 0xFFB58AFF;
+    // Military-political palette: graphite, steel blue, muted gold, controlled red.
+    private static final int BG = 0xFF070B10;
+    private static final int SHEET = 0xFF0E141C;
+    private static final int PANEL = 0xFF141D28;
+    private static final int PANEL_2 = 0xFF1B2734;
+    private static final int PANEL_3 = 0xFF0D151F;
+    private static final int LINE = 0xFF2B3948;
+    private static final int TEXT = 0xFFE7EBEF;
+    private static final int MUTED = 0xFF8A99A8;
+    private static final int GOLD = 0xFFC7AA5A;
+    private static final int STEEL = 0xFF7890AA;
+    private static final int SUCCESS = 0xFF67A184;
+    private static final int WARNING = 0xFFC89C4E;
+    private static final int DANGER = 0xFFC85D5D;
+    private static final int PURPLE = 0xFF9485B0;
 
     private final EconomySnapshotPayload snapshot;
+    private FrameLayout screenRoot;
     private LinearLayout pageHost;
+    private FrameLayout popupOverlay;
 
     public EconomyFragment(EconomySnapshotPayload snapshot) {
         this.snapshot = snapshot;
     }
 
     @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container, DataSet savedInstanceState) {
+    public View onCreateView(
+        LayoutInflater inflater,
+        ViewGroup container,
+        DataSet savedInstanceState
+    ) {
         Context context = requireContext();
 
-        FrameLayout background = new FrameLayout(context);
-        background.setBackground(solid(BG, 0));
+        screenRoot = new FrameLayout(context);
+        screenRoot.setBackground(solid(BG, 0));
 
         LinearLayout root = column(context);
         root.setBackground(solid(SHEET, dp(16)));
         root.setPadding(dp(20), dp(16), dp(20), dp(14));
 
-        FrameLayout.LayoutParams rootParams = new FrameLayout.LayoutParams(dp(960), dp(700));
+        FrameLayout.LayoutParams rootParams =
+            new FrameLayout.LayoutParams(dp(980), dp(710));
         rootParams.gravity = Gravity.CENTER;
-        background.addView(root, rootParams);
+        screenRoot.addView(root, rootParams);
 
-        LinearLayout header = row(context);
-        LinearLayout titleBlock = column(context);
-        titleBlock.addView(label(context, "◈  ГОСУДАРСТВО", 22, TEXT));
-        titleBlock.addView(label(context,
-            snapshot.countryName() + "  •  " + snapshot.direction(),
-            13, ACCENT));
-        header.addView(titleBlock, new LinearLayout.LayoutParams(0, -2, 1));
-
-        TextView population = label(context,
-            "👥 " + format(snapshot.population()) + "  |  Рабочая сила " +
-                signed(snapshot.populationWorkforceModifier()),
-            12, INFO);
-        header.addView(population);
-
-        Button close = smallButton(context, "×");
-        close.setOnClickListener(v -> closeDashboard());
-        header.addView(close, new LinearLayout.LayoutParams(dp(42), dp(38)));
-        root.addView(header, new LinearLayout.LayoutParams(-1, dp(52)));
+        root.addView(buildHeader(context), new LinearLayout.LayoutParams(-1, dp(60)));
 
         LinearLayout tabs = row(context);
-        Button overviewTab = tabButton(context, "▦  ОБЗОР");
-        Button countryTab = tabButton(context, "⚙  СТРАНА");
-        Button effectsTab = tabButton(context, "◆  ЭФФЕКТЫ");
-        Button citiesTab = tabButton(context, "⌂  ГОРОДА");
-        Button adminTab = tabButton(context, "АДМИН");
-        tabs.addView(overviewTab, new LinearLayout.LayoutParams(0, dp(42), 1));
-        tabs.addView(countryTab, marginTab());
-        tabs.addView(effectsTab, marginTab());
-        tabs.addView(citiesTab, marginTab());
-        if (Minecraft.getInstance().player != null && Minecraft.getInstance().player.isCreative()) {
-            tabs.addView(adminTab, marginTab());
-            adminTab.setOnClickListener(v -> showAdmin(context));
+        Button overview = tabButton(context, "ОБЗОР");
+        Button country = tabButton(context, "СТРАНА");
+        Button effects = tabButton(context, "ЭФФЕКТЫ");
+        Button cities = tabButton(context, "ГОРОДА");
+
+        tabs.addView(overview, new LinearLayout.LayoutParams(0, dp(40), 1));
+        tabs.addView(country, marginTab());
+        tabs.addView(effects, marginTab());
+        tabs.addView(cities, marginTab());
+
+        if (Minecraft.getInstance().player != null
+            && Minecraft.getInstance().player.isCreative()) {
+            Button admin = tabButton(context, "АДМИН");
+            admin.setTextColor(GOLD);
+            admin.setOnClickListener(v -> showAdmin(context));
+            tabs.addView(admin, marginTab());
         }
-        LinearLayout.LayoutParams tabParams = new LinearLayout.LayoutParams(-1, dp(42));
-        tabParams.setMargins(0, dp(8), 0, dp(8));
-        root.addView(tabs, tabParams);
+
+        LinearLayout.LayoutParams tabsParams = new LinearLayout.LayoutParams(-1, dp(40));
+        tabsParams.setMargins(0, dp(8), 0, dp(10));
+        root.addView(tabs, tabsParams);
 
         pageHost = column(context);
         ScrollView scroll = new ScrollView(context);
         scroll.addView(pageHost);
         root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
 
-        overviewTab.setOnClickListener(v -> showOverview(context));
-        countryTab.setOnClickListener(v -> showCountrySettings(context));
-        effectsTab.setOnClickListener(v -> showEffects(context));
-        citiesTab.setOnClickListener(v -> showCities(context));
+        overview.setOnClickListener(v -> showOverview(context));
+        country.setOnClickListener(v -> showCountrySettings(context));
+        effects.setOnClickListener(v -> showEffects(context));
+        cities.setOnClickListener(v -> showCities(context));
 
-        if (needsInitialCountrySetup()) showCountrySettings(context);
-        else showOverview(context);
-        return background;
+        if (needsInitialCountrySetup()) {
+            showCountrySettings(context);
+        } else {
+            showOverview(context);
+        }
+
+        return screenRoot;
+    }
+
+    private View buildHeader(Context context) {
+        LinearLayout header = row(context);
+
+        LinearLayout title = column(context);
+        title.addView(label(context, "ГОСУДАРСТВО", 21, TEXT));
+        title.addView(label(
+            context,
+            snapshot.countryName().toUpperCase(Locale.ROOT)
+                + "  /  " + snapshot.direction(),
+            12,
+            GOLD
+        ));
+        header.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
+
+        LinearLayout status = row(context);
+        status.addView(itemIcon(context, "minecraft:player_head", 28),
+            new LinearLayout.LayoutParams(dp(30), dp(30)));
+        status.addView(label(
+            context,
+            format(snapshot.population()) + "  •  " + signed(snapshot.populationWorkforceModifier()),
+            11,
+            STEEL
+        ));
+
+        header.addView(status);
+
+        Button close = smallButton(context, "×");
+        close.setOnClickListener(v -> closeDashboard());
+        header.addView(close, new LinearLayout.LayoutParams(dp(40), dp(38)));
+
+        return header;
     }
 
     private boolean needsInitialCountrySetup() {
@@ -127,204 +160,210 @@ public final class EconomyFragment extends Fragment {
         pageHost.removeAllViews();
 
         LinearLayout metrics = row(context);
-        metrics.addView(metricCard(context, "₿  КАЗНА", "$" + format(snapshot.treasury()), INFO),
-            new LinearLayout.LayoutParams(0, dp(78), 1));
-        metrics.addView(metricCard(context, "◆  МАТЕРИАЛЫ",
-                String.format(Locale.ROOT, "-%.2f / цикл", snapshot.totalMaterialPerCycle()), WARNING),
-            marginWeight(1));
-        metrics.addView(metricCard(context, "⚙  СОДЕРЖАНИЕ",
-                String.format(Locale.ROOT, "-%.2f $", snapshot.infrastructureCost()), WARNING),
-            marginWeight(1));
-        metrics.addView(metricCard(context, "◈  ДОЛГ",
-                "$" + formatDouble(snapshot.moneyDebt()), snapshot.moneyDebt() > 0 ? DANGER : ACCENT),
+        metrics.addView(metricCard(context, "КАЗНА", "$" + format(snapshot.treasury()),
+            "minecraft:emerald", GOLD), new LinearLayout.LayoutParams(0, dp(78), 1));
+        metrics.addView(metricCard(context, "РАСХОД МАТЕРИАЛОВ",
+            String.format(Locale.ROOT, "-%.2f / цикл", snapshot.totalMaterialPerCycle()),
+            "minecraft:iron_ingot", WARNING), marginWeight(1));
+        metrics.addView(metricCard(context, "СОДЕРЖАНИЕ",
+            String.format(Locale.ROOT, "-%.2f $", snapshot.infrastructureCost()),
+            "minecraft:anvil", WARNING), marginWeight(1));
+        metrics.addView(metricCard(context, "ДЕНЕЖНЫЙ ДОЛГ",
+            "$" + formatDouble(snapshot.moneyDebt()),
+            "minecraft:redstone", snapshot.moneyDebt() > 0 ? DANGER : SUCCESS),
             marginWeight(1));
         pageHost.addView(metrics);
 
         LinearLayout state = panel(context);
-        state.addView(sectionTitle(context, "СОСТОЯНИЕ ГОСУДАРСТВА"));
-        state.addView(infoLine(context, "⚑", "Направление", snapshot.direction()));
-        state.addView(infoLine(context, "⌂", "Форма правления", snapshot.government()));
-        state.addView(infoLine(context, "◇", "Религия", snapshot.religion()));
-        state.addView(infoLine(context, "👥", "Население", format(snapshot.population())));
-        state.addView(infoLine(context, "⚡", "Рабочая сила", signed(snapshot.populationWorkforceModifier())));
-        LinearLayout.LayoutParams stateParams = new LinearLayout.LayoutParams(-1, -2);
-        stateParams.setMargins(0, dp(10), 0, 0);
-        pageHost.addView(state, stateParams);
+        state.addView(sectionTitle(context, "ПОЛИТИЧЕСКИЙ ПРОФИЛЬ"));
+        state.addView(infoLine(context, "minecraft:compass", "Экономическое направление", snapshot.direction()));
+        state.addView(infoLine(context, "minecraft:iron_sword", "Форма правления", snapshot.government()));
+        state.addView(infoLine(context, "minecraft:book", "Религия", snapshot.religion()));
+        state.addView(infoLine(context, "minecraft:player_head", "Население", format(snapshot.population())));
+        state.addView(infoLine(context, "minecraft:bread", "Рабочая сила",
+            signed(snapshot.populationWorkforceModifier())));
+        state.setPadding(dp(14), dp(12), dp(14), dp(12));
+        pageHost.addView(state, marginPanel());
 
         LinearLayout development = panel(context);
-        development.addView(sectionTitle(context, "РАЗВИТИЕ  •  УРОВЕНЬ " + snapshot.developmentLevel() + "/5"));
-        String progressText = snapshot.developmentLevel() >= 5
-            ? "Все уровни развития открыты"
-            : format(snapshot.developmentPoints()) + " / " +
-                format(snapshot.developmentNextThreshold()) + " очков развития";
-        development.addView(label(context, progressText, 12, TEXT));
+        development.addView(sectionTitle(context,
+            "РАЗВИТИЕ ГОСУДАРСТВА  •  " + snapshot.developmentLevel() + "/5"));
+        development.addView(label(
+            context,
+            snapshot.developmentLevel() >= 5
+                ? "Максимальный уровень"
+                : format(snapshot.developmentPoints()) + " / "
+                    + format(snapshot.developmentNextThreshold()) + " очков",
+            12,
+            TEXT
+        ));
+
         if (snapshot.developmentLevel() < 5) {
-            float progress = snapshot.developmentNextThreshold() <= 0 ? 1f :
-                Math.min(1f, snapshot.developmentPoints() /
-                    (float) snapshot.developmentNextThreshold());
+            float progress = snapshot.developmentNextThreshold() <= 0
+                ? 1f
+                : Math.min(1f, snapshot.developmentPoints()
+                    / (float) snapshot.developmentNextThreshold());
             LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, dp(7));
             p.setMargins(0, dp(8), 0, dp(8));
-            development.addView(progressBar(context, progress, PURPLE), p);
+            development.addView(progressBar(context, progress, GOLD), p);
         }
-        development.addView(label(context, "✓ " + snapshot.developmentPerk(), 12, ACCENT));
+
+        development.addView(label(context, "Текущий эффект: " + snapshot.developmentPerk(), 12, SUCCESS));
         if (snapshot.developmentLevel() < 5) {
-            development.addView(label(context, "→ Далее: " + snapshot.developmentNextPerk(), 11, MUTED));
+            development.addView(label(context, "Следующий: " + snapshot.developmentNextPerk(),
+                11, MUTED));
         }
-        LinearLayout.LayoutParams devParams = new LinearLayout.LayoutParams(-1, -2);
-        devParams.setMargins(0, dp(10), 0, 0);
-        pageHost.addView(development, devParams);
+        pageHost.addView(development, marginPanel());
 
         LinearLayout warehouse = panel(context);
         warehouse.addView(sectionTitle(context, "ГОСУДАРСТВЕННЫЙ СКЛАД"));
+        warehouse.addView(label(context,
+            "Ресурсы автоматически расходуются на содержание инфраструктуры.",
+            11, MUTED));
+
         for (int i = 0; i < snapshot.materialIds().length; i++) {
             addResourceRow(context, warehouse, i);
         }
-        LinearLayout.LayoutParams whParams = new LinearLayout.LayoutParams(-1, -2);
-        whParams.setMargins(0, dp(10), 0, 0);
-        pageHost.addView(warehouse, whParams);
+        pageHost.addView(warehouse, marginPanel());
     }
 
     private void showCountrySettings(Context context) {
         pageHost.removeAllViews();
 
         LinearLayout intro = panel(context);
-        intro.addView(sectionTitle(context, "⚙  НАСТРОЙКА СТРАНЫ"));
+        intro.addView(sectionTitle(context, "УПРАВЛЕНИЕ ГОСУДАРСТВОМ"));
         intro.addView(label(context,
-            "Здесь лидер государства выбирает основные параметры страны. " +
-                "Первый выбор каждого параметра бесплатный. Повторная реформа требует денег и ресурсов.",
+            "Первый выбор каждого параметра бесплатный. Повторная смена — это реформа: " +
+                "она требует денег и ресурсов и снижает накопленное развитие.",
             12, MUTED));
         pageHost.addView(intro);
 
         LinearLayout direction = panel(context);
-        direction.addView(sectionTitle(context, "⚑  ЭКОНОМИЧЕСКОЕ НАПРАВЛЕНИЕ"));
+        direction.addView(sectionTitle(context, "ЭКОНОМИЧЕСКОЕ НАПРАВЛЕНИЕ"));
         direction.addView(label(context,
-            "Первый выбор бесплатно. Повторная смена: $1500 + 32 железа + 16 золота.",
+            "Определяет специализацию национальной экономики.",
             11, MUTED));
-
         for (CountryDirection value : CountryDirection.values()) {
-            String current = snapshot.direction();
-            addChoice(direction, context, value.displayName(),
-                value.commandName(), "direction", current.equals(value.displayName()));
+            addChoice(direction, context, value.displayName(), value.commandName(),
+                "direction", snapshot.direction().equals(value.displayName()));
         }
         pageHost.addView(direction, marginPanel());
 
         LinearLayout government = panel(context);
-        government.addView(sectionTitle(context, "♜  ФОРМА ПРАВЛЕНИЯ"));
+        government.addView(sectionTitle(context, "ФОРМА ПРАВЛЕНИЯ"));
         government.addView(label(context,
-            "Первый выбор бесплатно. Повторная смена: $2000 + 16 железа + 16 золота + 16 бумаги.",
+            "Определяет набор политико-экономических игровых модификаторов.",
             11, MUTED));
         for (GovernmentType value : GovernmentType.values()) {
-            addChoice(government, context, value.displayName(),
-                value.commandName(), "government",
-                snapshot.government().equals(value.displayName()));
+            addChoice(government, context, value.displayName(), value.commandName(),
+                "government", snapshot.government().equals(value.displayName()));
         }
         pageHost.addView(government, marginPanel());
 
         LinearLayout religion = panel(context);
-        religion.addView(sectionTitle(context, "◇  РЕЛИГИЯ"));
+        religion.addView(sectionTitle(context, "РЕЛИГИЯ"));
         religion.addView(label(context,
-            "Первый выбор бесплатно. Повторная смена: $1200 + 8 золота + 32 бумаги + 16 пшеницы.",
+            "Даёт дополнительные игровые экономические эффекты.",
             11, MUTED));
         for (ReligionType value : ReligionType.values()) {
-            addChoice(religion, context, value.displayName(),
-                value.commandName(), "religion",
-                snapshot.religion().equals(value.displayName()));
+            addChoice(religion, context, value.displayName(), value.commandName(),
+                "religion", snapshot.religion().equals(value.displayName()));
         }
         pageHost.addView(religion, marginPanel());
-
-        LinearLayout note = panel(context);
-        note.addView(sectionTitle(context, "◆  ПОДСКАЗКА"));
-        note.addView(label(context,
-            "После выбора изменения вступают в силу на сервере, а экран автоматически обновится.",
-            12, TEXT));
-        pageHost.addView(note, marginPanel());
     }
 
     private void showEffects(Context context) {
         pageHost.removeAllViews();
 
         LinearLayout intro = panel(context);
-        intro.addView(sectionTitle(context, "◆  АКТИВНЫЕ ЭФФЕКТЫ"));
+        intro.addView(sectionTitle(context, "ЭФФЕКТЫ ГОСУДАРСТВА"));
         intro.addView(label(context,
-            "Здесь показан итоговый игровой эффект направления, развития, политики и населения.",
+            "Итоговые значения учитывают экономическое направление, развитие, политику и население.",
             12, MUTED));
         pageHost.addView(intro);
 
         LinearLayout buffs = panel(context);
-        buffs.addView(sectionTitle(context, "▲  БАФФЫ"));
+        buffs.addView(sectionTitle(context, "ПОЛОЖИТЕЛЬНЫЕ ЭФФЕКТЫ"));
         boolean hasBuff = false;
         for (int i = 0; i < snapshot.modifierNames().length; i++) {
             double value = valueAt(snapshot.modifierValues(), i);
             if (value > 0.0001D) {
-                buffs.addView(effectRow(context, snapshot.modifierNames()[i], value, true));
+                buffs.addView(effectRow(context, snapshot.modifierNames()[i], value));
                 hasBuff = true;
             }
         }
-        if (!hasBuff) buffs.addView(label(context, "Активных положительных эффектов нет.", 12, MUTED));
+        if (!hasBuff) buffs.addView(label(context,
+            "Нет активных положительных эффектов.", 12, MUTED));
         pageHost.addView(buffs, marginPanel());
 
         LinearLayout debuffs = panel(context);
-        debuffs.addView(sectionTitle(context, "▼  ДЕБАФФЫ"));
+        debuffs.addView(sectionTitle(context, "ОТРИЦАТЕЛЬНЫЕ ЭФФЕКТЫ"));
         boolean hasDebuff = false;
         for (int i = 0; i < snapshot.modifierNames().length; i++) {
             double value = valueAt(snapshot.modifierValues(), i);
             if (value < -0.0001D) {
-                debuffs.addView(effectRow(context, snapshot.modifierNames()[i], value, false));
+                debuffs.addView(effectRow(context, snapshot.modifierNames()[i], value));
                 hasDebuff = true;
             }
         }
-        if (!hasDebuff) debuffs.addView(label(context, "Активных отрицательных эффектов нет.", 12, MUTED));
+        if (!hasDebuff) debuffs.addView(label(context,
+            "Нет активных отрицательных эффектов.", 12, MUTED));
         pageHost.addView(debuffs, marginPanel());
-
-        LinearLayout neutral = panel(context);
-        neutral.addView(sectionTitle(context, "○  БЕЗ ИЗМЕНЕНИЙ"));
-        boolean hasNeutral = false;
-        for (int i = 0; i < snapshot.modifierNames().length; i++) {
-            double value = valueAt(snapshot.modifierValues(), i);
-            if (Math.abs(value) <= 0.0001D) {
-                neutral.addView(effectRow(context, snapshot.modifierNames()[i], 0, true));
-                hasNeutral = true;
-            }
-        }
-        if (!hasNeutral) neutral.addView(label(context, "Все отображаемые параметры имеют влияние.", 12, MUTED));
-        pageHost.addView(neutral, marginPanel());
-
-        LinearLayout policy = panel(context);
-        policy.addView(sectionTitle(context, "◎  ПОЛИТИКА"));
-        policy.addView(label(context,
-            snapshot.government() + "  •  " + snapshot.religion(),
-            13, TEXT));
-        policy.addView(label(context, snapshot.policySummary(), 11, MUTED));
-        pageHost.addView(policy, marginPanel());
     }
 
     private void showCities(Context context) {
         pageHost.removeAllViews();
 
         LinearLayout intro = panel(context);
-        intro.addView(sectionTitle(context, "⌂  ГОРОДА СЕРВЕРА"));
+        intro.addView(sectionTitle(context, "ГОРОДА СЕРВЕРА"));
         intro.addView(label(context,
-            "Сводка по городам всех государств. Экономика показывает текущую городскую казну и доход за цикл.",
+            "Экономические показатели городов всех государств на сервере.",
             12, MUTED));
         pageHost.addView(intro);
 
         for (int i = 0; i < snapshot.cityNames().length; i++) {
             LinearLayout card = panel(context);
-            String title = (snapshot.cityCapitals()[i] ? "★ " : "⌂ ") + snapshot.cityNames()[i];
-            if (snapshot.cityMine()[i]) title += "  •  ВАШ";
-            card.addView(label(context, title + "  •  " + snapshot.cityCountries()[i], 13, TEXT));
-            card.addView(infoLine(context, "₿", "Казна", "$" + format(snapshot.cityTreasuries()[i])));
-            card.addView(infoLine(context, "↗", "Доход / цикл", "$" + format(snapshot.cityIncome()[i])));
-            card.addView(infoLine(context, "👥", "Население", format(snapshot.cityPopulation()[i])));
-            card.addView(infoLine(context, "▦", "Инфраструктура", format(snapshot.cityInfrastructure()[i])));
-            card.addView(infoLine(context, "⌂", "Налоговые блоки", format(snapshot.cityTaxBlocks()[i])));
-            card.addView(infoLine(context, "♟", "Мэр", snapshot.cityMayors()[i]));
+            String title = snapshot.cityCapitals()[i]
+                ? "СТОЛИЦА  •  " + snapshot.cityNames()[i]
+                : snapshot.cityNames()[i];
+
+            if (snapshot.cityMine()[i]) {
+                title += "  •  ВАША";
+            }
+
+            card.addView(label(context,
+                title,
+                14,
+                snapshot.cityCapitals()[i] ? GOLD : TEXT
+            ));
+            card.addView(label(context, snapshot.cityCountries()[i], 11, MUTED));
+
+            LinearLayout metrics = row(context);
+            metrics.addView(cityStat(context, "minecraft:emerald",
+                "Казна", "$" + format(snapshot.cityTreasuries()[i])),
+                new LinearLayout.LayoutParams(0, dp(54), 1));
+            metrics.addView(cityStat(context, "minecraft:paper",
+                "Доход", "$" + format(snapshot.cityIncome()[i])), marginWeightCity(1));
+            metrics.addView(cityStat(context, "minecraft:player_head",
+                "Население", format(snapshot.cityPopulation()[i])), marginWeightCity(1));
+            metrics.addView(cityStat(context, "minecraft:iron_ingot",
+                "Инфраструктура", format(snapshot.cityInfrastructure()[i])),
+                marginWeightCity(1));
+            card.addView(metrics);
+
+            card.addView(infoLine(context, "minecraft:lectern", "Налоговые блоки",
+                format(snapshot.cityTaxBlocks()[i])));
+            card.addView(infoLine(context, "minecraft:player_head", "Мэр",
+                snapshot.cityMayors()[i]));
+
             pageHost.addView(card, marginPanel());
         }
 
         if (snapshot.cityNames().length == 0) {
             LinearLayout empty = panel(context);
-            empty.addView(label(context, "На сервере пока нет зарегистрированных городов.", 12, MUTED));
+            empty.addView(label(context,
+                "На сервере пока нет зарегистрированных городов.",
+                12, MUTED));
             pageHost.addView(empty, marginPanel());
         }
     }
@@ -337,26 +376,35 @@ public final class EconomyFragment extends Fragment {
         String action,
         boolean selected
     ) {
-        Button button = new Button(context);
-        button.setText((selected ? "✓  " : "○  ") + title);
-        button.setTextSize(12);
-        button.setTextColor(selected ? ACCENT : TEXT);
-        button.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
-        button.setBackground(solid(selected ? 0xFF18392F : PANEL_2, dp(8)));
-        button.setEnabled(!selected);
+        LinearLayout row = row(context);
+        row.setBackground(solid(selected ? 0xFF273021 : PANEL_2, dp(8)));
+        row.setPadding(dp(10), dp(4), dp(10), dp(4));
+
+        row.addView(itemIcon(context, iconForChoice(action), 26),
+            new LinearLayout.LayoutParams(dp(30), dp(36)));
+
+        LinearLayout textBlock = column(context);
+        textBlock.addView(label(context, title, 12, selected ? GOLD : TEXT));
+        textBlock.addView(label(context,
+            selected ? "Текущий выбор" : reformCostText(action, isFirstChoice(action)),
+            10,
+            selected ? SUCCESS : MUTED
+        ));
+        row.addView(textBlock, new LinearLayout.LayoutParams(0, dp(40), 1));
+
+        Button choose = smallButton(context, selected ? "ВЫБРАНО" : "ВЫБРАТЬ");
+        choose.setTextColor(selected ? SUCCESS : TEXT);
+        choose.setEnabled(!selected);
         if (!selected) {
-            button.setOnClickListener(v -> showConfirmation(
-                context,
-                action,
-                command,
-                title,
-                reformCostText(action, isFirstChoice(action))
+            choose.setOnClickListener(v -> showConfirmation(
+                context, action, command, title, isFirstChoice(action)
             ));
         }
+        row.addView(choose, new LinearLayout.LayoutParams(dp(92), dp(38)));
 
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, dp(40));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, dp(50));
         params.setMargins(0, dp(6), 0, 0);
-        parent.addView(button, params);
+        parent.addView(row, params);
     }
 
     private boolean isFirstChoice(String action) {
@@ -369,81 +417,143 @@ public final class EconomyFragment extends Fragment {
     }
 
     private String reformCostText(String action, boolean firstChoice) {
-        if (firstChoice) return "Первый выбор — БЕСПЛАТНО";
+        if (firstChoice) return "ПЕРВЫЙ ВЫБОР • БЕСПЛАТНО";
         return switch (action) {
-            case "direction" -> "$1500  •  32 железа  •  16 золота";
-            case "government" -> "$2000  •  16 железа  •  16 золота  •  16 бумаги";
-            case "religion" -> "$1200  •  8 золота  •  32 бумаги  •  16 пшеницы";
+            case "direction" -> "$1500 • 32 железа • 16 золота";
+            case "government" -> "$2000 • 16 железа • 16 золота • 16 бумаги";
+            case "religion" -> "$1200 • 8 золота • 32 бумаги • 16 пшеницы";
             default -> "Стоимость определяется сервером";
         };
     }
 
-    private void showConfirmation(Context context, String action, String command, String title, String cost) {
-        pageHost.removeAllViews();
+    private void showConfirmation(
+        Context context,
+        String action,
+        String command,
+        String title,
+        boolean firstChoice
+    ) {
+        removePopup();
 
-        LinearLayout confirm = panel(context);
-        confirm.addView(sectionTitle(context, "⚠  ПОДТВЕРЖДЕНИЕ РЕФОРМЫ"));
-        confirm.addView(label(context, title, 18, TEXT));
-        confirm.addView(label(context,
-            "Изменение вступит в силу после подтверждения. Это изменение страны, а не временный бонус.",
-            12, MUTED));
-        LinearLayout costBox = panel(context);
-        costBox.setBackground(solid(PANEL_3, dp(9)));
-        costBox.addView(sectionTitle(context, "СТОИМОСТЬ"));
-        costBox.addView(label(context, cost, 14, cost.startsWith("Первый") ? ACCENT : WARNING));
-        confirm.addView(costBox, marginPanel());
+        popupOverlay = new FrameLayout(context);
+        popupOverlay.setBackground(solid(0xB8000000, 0));
+        popupOverlay.setOnClickListener(v -> removePopup());
 
-        Button yes = tabButton(context, "✓  ПОДТВЕРДИТЬ");
-        yes.setTextColor(ACCENT);
-        yes.setOnClickListener(v -> EconomyNetwork.sendAction(action, command));
-        confirm.addView(yes, marginPanel());
+        LinearLayout modal = column(context);
+        modal.setBackground(solid(SHEET, dp(14)));
+        modal.setPadding(dp(20), dp(18), dp(20), dp(16));
 
-        Button no = tabButton(context, "←  ОТМЕНА");
-        no.setOnClickListener(v -> showCountrySettings(context));
-        confirm.addView(no, marginPanel());
+        FrameLayout.LayoutParams modalParams =
+            new FrameLayout.LayoutParams(dp(540), -2);
+        modalParams.gravity = Gravity.CENTER;
+        popupOverlay.addView(modal, modalParams);
 
-        pageHost.addView(confirm);
+        modal.addView(label(context, "ПОДТВЕРЖДЕНИЕ РЕФОРМЫ", 18, TEXT));
+        modal.addView(label(context, title.toUpperCase(Locale.ROOT), 14, GOLD));
+
+        String description = firstChoice
+            ? "Это первый выбор данного параметра. Он устанавливается бесплатно."
+            : "Это полноценная реформа государства. Стоимость будет списана из казны и государственного склада.";
+
+        TextView desc = label(context, description, 12, MUTED);
+        desc.setGravity(Gravity.START | Gravity.TOP);
+        LinearLayout.LayoutParams descParams = new LinearLayout.LayoutParams(-1, dp(52));
+        descParams.setMargins(0, dp(10), 0, dp(8));
+        modal.addView(desc, descParams);
+
+        LinearLayout costBox = column(context);
+        costBox.setBackground(solid(PANEL, dp(9)));
+        costBox.setPadding(dp(12), dp(10), dp(12), dp(10));
+        costBox.addView(label(context, "СТОИМОСТЬ", 10, MUTED));
+
+        if (firstChoice) {
+            costBox.addView(label(context, "Бесплатно", 16, SUCCESS));
+        } else {
+            modalCostLine(context, costBox, "minecraft:emerald", "$1500",
+                "Казна", action.equals("direction"));
+            if (action.equals("direction")) {
+                modalCostLine(context, costBox, "minecraft:iron_ingot", "32",
+                    "железа", true);
+                modalCostLine(context, costBox, "minecraft:gold_ingot", "16",
+                    "золота", true);
+            } else if (action.equals("government")) {
+                modalCostLine(context, costBox, "minecraft:iron_ingot", "16",
+                    "железа", true);
+                modalCostLine(context, costBox, "minecraft:gold_ingot", "16",
+                    "золота", true);
+                modalCostLine(context, costBox, "minecraft:paper", "16",
+                    "бумаги", true);
+            } else {
+                modalCostLine(context, costBox, "minecraft:gold_ingot", "8",
+                    "золота", true);
+                modalCostLine(context, costBox, "minecraft:paper", "32",
+                    "бумаги", true);
+                modalCostLine(context, costBox, "minecraft:wheat", "16",
+                    "пшеницы", true);
+            }
+        }
+        modal.addView(costBox);
+
+        LinearLayout buttons = row(context);
+        Button cancel = smallButton(context, "ОТМЕНА");
+        cancel.setTextColor(MUTED);
+        cancel.setOnClickListener(v -> removePopup());
+        buttons.addView(cancel, new LinearLayout.LayoutParams(0, dp(42), 1));
+
+        Button confirm = smallButton(context, "ПОДТВЕРДИТЬ");
+        confirm.setTextColor(firstChoice ? SUCCESS : GOLD);
+        confirm.setBackground(solid(firstChoice ? 0xFF1E352A : 0xFF332B18, dp(8)));
+        confirm.setOnClickListener(v -> {
+            removePopup();
+            EconomyNetwork.sendAction(action, command);
+        });
+        buttons.addView(confirm, marginButton());
+        LinearLayout.LayoutParams buttonsParams = new LinearLayout.LayoutParams(-1, dp(42));
+        buttonsParams.setMargins(0, dp(12), 0, 0);
+        modal.addView(buttons, buttonsParams);
+
+        screenRoot.addView(popupOverlay, new FrameLayout.LayoutParams(-1, -1));
+    }
+
+    private void modalCostLine(
+        Context context,
+        LinearLayout parent,
+        String itemId,
+        String amount,
+        String label,
+        boolean enabled
+    ) {
+        LinearLayout line = row(context);
+        line.addView(itemIcon(context, itemId, 24),
+            new LinearLayout.LayoutParams(dp(28), dp(28)));
+        line.addView(label(context, amount, 13, enabled ? TEXT : MUTED),
+            new LinearLayout.LayoutParams(dp(60), dp(28)));
+        line.addView(label(context, label, 12, MUTED),
+            new LinearLayout.LayoutParams(0, dp(28), 1));
+        parent.addView(line);
     }
 
     private void showAdmin(Context context) {
         pageHost.removeAllViews();
 
-        LinearLayout panel = panel(context);
-        panel.addView(sectionTitle(context, "АДМИНИСТРАТОРСКАЯ ПАНЕЛЬ"));
-        panel.addView(label(context,
-            "Доступна только при нахождении игрока в Creative. Сервер дополнительно проверяет права.",
+        LinearLayout admin = panel(context);
+        admin.addView(sectionTitle(context, "АДМИНИСТРАТОРСКИЙ РЕЖИМ"));
+        admin.addView(label(context,
+            "Панель доступна только в Creative. Все действия дополнительно проверяются сервером.",
             12, MUTED));
-
-        Button forceDirection = tabButton(context, "Изменить экономическое направление без затрат");
-        forceDirection.setOnClickListener(v -> showCountrySettings(context));
-        panel.addView(forceDirection, marginPanel());
-
-        Button forceGovernment = tabButton(context, "Изменить форму правления без затрат");
-        forceGovernment.setOnClickListener(v -> showCountrySettings(context));
-        panel.addView(forceGovernment, marginPanel());
-
-        Button forceReligion = tabButton(context, "Изменить религию без затрат");
-        forceReligion.setOnClickListener(v -> showCountrySettings(context));
-        panel.addView(forceReligion, marginPanel());
-
-        panel.addView(label(context,
-            "Админские действия намеренно не смешаны с обычной экономикой страны.",
-            11, MUTED), marginPanel());
-
-        pageHost.addView(panel);
+        admin.addView(label(context,
+            "Обычная стоимость реформ отключается только для Creative-оператора.",
+            11, GOLD));
+        pageHost.addView(admin);
     }
 
-    private View effectRow(Context context, String name, double value, boolean positive) {
+    private View effectRow(Context context, String name, double value) {
         LinearLayout row = row(context);
-        int color = value > 0.0001D ? ACCENT : value < -0.0001D ? DANGER : MUTED;
-        ImageView iconView = new ImageView(context);
-        Image icon = Image.create("minecraft", iconForModifier(name));
-        if (icon != null) {
-            iconView.setImageDrawable(new ImageDrawable(icon));
-            iconView.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        }
-        row.addView(iconView, new LinearLayout.LayoutParams(dp(30), dp(34)));
+        int color = value > 0.0001D ? SUCCESS
+            : value < -0.0001D ? DANGER : MUTED;
 
+        row.addView(itemIcon(context, iconForModifier(name), 26),
+            new LinearLayout.LayoutParams(dp(30), dp(34)));
         row.addView(label(context, name, 12, TEXT),
             new LinearLayout.LayoutParams(0, dp(34), 1));
 
@@ -453,76 +563,167 @@ public final class EconomyFragment extends Fragment {
 
         row.setBackground(solid(PANEL_3, dp(7)));
         row.setPadding(dp(10), 0, dp(10), 0);
+
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, dp(38));
         params.setMargins(0, dp(5), 0, 0);
-        return wrap(row, params);
-    }
-
-    private View wrap(View view, LinearLayout.LayoutParams params) {
-        LinearLayout wrapper = new LinearLayout(requireContext());
-        wrapper.addView(view, params);
+        LinearLayout wrapper = column(context);
+        wrapper.addView(row, params);
         return wrapper;
-    }
-
-    private String iconForModifier(String name) {
-        String n = name.toLowerCase(java.util.Locale.ROOT);
-        if (n.contains("промышлен")) return "item/iron_ingot.png";
-        if (n.contains("военн")) return "item/iron_sword.png";
-        if (n.contains("ресурс") || n.contains("добыч")) return "item/coal.png";
-        if (n.contains("сель") || n.contains("ед")) return "item/wheat.png";
-        if (n.contains("торгов")) return "item/emerald.png";
-        if (n.contains("дизел")) return "item/coal.png";
-        if (n.contains("населен") || n.contains("рабоч")) return "item/bread.png";
-        if (n.contains("содержан") || n.contains("стоимость")) return "item/iron_ingot.png";
-        return "item/paper.png";
     }
 
     private void addResourceRow(Context context, LinearLayout parent, int index) {
         String name = index < snapshot.materialNames().length
             ? snapshot.materialNames()[index] : "Материал";
+        String itemId = index < snapshot.materialIds().length
+            ? snapshot.materialIds()[index] : "";
         int stock = valueAt(snapshot.materialStockpile(), index);
         int debt = valueAt(snapshot.materialDebt(), index);
         double cost = doubleAt(snapshot.materialPerCycle(), index);
+
         int max = Math.max(1, (int) Math.ceil(cost * 20.0D));
         float ratio = Math.min(1.0f, stock / (float) max);
 
         LinearLayout card = column(context);
         card.setBackground(solid(PANEL_3, dp(8)));
-        card.setPadding(dp(12), dp(8), dp(12), dp(8));
+        card.setPadding(dp(10), dp(8), dp(10), dp(8));
 
         LinearLayout top = row(context);
-        top.addView(label(context, "◆  " + name, 13, TEXT),
-            new LinearLayout.LayoutParams(0, -2, 1));
+        top.addView(itemIcon(context, itemId, 30),
+            new LinearLayout.LayoutParams(dp(34), dp(34)));
+
+        LinearLayout title = column(context);
+        title.addView(label(context, name, 13, TEXT));
+        title.addView(label(context,
+            String.format(Locale.ROOT, "-%.2f ед. / цикл", cost),
+            10,
+            debt > 0 ? DANGER : MUTED
+        ));
+        top.addView(title, new LinearLayout.LayoutParams(0, dp(36), 1));
+
         top.addView(label(context, format(stock) + " ед.", 13,
-            stock > 0 ? INFO : DANGER));
+            stock > 0 ? STEEL : DANGER));
         card.addView(top);
 
-        card.addView(label(context,
-            String.format(Locale.ROOT, "Расход  -%.2f / цикл", cost) +
-                (debt > 0 ? "   •   долг " + format(debt) : ""),
-            11, debt > 0 ? DANGER : MUTED));
-        card.addView(progressBar(context, ratio, ratio > 0.25f ? ACCENT : DANGER));
+        if (debt > 0) {
+            card.addView(label(context,
+                "Ресурсный долг: " + format(debt),
+                10,
+                DANGER
+            ));
+        }
 
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, dp(68));
+        card.addView(progressBar(context, ratio, ratio > 0.25f ? GOLD : DANGER));
+
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(-1, -2);
         params.setMargins(0, dp(5), 0, 0);
         parent.addView(card, params);
     }
 
-    private View infoLine(Context context, String icon, String name, String value) {
+    private View metricCard(
+        Context context,
+        String title,
+        String value,
+        String iconItem,
+        int accent
+    ) {
+        LinearLayout card = column(context);
+        card.setBackground(solid(PANEL, dp(9)));
+        card.setPadding(dp(10), dp(8), dp(10), dp(8));
+
+        LinearLayout head = row(context);
+        head.addView(itemIcon(context, iconItem, 22),
+            new LinearLayout.LayoutParams(dp(25), dp(25)));
+        head.addView(label(context, title, 9, MUTED));
+        card.addView(head);
+
+        TextView bottom = label(context, value, 15, accent);
+        bottom.setGravity(Gravity.BOTTOM | Gravity.START);
+        card.addView(bottom, new LinearLayout.LayoutParams(-1, 0, 1));
+        return card;
+    }
+
+    private View cityStat(Context context, String icon, String title, String value) {
+        LinearLayout box = column(context);
+        box.setBackground(solid(PANEL_3, dp(7)));
+        box.setPadding(dp(8), dp(6), dp(8), dp(6));
+        LinearLayout top = row(context);
+        top.addView(itemIcon(context, icon, 20),
+            new LinearLayout.LayoutParams(dp(22), dp(22)));
+        top.addView(label(context, title, 9, MUTED));
+        box.addView(top);
+        box.addView(label(context, value, 12, TEXT));
+        return box;
+    }
+
+    private View infoLine(Context context, String iconItem, String name, String value) {
         LinearLayout line = row(context);
-        line.addView(label(context, icon, 13, ACCENT),
-            new LinearLayout.LayoutParams(dp(28), dp(32)));
-        line.addView(label(context, name, 12, MUTED),
-            new LinearLayout.LayoutParams(0, dp(32), 1));
-        TextView valueView = label(context, value, 12, TEXT);
+        line.addView(itemIcon(context, iconItem, 22),
+            new LinearLayout.LayoutParams(dp(26), dp(28)));
+        line.addView(label(context, name, 11, MUTED),
+            new LinearLayout.LayoutParams(0, dp(30), 1));
+        TextView valueView = label(context, value, 11, TEXT);
         valueView.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
-        line.addView(valueView, new LinearLayout.LayoutParams(dp(250), dp(32)));
+        line.addView(valueView, new LinearLayout.LayoutParams(dp(285), dp(30)));
         return line;
+    }
+
+    private View itemIcon(Context context, String itemId, int size) {
+        ImageView imageView = new ImageView(context);
+        Image image = loadItemImage(itemId);
+        if (image != null) {
+            imageView.setImageDrawable(new ImageDrawable(image));
+            imageView.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        } else {
+            imageView.setBackground(solid(PANEL_2, dp(6)));
+        }
+        return imageView;
+    }
+
+    private Image loadItemImage(String itemId) {
+        if (itemId == null || itemId.isBlank()) {
+            return null;
+        }
+
+        try {
+            ResourceLocation id = ResourceLocation.parse(itemId);
+            Image image = Image.create(id.getNamespace(),
+                "item/" + id.getPath() + ".png");
+            if (image != null) {
+                return image;
+            }
+
+            return Image.create(id.getNamespace(),
+                "block/" + id.getPath() + ".png");
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
+    }
+
+    private String iconForChoice(String action) {
+        return switch (action) {
+            case "direction" -> "minecraft:compass";
+            case "government" -> "minecraft:iron_sword";
+            case "religion" -> "minecraft:book";
+            default -> "minecraft:paper";
+        };
+    }
+
+    private String iconForModifier(String name) {
+        String n = name.toLowerCase(Locale.ROOT);
+        if (n.contains("промышлен")) return "minecraft:iron_ingot";
+        if (n.contains("военн")) return "minecraft:iron_sword";
+        if (n.contains("ресурс") || n.contains("добыч")) return "minecraft:coal";
+        if (n.contains("сель")) return "minecraft:wheat";
+        if (n.contains("торгов")) return "minecraft:emerald";
+        if (n.contains("дизел")) return "minecraft:coal";
+        if (n.contains("населен") || n.contains("рабоч")) return "minecraft:bread";
+        if (n.contains("содержан") || n.contains("стоимость")) return "minecraft:iron_ingot";
+        return "minecraft:paper";
     }
 
     private LinearLayout panel(Context context) {
         LinearLayout panel = column(context);
-        panel.setBackground(solid(PANEL, dp(11)));
+        panel.setBackground(solid(PANEL, dp(10)));
         panel.setPadding(dp(14), dp(11), dp(14), dp(11));
         return panel;
     }
@@ -534,18 +735,18 @@ public final class EconomyFragment extends Fragment {
     private Button tabButton(Context context, String text) {
         Button button = new Button(context);
         button.setText(text);
-        button.setTextSize(11);
+        button.setTextSize(10);
         button.setTextColor(TEXT);
-        button.setBackground(solid(PANEL_2, dp(8)));
+        button.setBackground(solid(PANEL_2, dp(7)));
         return button;
     }
 
     private Button smallButton(Context context, String text) {
         Button button = new Button(context);
         button.setText(text);
-        button.setTextSize(18);
-        button.setTextColor(MUTED);
-        button.setBackground(solid(PANEL_2, dp(8)));
+        button.setTextSize(11);
+        button.setTextColor(TEXT);
+        button.setBackground(solid(PANEL_2, dp(7)));
         return button;
     }
 
@@ -555,40 +756,43 @@ public final class EconomyFragment extends Fragment {
         return p;
     }
 
+    private LinearLayout.LayoutParams marginWeightCity(float weight) {
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, dp(54), weight);
+        p.setMargins(dp(6), 0, 0, 0);
+        return p;
+    }
+
     private LinearLayout.LayoutParams marginTab() {
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, dp(42), 1);
-        p.setMargins(dp(7), 0, 0, 0);
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, dp(40), 1);
+        p.setMargins(dp(6), 0, 0, 0);
         return p;
     }
 
     private LinearLayout.LayoutParams marginPanel() {
         LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, -2);
-        p.setMargins(0, dp(9), 0, 0);
+        p.setMargins(0, dp(8), 0, 0);
         return p;
     }
 
-    private View metricCard(Context context, String title, String value, int accent) {
-        LinearLayout card = column(context);
-        card.setBackground(solid(PANEL, dp(9)));
-        card.setPadding(dp(11), dp(8), dp(11), dp(8));
-        card.addView(label(context, title, 9, MUTED));
-        TextView bottom = label(context, value, 16, accent);
-        bottom.setGravity(Gravity.BOTTOM | Gravity.START);
-        card.addView(bottom, new LinearLayout.LayoutParams(-1, 0, 1));
-        return card;
+    private LinearLayout.LayoutParams marginButton() {
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, dp(42), 1);
+        p.setMargins(dp(8), 0, 0, 0);
+        return p;
     }
 
     private View progressBar(Context context, float ratio, int color) {
         LinearLayout bar = new LinearLayout(context);
         bar.setOrientation(LinearLayout.HORIZONTAL);
-        bar.setBackground(solid(0xFF0A121B, dp(4)));
+        bar.setBackground(solid(0xFF0A1017, dp(4)));
+
         float fill = Math.max(0.01f, Math.min(1.0f, ratio));
         View active = new View(context);
         active.setBackground(solid(color, dp(4)));
         View rest = new View(context);
-        rest.setBackground(solid(0xFF263544, dp(4)));
-        bar.addView(active, new LinearLayout.LayoutParams(0, dp(7), fill));
-        bar.addView(rest, new LinearLayout.LayoutParams(0, dp(7), 1.0f - fill));
+        rest.setBackground(solid(LINE, dp(4)));
+
+        bar.addView(active, new LinearLayout.LayoutParams(0, dp(6), fill));
+        bar.addView(rest, new LinearLayout.LayoutParams(0, dp(6), 1.0f - fill));
         return bar;
     }
 
@@ -614,7 +818,18 @@ public final class EconomyFragment extends Fragment {
         return view;
     }
 
+    private void removePopup() {
+        if (popupOverlay != null) {
+            ViewGroup parent = (ViewGroup) popupOverlay.getParent();
+            if (parent != null) {
+                parent.removeView(popupOverlay);
+            }
+            popupOverlay = null;
+        }
+    }
+
     private void closeDashboard() {
+        removePopup();
         Minecraft.getInstance().execute(() -> Minecraft.getInstance().setScreen(null));
     }
 
@@ -630,18 +845,12 @@ public final class EconomyFragment extends Fragment {
         return valueAt(values, index);
     }
 
-    private static int total(int[] values) {
-        int result = 0;
-        if (values != null) for (int value : values) result += Math.max(0, value);
-        return result;
-    }
-
     private static String format(int value) {
         return String.format(Locale.ROOT, "%,d", Math.max(0, value));
     }
 
     private static String formatDouble(double value) {
-        return String.format(Locale.ROOT, "%,.2f", value);
+        return String.format(Locale.ROOT, "%,.2f", Math.max(0, value));
     }
 
     private static String signed(double value) {
@@ -658,7 +867,9 @@ public final class EconomyFragment extends Fragment {
         ShapeDrawable drawable = new ShapeDrawable();
         drawable.setShape(ShapeDrawable.RECTANGLE);
         drawable.setColor(color);
-        if (radius > 0) drawable.setCornerRadius(radius);
+        if (radius > 0) {
+            drawable.setCornerRadius(radius);
+        }
         return drawable;
     }
 }
