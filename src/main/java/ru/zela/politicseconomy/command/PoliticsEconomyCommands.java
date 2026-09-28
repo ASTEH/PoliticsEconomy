@@ -14,6 +14,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import ru.zela.politicseconomy.country.CountryDirection;
+import ru.zela.politicseconomy.country.CountrySettingsService;
 import ru.zela.politicseconomy.country.GovernmentType;
 import ru.zela.politicseconomy.country.ReligionType;
 import ru.zela.politicseconomy.country.CountryPolicyManager;
