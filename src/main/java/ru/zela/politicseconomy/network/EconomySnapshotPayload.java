@@ -9,6 +9,7 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 public record EconomySnapshotPayload(
     String countryName, String direction, String government, String religion,
     int population, double populationWorkforceModifier, String policySummary,
+    int politicalUnrest, String politicalDemand, String politicalSupportSummary,
     int treasury, double infrastructureCost, double moneyDebt, double dieselModifier,
     double totalMaterialPerCycle, String[] materialIds, String[] materialNames,
     int[] materialStockpile, int[] materialDebt, double[] materialPerCycle,
@@ -19,77 +20,39 @@ public record EconomySnapshotPayload(
     int developmentLevel, int developmentPoints, int developmentNextThreshold,
     String developmentPerk, String developmentNextPerk
 ) implements CustomPacketPayload {
-    public static final Type<EconomySnapshotPayload> TYPE =
-        new Type<>(ResourceLocation.fromNamespaceAndPath("politicseconomy", "economy_snapshot"));
-    private static final int MAX_MATERIALS = 32;
-    private static final int MAX_MODIFIERS = 32;
+    public static final Type<EconomySnapshotPayload> TYPE = new Type<>(ResourceLocation.fromNamespaceAndPath("politicseconomy", "economy_snapshot"));
+    private static final int MAX_MATERIALS = 32, MAX_MODIFIERS = 32;
 
-    public static final StreamCodec<RegistryFriendlyByteBuf, EconomySnapshotPayload> STREAM_CODEC =
-        new StreamCodec<>() {
-            @Override public EconomySnapshotPayload decode(RegistryFriendlyByteBuf buf) {
-                String countryName=buf.readUtf(128), direction=buf.readUtf(64),
-                    government=buf.readUtf(64), religion=buf.readUtf(64);
-                int population=buf.readVarInt();
-                double workforce=buf.readDouble();
-                String policySummary=buf.readUtf(512);
-                int treasury=buf.readInt();
-                double infrastructureCost=buf.readDouble(), moneyDebt=buf.readDouble(),
-                    dieselModifier=buf.readDouble(), totalMaterialPerCycle=buf.readDouble();
-                String[] materialIds=readStrings(buf,MAX_MATERIALS,128);
-                String[] materialNames=readStrings(buf,MAX_MATERIALS,256);
-                int[] materialStockpile=readInts(buf,MAX_MATERIALS);
-                int[] materialDebt=readInts(buf,MAX_MATERIALS);
-                double[] materialPerCycle=readDoubles(buf,MAX_MATERIALS);
-                String[] modifierNames=readStrings(buf,MAX_MODIFIERS,128);
-                double[] modifierValues=readDoubles(buf,MAX_MODIFIERS);
-                String[] cityNames=readStrings(buf,96,128), cityCountries=readStrings(buf,96,128), cityMayors=readStrings(buf,96,128);
-                int[] cityTreasuries=readInts(buf,96), cityIncome=readInts(buf,96), cityInfrastructure=readInts(buf,96), cityPopulation=readInts(buf,96), cityTaxBlocks=readInts(buf,96);
-                boolean[] cityCapitals=readBooleans(buf,96), cityMine=readBooleans(buf,96);
-                int level=buf.readVarInt(), points=buf.readVarInt(), next=buf.readVarInt();
-                String perk=buf.readUtf(256), nextPerk=buf.readUtf(256);
-                return new EconomySnapshotPayload(countryName,direction,government,religion,
-                    population,workforce,policySummary,treasury,infrastructureCost,moneyDebt,
-                    dieselModifier,totalMaterialPerCycle,materialIds,materialNames,materialStockpile,
-                    materialDebt,materialPerCycle,modifierNames,modifierValues,cityNames,cityCountries,cityMayors,cityTreasuries,cityIncome,cityInfrastructure,cityPopulation,cityTaxBlocks,cityCapitals,cityMine,level,points,next,perk,nextPerk);
-            }
-
-            @Override public void encode(RegistryFriendlyByteBuf buf, EconomySnapshotPayload v) {
-                buf.writeUtf(limit(v.countryName,128),128);
-                buf.writeUtf(limit(v.direction,64),64);
-                buf.writeUtf(limit(v.government,64),64);
-                buf.writeUtf(limit(v.religion,64),64);
-                buf.writeVarInt(Math.max(0,v.population));
-                buf.writeDouble(v.populationWorkforceModifier);
-                buf.writeUtf(limit(v.policySummary,512),512);
-                buf.writeInt(v.treasury);
-                buf.writeDouble(v.infrastructureCost);
-                buf.writeDouble(v.moneyDebt);
-                buf.writeDouble(v.dieselModifier);
-                buf.writeDouble(v.totalMaterialPerCycle);
-                writeStrings(buf,v.materialIds,MAX_MATERIALS,120);
-                writeStrings(buf,v.materialNames,MAX_MATERIALS,240);
-                writeInts(buf,v.materialStockpile,MAX_MATERIALS);
-                writeInts(buf,v.materialDebt,MAX_MATERIALS);
-                writeDoubles(buf,v.materialPerCycle,MAX_MATERIALS);
-                writeStrings(buf,v.modifierNames,MAX_MODIFIERS,120);
-                writeDoubles(buf,v.modifierValues,MAX_MODIFIERS);
-                writeStrings(buf,v.cityNames,96,120); writeStrings(buf,v.cityCountries,96,120); writeStrings(buf,v.cityMayors,96,120);
-                writeInts(buf,v.cityTreasuries,96); writeInts(buf,v.cityIncome,96); writeInts(buf,v.cityInfrastructure,96); writeInts(buf,v.cityPopulation,96); writeInts(buf,v.cityTaxBlocks,96);
-                writeBooleans(buf,v.cityCapitals,96); writeBooleans(buf,v.cityMine,96);
-                buf.writeVarInt(Math.max(1,v.developmentLevel));
-                buf.writeVarInt(Math.max(0,v.developmentPoints));
-                buf.writeVarInt(Math.max(0,v.developmentNextThreshold));
-                buf.writeUtf(limit(v.developmentPerk,256),256);
-                buf.writeUtf(limit(v.developmentNextPerk,256),256);
-            }
-        };
-
+    public static final StreamCodec<RegistryFriendlyByteBuf, EconomySnapshotPayload> STREAM_CODEC = new StreamCodec<>() {
+        @Override public EconomySnapshotPayload decode(RegistryFriendlyByteBuf buf) {
+            String countryName=buf.readUtf(128), direction=buf.readUtf(64), government=buf.readUtf(64), religion=buf.readUtf(64);
+            int population=buf.readVarInt(); double workforce=buf.readDouble(); String policySummary=buf.readUtf(512);
+            int unrest=buf.readVarInt(); String demand=buf.readUtf(128), support=buf.readUtf(512);
+            int treasury=buf.readInt(); double infrastructureCost=buf.readDouble(), moneyDebt=buf.readDouble(), dieselModifier=buf.readDouble(), totalMaterialPerCycle=buf.readDouble();
+            String[] materialIds=readStrings(buf,MAX_MATERIALS,128), materialNames=readStrings(buf,MAX_MATERIALS,256);
+            int[] materialStockpile=readInts(buf,MAX_MATERIALS), materialDebt=readInts(buf,MAX_MATERIALS); double[] materialPerCycle=readDoubles(buf,MAX_MATERIALS);
+            String[] modifierNames=readStrings(buf,MAX_MODIFIERS,128); double[] modifierValues=readDoubles(buf,MAX_MODIFIERS);
+            String[] cityNames=readStrings(buf,96,128), cityCountries=readStrings(buf,96,128), cityMayors=readStrings(buf,96,128);
+            int[] cityTreasuries=readInts(buf,96), cityIncome=readInts(buf,96), cityInfrastructure=readInts(buf,96), cityPopulation=readInts(buf,96), cityTaxBlocks=readInts(buf,96);
+            boolean[] cityCapitals=readBooleans(buf,96), cityMine=readBooleans(buf,96); int level=buf.readVarInt(), points=buf.readVarInt(), next=buf.readVarInt();
+            String perk=buf.readUtf(256), nextPerk=buf.readUtf(256);
+            return new EconomySnapshotPayload(countryName,direction,government,religion,population,workforce,policySummary,unrest,demand,support,treasury,infrastructureCost,moneyDebt,dieselModifier,totalMaterialPerCycle,materialIds,materialNames,materialStockpile,materialDebt,materialPerCycle,modifierNames,modifierValues,cityNames,cityCountries,cityMayors,cityTreasuries,cityIncome,cityInfrastructure,cityPopulation,cityTaxBlocks,cityCapitals,cityMine,level,points,next,perk,nextPerk);
+        }
+        @Override public void encode(RegistryFriendlyByteBuf buf, EconomySnapshotPayload v) {
+            buf.writeUtf(limit(v.countryName,128),128); buf.writeUtf(limit(v.direction,64),64); buf.writeUtf(limit(v.government,64),64); buf.writeUtf(limit(v.religion,64),64);
+            buf.writeVarInt(Math.max(0,v.population)); buf.writeDouble(v.populationWorkforceModifier); buf.writeUtf(limit(v.policySummary,512),512); buf.writeVarInt(Math.max(0,Math.min(100,v.politicalUnrest))); buf.writeUtf(limit(v.politicalDemand,128),128); buf.writeUtf(limit(v.politicalSupportSummary,512),512);
+            buf.writeInt(v.treasury); buf.writeDouble(v.infrastructureCost); buf.writeDouble(v.moneyDebt); buf.writeDouble(v.dieselModifier); buf.writeDouble(v.totalMaterialPerCycle);
+            writeStrings(buf,v.materialIds,MAX_MATERIALS,120); writeStrings(buf,v.materialNames,MAX_MATERIALS,240); writeInts(buf,v.materialStockpile,MAX_MATERIALS); writeInts(buf,v.materialDebt,MAX_MATERIALS); writeDoubles(buf,v.materialPerCycle,MAX_MATERIALS);
+            writeStrings(buf,v.modifierNames,MAX_MODIFIERS,120); writeDoubles(buf,v.modifierValues,MAX_MODIFIERS); writeStrings(buf,v.cityNames,96,120); writeStrings(buf,v.cityCountries,96,120); writeStrings(buf,v.cityMayors,96,120); writeInts(buf,v.cityTreasuries,96); writeInts(buf,v.cityIncome,96); writeInts(buf,v.cityInfrastructure,96); writeInts(buf,v.cityPopulation,96); writeInts(buf,v.cityTaxBlocks,96); writeBooleans(buf,v.cityCapitals,96); writeBooleans(buf,v.cityMine,96);
+            buf.writeVarInt(Math.max(1,v.developmentLevel)); buf.writeVarInt(Math.max(0,v.developmentPoints)); buf.writeVarInt(Math.max(0,v.developmentNextThreshold)); buf.writeUtf(limit(v.developmentPerk,256),256); buf.writeUtf(limit(v.developmentNextPerk,256),256);
+        }
+    };
     private static void writeInts(FriendlyByteBuf b,int[] v,int max){int n=Math.min(max,v==null?0:v.length);b.writeVarInt(n);for(int i=0;i<n;i++)b.writeVarInt(Math.max(0,v[i]));}
     private static int[] readInts(FriendlyByteBuf b,int max){int n=Math.min(max,Math.max(0,b.readVarInt()));int[] v=new int[n];for(int i=0;i<n;i++)v[i]=Math.max(0,b.readVarInt());return v;}
     private static void writeStrings(FriendlyByteBuf b,String[] v,int max,int chars){int n=Math.min(max,v==null?0:v.length);b.writeVarInt(n);for(int i=0;i<n;i++)b.writeUtf(limit(v[i],chars),chars);}
     private static String[] readStrings(FriendlyByteBuf b,int max,int chars){int n=Math.min(max,Math.max(0,b.readVarInt()));String[] v=new String[n];for(int i=0;i<n;i++)v[i]=b.readUtf(chars);return v;}
     private static void writeDoubles(FriendlyByteBuf b,double[] v,int max){int n=Math.min(max,v==null?0:v.length);b.writeVarInt(n);for(int i=0;i<n;i++)b.writeDouble(v[i]);}
-    private static void writeBooleans(FriendlyByteBuf b, boolean[] v, int max){int n=Math.min(max,v==null?0:v.length);b.writeVarInt(n);for(int i=0;i<n;i++)b.writeBoolean(v[i]);}
+    private static void writeBooleans(FriendlyByteBuf b,boolean[] v,int max){int n=Math.min(max,v==null?0:v.length);b.writeVarInt(n);for(int i=0;i<n;i++)b.writeBoolean(v[i]);}
     private static boolean[] readBooleans(FriendlyByteBuf b,int max){int n=Math.min(max,Math.max(0,b.readVarInt()));boolean[] v=new boolean[n];for(int i=0;i<n;i++)v[i]=b.readBoolean();return v;}
     private static double[] readDoubles(FriendlyByteBuf b,int max){int n=Math.min(max,Math.max(0,b.readVarInt()));double[] v=new double[n];for(int i=0;i<n;i++)v[i]=b.readDouble();return v;}
     private static String limit(String v,int max){if(v==null||v.isEmpty())return "";return v.length()<=max?v:v.substring(0,max);}
