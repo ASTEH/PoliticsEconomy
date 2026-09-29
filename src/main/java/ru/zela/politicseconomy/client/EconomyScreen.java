@@ -264,6 +264,7 @@ public final class EconomyScreen extends Screen {
 
         if (page == Page.TRADE_HISTORY && modalAction == null) {
             layoutHistorySearch();
+            updateTradeInputVisibility();
             tradeHistorySearch.render(graphics, mouseX, mouseY, partialTick);
         }
 
@@ -451,13 +452,13 @@ public final class EconomyScreen extends Screen {
 
         int iconX = left + 12;
         int nameX = left + 34;
-        int workersRight = right - 126;
-        int percentRight = right - 83;
-        int bonusRight = right - 58;
+        int workersRight = left + 126;
+        int percentRight = left + 175;
+        int bonusRight = right - 60;
 
-        g.drawString(font, "РАБОТНИКИ", Math.max(nameX + 54, workersRight - 58), y + 49, MUTED, false);
-        g.drawString(font, "ДОЛЯ", workersRight + 1, y + 49, MUTED, false);
-        g.drawString(font, "БОНУС", percentRight + 1, y + 49, MUTED, false);
+        g.drawString(font, "РАБОТНИКИ", workersRight - 60, y + 49, MUTED, false);
+        g.drawString(font, "ДОЛЯ", percentRight - 4, y + 49, MUTED, false);
+        g.drawString(font, "БОНУС", bonusRight - 28, y + 49, MUTED, false);
 
         int rowY = y + headerH;
         for (int i = 0; i < sectors.length; i++) {
@@ -475,17 +476,17 @@ public final class EconomyScreen extends Screen {
 
             String share = valueAt(snapshot.sectorAllocation(), i) + "%";
             g.drawString(font, share,
-                right - 86 - font.width(share), rowY + 10, ACCENT, true);
+                percentRight - font.width(share), rowY + 10, ACCENT, true);
 
             String bonus = signed(valueAt(snapshot.sectorBonuses(), i));
             g.drawString(font, bonus,
-                right - 61 - font.width(bonus), rowY + 10,
+                bonusRight - font.width(bonus), rowY + 10,
                 valueAt(snapshot.sectorBonuses(), i) >= 0 ? POSITIVE : NEGATIVE, true);
 
             final WorkforceSector targetSector = sector;
-            miniButton(g, right - 36, rowY + 6, "-", mouseX, mouseY,
+            miniButton(g, right - 54, rowY + 6, "-", mouseX, mouseY,
                 () -> changeWorkforce(targetSector, -5));
-            miniButton(g, right - 10, rowY + 6, "+", mouseX, mouseY,
+            miniButton(g, right - 28, rowY + 6, "+", mouseX, mouseY,
                 () -> changeWorkforce(targetSector, 5));
 
             rowY += rowH;
@@ -497,7 +498,8 @@ public final class EconomyScreen extends Screen {
     private int drawWarehousePanel(GuiGraphics g, int y, int left, int right, int mouseX, int mouseY) {
         int rows = Math.max(1, materialCount());
         int rowH = 38;
-        int bottom = y + 66 + rows * rowH + 8;
+        int headerH = 88;
+        int bottom = y + headerH + rows * rowH + 8;
 
         panel(g, left, y, right, bottom);
 
@@ -506,12 +508,12 @@ public final class EconomyScreen extends Screen {
         g.drawString(font, "ГОСУДАРСТВЕННЫЙ СКЛАД", left + 38, y + 12, TEXT, true);
         g.drawString(font, "Запасы и ресурсные обязательства", left + 14, y + 31, MUTED, false);
 
-        drawButton(g, right - 130, y + 10, right - 14, y + 35,
+        drawButton(g, right - 130, y + 46, right - 14, y + 72,
             "ПОПОЛНИТЬ ИЗ ИНВ.",
             ACCENT_DARK, ACCENT, mouseX, mouseY,
             () -> EconomyNetwork.sendAction("warehouse_deposit_all", ""));
 
-        int rowY = y + 60;
+        int rowY = y + headerH - 4;
         for (int i = 0; i < materialCount(); i++) {
             int baseX = left + 14;
             String name = clipToWidth(
@@ -1522,7 +1524,8 @@ public final class EconomyScreen extends Screen {
             return true;
         }
 
-        if (page == Page.TRADE && super.mouseClicked(mouseX, mouseY, button)) {
+        if ((page == Page.TRADE || page == Page.TRADE_HISTORY) &&
+            super.mouseClicked(mouseX, mouseY, button)) {
             return true;
         }
 
