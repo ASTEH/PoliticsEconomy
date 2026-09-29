@@ -16,6 +16,9 @@ public final class CountryDirectionBonusService {
     private CountryDirectionBonusService() {}
 
     public static CountryDirectionProfile profile(MinecraftServer server, String countryName) {
+        if (ru.zela.politicseconomy.integration.MillenaireIntegration.isStateKey(countryName)) {
+            ru.zela.politicseconomy.integration.MillenaireIntegration.ensureState(server, countryName);
+        }
         CountryDirection direction = CountryDirectionManager.getDirection(server, countryName);
         if (direction == null) {
             return null;
