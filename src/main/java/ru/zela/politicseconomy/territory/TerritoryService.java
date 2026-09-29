@@ -51,11 +51,6 @@ public final class TerritoryService {
         Country country = politics.getCountry(countryName);
         if (country == null) return false;
 
-        CountryRole role = country.getRole(player.getUUID());
-        if (role != CountryRole.LEADER && !player.isCreative()) {
-            return fail(player, "Покупать новые территории может только лидер страны.");
-        }
-
         ChunkPos target = player.chunkPosition();
         if (politics.getCountryNameAt(target) != null) {
             return fail(player, "Этот чанк уже принадлежит государству.");
