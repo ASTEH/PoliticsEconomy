@@ -26,6 +26,9 @@ public final class CountryWorkplaceService {
         if (server == null || countryName == null || countryName.isBlank()) {
             return Snapshot.empty();
         }
+        if (ru.zela.politicseconomy.integration.MillenaireIntegration.isStateKey(countryName)) {
+            return ru.zela.politicseconomy.integration.MillenaireIntegration.workplaceSnapshot(server, countryName);
+        }
 
         long second = server.overworld().getGameTime() / 20L;
         if (server != cachedServer) {
