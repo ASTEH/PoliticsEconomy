@@ -3,7 +3,7 @@ package ru.zela.politicseconomy.country;
 import net.krona.politicsmod.politics.Country;
 import net.krona.politicsmod.politics.CountryRole;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.ServerPlayer;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.saveddata.SavedData;
 import ru.zela.politicseconomy.integration.PoliticsModIntegration;
