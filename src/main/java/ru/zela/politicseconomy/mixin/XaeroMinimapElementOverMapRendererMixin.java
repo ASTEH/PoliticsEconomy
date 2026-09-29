@@ -11,7 +11,6 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import ru.zela.politicseconomy.client.XaeroPoliticalMinimapOverlay;
-import xaero.common.AXaeroMinimap;
 import xaero.common.graphics.renderer.multitexture.MultiTextureRenderTypeRendererProvider;
 import xaero.common.minimap.render.MinimapRendererHelper;
 
@@ -35,7 +34,7 @@ public abstract class XaeroMinimapElementOverMapRendererMixin {
         boolean cave,
         float partialTicks,
         RenderTarget framebuffer,
-        AXaeroMinimap modMain,
+        Object modMain,
         MinimapRendererHelper helper,
         MultiBufferSource.BufferSource renderTypeBuffers,
         Font font,
