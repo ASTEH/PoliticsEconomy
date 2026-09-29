@@ -33,7 +33,7 @@ public record EconomySnapshotPayload(
 ) implements CustomPacketPayload {
     public static final Type<EconomySnapshotPayload> TYPE = new Type<>(ResourceLocation.fromNamespaceAndPath("politicseconomy", "economy_snapshot"));
     private static final int MAX_MATERIALS = 32, MAX_MODIFIERS = 32, MAX_WORKFORCE = 8,
-        MAX_RESEARCH = 15, MAX_MARKET_GOODS = 64, MAX_TRADE_ROWS = 48, MAX_TRADE_HISTORY = 128;
+        MAX_RESEARCH = 24, MAX_MARKET_GOODS = 64, MAX_TRADE_ROWS = 48, MAX_TRADE_HISTORY = 128;
 
     public static final StreamCodec<RegistryFriendlyByteBuf, EconomySnapshotPayload> STREAM_CODEC = new StreamCodec<>() {
         @Override public EconomySnapshotPayload decode(RegistryFriendlyByteBuf buf) {
