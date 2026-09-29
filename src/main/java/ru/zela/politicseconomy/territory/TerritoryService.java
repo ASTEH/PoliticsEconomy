@@ -60,6 +60,8 @@ public final class TerritoryService {
         }
 
         int price = claimPrice(player.getServer(), countryName);
+        int ownedBefore = claimedChunkCount(player.getServer(), countryName);
+        int cycleUpkeepAfter = territoryUpkeep(player.getServer(), countryName, ownedBefore + 1);
         if (!player.isCreative() && country.balance < price) {
             return fail(player, "Недостаточно денег в казне. Нужно $" + price + ".");
         }
@@ -69,7 +71,8 @@ public final class TerritoryService {
         politics.saveData();
 
         player.sendSystemMessage(Component.literal(
-            "Чанк " + target.x + ", " + target.z + " присоединён за $" + price + "."
+            "Чанк " + target.x + ", " + target.z + " присоединён за $" + price
+                + ". Содержание территории теперь: $" + cycleUpkeepAfter + "/цикл."
         ).withStyle(ChatFormatting.GREEN));
         PoliticalMapService.syncAll(player.getServer());
         return true;
@@ -221,20 +224,48 @@ public final class TerritoryService {
         return true;
     }
 
-    public static int claimPrice(MinecraftServer server, String countryName) {
+    /**
+     * Returns the number of chunks currently owned by the country.
+     * PoliticsMod counts every claimed chunk for territory upkeep, so this is
+     * the same population of territory used by the vanilla PoliticsMod cycle.
+     */
+    public static int claimedChunkCount(MinecraftServer server, String countryName) {
+        if (server == null || countryName == null || countryName.isBlank()) return 0;
         PoliticsManager politics = PoliticsManager.get(server.overworld());
-        if (politics == null) return Math.max(1, PoliticsConfig.get().countryChunkPrice);
+        if (politics == null) return 0;
 
-        int owned = 0;
         final int[] count = {0};
         politics.forEachClaim((pos, color) -> {
             if (countryName.equals(politics.getCountryNameAt(pos))) count[0]++;
         });
-        owned = count[0];
+        return count[0];
+    }
 
-        int stages = owned / 25;
-        double multiplier = 1.0D + stages * 0.25D;
+    /**
+     * Dynamic price for the next free expansion chunk.
+     * Every already-owned chunk adds one percentage point to the base price.
+     * Example with a $500 base price: 25 chunks => $625 for the next one,
+     * 50 chunks => $750, 100 chunks => $1000.
+     */
+    public static int claimPrice(MinecraftServer server, String countryName) {
+        int owned = claimedChunkCount(server, countryName);
+        double multiplier = 1.0D + owned * 0.01D;
         return Math.max(1, (int) Math.round(PoliticsConfig.get().countryChunkPrice * multiplier));
+    }
+
+    /**
+     * Total territory upkeep for the supplied number of owned chunks.
+     * The actual deduction remains in PoliticsMod.processEconomyCycle(); this
+     * helper only exposes the amount to the Politics Economy UI/commands.
+     */
+    public static int territoryUpkeep(MinecraftServer server, String countryName) {
+        int owned = claimedChunkCount(server, countryName);
+        return territoryUpkeep(server, countryName, owned);
+    }
+
+    public static int territoryUpkeep(MinecraftServer server, String countryName, int ownedChunks) {
+        long upkeep = (long) Math.max(0, ownedChunks) * Math.max(0, PoliticsConfig.get().upkeepPerChunk);
+        return upkeep > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) upkeep;
     }
 
     public static String occupationProgressText(MinecraftServer server, ChunkPos chunk) {
