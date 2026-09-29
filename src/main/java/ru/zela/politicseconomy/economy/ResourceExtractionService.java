@@ -15,6 +15,8 @@ import ru.zela.politicseconomy.integration.CountryContext;
 import ru.zela.politicseconomy.country.CountryDirectionProfile;
 import ru.zela.politicseconomy.country.CountryPolicyBonusService;
 import ru.zela.politicseconomy.country.CountryPolicyProfile;
+import ru.zela.politicseconomy.country.CountryWorkforceService;
+import ru.zela.politicseconomy.country.WorkforceSector;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -75,10 +77,16 @@ public final class ResourceExtractionService {
         CountryPolicyProfile policy = CountryPolicyBonusService.profile(
             player.getServer(), playerCountry.getName()
         );
+        WorkforceSector workforceSector = category == ResourceExtractionCategory.AGRICULTURE
+            ? WorkforceSector.AGRICULTURE
+            : WorkforceSector.EXTRACTION;
         double productionModifier = profile.extractionProduction(category)
             + (category == ResourceExtractionCategory.AGRICULTURE
                 ? policy.agriculturalProduction()
-                : policy.resourceProduction());
+                : policy.resourceProduction())
+            + CountryWorkforceService.sectorBonusPercent(
+                player.getServer(), playerCountry.getName(), workforceSector
+            );
         double lossPercent = clamp(profile.extractionLoss(category), -100.0D, 100.0D);
         double productionMultiplier = Math.max(0.0D, 1.0D + productionModifier / 100.0D);
         double lossMultiplier = Math.max(0.0D, 1.0D - lossPercent / 100.0D);
