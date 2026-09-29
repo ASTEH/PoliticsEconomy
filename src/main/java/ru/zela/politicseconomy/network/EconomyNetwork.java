@@ -8,6 +8,7 @@ import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 import ru.zela.politicseconomy.country.CountrySettingsService;
+import ru.zela.politicseconomy.country.CountryWorkforceService;
 import ru.zela.politicseconomy.economyui.EconomyMenu;
 
 public final class EconomyNetwork {
@@ -23,6 +24,17 @@ public final class EconomyNetwork {
         registrar.playToServer(CountrySettingsActionPayload.TYPE, CountrySettingsActionPayload.STREAM_CODEC,
             (payload, context) -> context.enqueueWork(() -> {
                 if (!(context.player() instanceof ServerPlayer player)) return;
+
+                if ("workforce".equals(payload.action())) {
+                    CountryWorkforceService.Result result =
+                        CountryWorkforceService.apply(player, payload.value(), player.isCreative() && player.hasPermissions(2));
+                    player.sendSystemMessage(net.minecraft.network.chat.Component.literal(result.message())
+                        .withStyle(result.success() ? net.minecraft.ChatFormatting.GREEN : net.minecraft.ChatFormatting.RED));
+                    var country = ru.zela.politicseconomy.integration.PoliticsModIntegration.playerCountry(player).orElse(null);
+                    if (country != null) send(player, EconomyMenu.buildSnapshot(player, country));
+                    return;
+                }
+
                 CountrySettingsService.Result result = CountrySettingsService.apply(player, payload.action(), payload.value());
                 player.sendSystemMessage(net.minecraft.network.chat.Component.literal(result.message())
                     .withStyle(result.success() ? net.minecraft.ChatFormatting.GREEN : net.minecraft.ChatFormatting.RED));
