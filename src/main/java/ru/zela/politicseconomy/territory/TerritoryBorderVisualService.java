@@ -183,17 +183,15 @@ public final class TerritoryBorderVisualService {
     }
 
     private static long edgeKey(ChunkPos chunk, Direction direction) {
-        int x = chunk.x;
-        int z = chunk.z;
         if (direction == Direction.WEST || direction == Direction.EAST) {
-            int edgeX = direction == Direction.WEST ? x : x + 1;
-            int minX = Math.min(edgeX, edgeX);
-            return (ChunkPos.asLong(minX, z) * 31L) ^ direction.ordinal();
+            int edgeX = direction == Direction.WEST ? chunk.x : chunk.x + 1;
+            // Vertical border: both sides of the same line share this key.
+            return ChunkPos.asLong(edgeX, chunk.z) * 31L;
         }
 
-        int edgeZ = direction == Direction.NORTH ? z : z + 1;
-        int minZ = Math.min(edgeZ, edgeZ);
-        return (ChunkPos.asLong(x, minZ) * 31L) ^ (direction.ordinal() + 11L);
+        int edgeZ = direction == Direction.NORTH ? chunk.z : chunk.z + 1;
+        // Horizontal border: both sides of the same line share this key.
+        return ChunkPos.asLong(chunk.x, edgeZ) * 31L + 1L;
     }
 
     private static DustParticleOptions dust(int rgb) {
