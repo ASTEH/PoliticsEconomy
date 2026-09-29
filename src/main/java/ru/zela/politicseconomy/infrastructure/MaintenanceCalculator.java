@@ -44,6 +44,14 @@ public final class MaintenanceCalculator {
             case TRANSPORT -> policy.transportMaintenance();
             case RESIDENTIAL, DECORATIVE -> 0.0;
         };
-        return Math.max(0.0, 1.0 + modifier / 100.0);
+        double baseMultiplier = Math.max(0.0, 1.0 + modifier / 100.0);
+        double constructionEfficiency = CountryWorkforceService.constructionEfficiencyBonusPercent(
+            server, countryName
+        );
+        double workforceMultiplier = Math.max(
+            0.85D,
+            1.0D - constructionEfficiency / 100.0D * 0.35D
+        );
+        return baseMultiplier * workforceMultiplier;
     }
 }
