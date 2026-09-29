@@ -2,8 +2,9 @@ package ru.zela.politicseconomy.research;
 
 import net.krona.politicsmod.politics.Country;
 import net.krona.politicsmod.politics.CountryRole;
+import net.krona.politicsmod.PoliticsManager;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.ServerPlayer;
+import net.minecraft.server.level.ServerPlayer;
 import ru.zela.politicseconomy.country.CountryDevelopmentService;
 import ru.zela.politicseconomy.country.CountryDirection;
 import ru.zela.politicseconomy.country.CountryDirectionManager;
@@ -59,7 +60,7 @@ public final class CountryResearchService {
         if(!operator){
             country.balance-=r.moneyCost();
             get(player.getServer()).addPoints(country.getName(),-r.researchCost());
-            var politics=net.krona.politicsmod.politics.PoliticsManager.get(player.serverLevel());
+            var politics=PoliticsManager.get(player.serverLevel());
             if(politics!=null)politics.setDirty();
         }
         get(player.getServer()).complete(country.getName(),r.id());
@@ -67,7 +68,7 @@ public final class CountryResearchService {
     }
 
     private static Country countryObject(MinecraftServer server,String name){
-        var politics=net.krona.politicsmod.politics.PoliticsManager.get(server.overworld());
+        var politics=PoliticsManager.get(server.overworld());
         return politics==null?null:politics.getCountry(name);
     }
 
