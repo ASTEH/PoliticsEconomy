@@ -7,6 +7,7 @@ import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexFormat;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.util.Mth;
 import org.joml.Matrix4f;
@@ -33,14 +34,42 @@ public final class XaeroPoliticalMinimapOverlay {
         PoseStack poseStack,
         double renderX,
         double renderZ,
+        double zoom,
+        int mapX,
+        int mapY,
+        int specW,
+        int specH,
+        boolean circle,
+        float xaeroScale
+    ) {
+        var player = Minecraft.getInstance().player;
+        if (player == null) return;
+
+        double radians = Math.toRadians(player.getYRot());
+        double ps = Math.sin(radians);
+        double pc = Math.cos(radians);
+
+        poseStack.pushPose();
+        poseStack.translate(mapX + specW * 0.5D, mapY + specH * 0.5D, -980.0D);
+        renderBorderGeometry(
+            poseStack, renderX, renderZ, ps, pc, zoom,
+            specW * 0.5D, specH * 0.5D, circle
+        );
+        poseStack.popPose();
+    }
+
+    private static void renderBorderGeometry(
+        PoseStack poseStack,
+        double renderX,
+        double renderZ,
         double ps,
         double pc,
         double zoom,
-        int specW,
-        int specH,
+        double halfW,
+        double halfH,
         boolean circle
     ) {
-        if (specW <= 0 || specH <= 0 || zoom <= 0.0D) {
+        if (halfW <= 0.0D || halfH <= 0.0D || zoom <= 0.0D) {
             return;
         }
 
@@ -94,7 +123,7 @@ public final class XaeroPoliticalMinimapOverlay {
                     worldX, worldZ2,
                     renderX, renderZ,
                     ps, pc, zoom,
-                    specW, specH,
+                    halfW, halfH,
                     circle
                 );
 
@@ -128,7 +157,7 @@ public final class XaeroPoliticalMinimapOverlay {
                     worldX2, worldZ,
                     renderX, renderZ,
                     ps, pc, zoom,
-                    specW, specH,
+                    halfW, halfH,
                     circle
                 );
 
@@ -182,8 +211,8 @@ public final class XaeroPoliticalMinimapOverlay {
         double ps,
         double pc,
         double zoom,
-        double specW,
-        double specH,
+        double halfW,
+        double halfH,
         boolean circle
     ) {
         Point a = transformPoint(
