@@ -101,6 +101,15 @@ public final class PopulationMarketService {
             data.setCycleDemand(country.getName(), demand);
         }
 
+        for (ru.zela.politicseconomy.integration.MillenaireIntegration.VillageSnapshot state
+            : ru.zela.politicseconomy.integration.MillenaireIntegration.snapshots(server)) {
+            Map<String, Integer> demand = calculateCountryDemand(
+                server,
+                state.stateKey()
+            );
+            data.setCycleDemand(state.stateKey(), demand);
+        }
+
         data.setLastCycle(cycle);
         // Give local players the entire first half of the cycle before importing.
         data.setLastImportCycle(cycle - 1);
@@ -305,6 +314,14 @@ public final class PopulationMarketService {
         PoliticsManager politics = PoliticsManager.get(server.overworld());
         Country country = politics == null ? null : politics.getCountry(countryName);
         if (country != null) {
+            data.setCycleDemand(
+                countryName,
+                calculateCountryDemand(server, countryName)
+            );
+            return;
+        }
+
+        if (ru.zela.politicseconomy.integration.MillenaireIntegration.isStateKey(countryName)) {
             data.setCycleDemand(
                 countryName,
                 calculateCountryDemand(server, countryName)
