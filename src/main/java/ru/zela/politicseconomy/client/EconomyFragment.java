@@ -154,6 +154,14 @@ public final class EconomyFragment extends Fragment {
         return screenRoot;
     }
 
+    @Override
+    public void onDestroyView() {
+        if (activeFragment == this) {
+            activeFragment = null;
+        }
+        super.onDestroyView();
+    }
+
     private View buildHeader(Context context) {
         LinearLayout header = row(context);
 
