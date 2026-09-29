@@ -21,7 +21,15 @@ public final class CountryResearchService {
                 CountryResearchSavedData::create,CountryResearchSavedData::load,null
             ),CountryResearchSavedData.DATA_NAME);
     }
-    public static Set<String> completed(MinecraftServer server,String country){return get(server).getCompleted(country);}
+    public static Set<String> completed(MinecraftServer server,String country){
+        Set<String> result = new HashSet<>(get(server).getCompleted(country));
+        // Migration from the previous linear tree: trade_motor became trade_road.
+        if (result.remove("trade_motor")) {
+            result.add("trade_road");
+            get(server).complete(country, "trade_road");
+        }
+        return Set.copyOf(result);
+    }
     public static int points(MinecraftServer server,String country){return get(server).getPoints(country);}
     public static void addPoints(MinecraftServer server,String country,int amount){get(server).addPoints(country,amount);}
     public static List<CountryResearch> forDirection(CountryDirection direction){return Arrays.stream(CountryResearch.values()).filter(r->r.direction()==direction).toList();}
