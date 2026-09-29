@@ -127,8 +127,7 @@ public enum CountryResearch {
         5, 7, 900, "create:item_vault", 0, 4,
         List.of("resource_diesel", "resource_agro"), List.of(
             "create:item_vault",
-            "create:fluid_tank",
-            "create:stockpile"
+            "create:fluid_tank"
         ),
         "Create: государственная складская инфраструктура"
     ),
@@ -138,8 +137,9 @@ public enum CountryResearch {
         "Формирование национальной торговой инфраструктуры.",
         1, 2, 150, "create:stockpile", 0, 0,
         List.of(), List.of(
-            "create:stockpile",
-            "create:display_board"
+            "create:display_board",
+            "create:display_link",
+            "create:stockpile"
         ),
         "Create: торговые узлы"
     ),
@@ -188,9 +188,8 @@ public enum CountryResearch {
         "Объединение железных дорог, складов и транспорта в единую сеть.",
         5, 7, 900, "create:portable_storage_interface", 1, 4,
         List.of("trade_logistics", "trade_air"), List.of(
-            "create:portable_storage_interface",
-            "create:item_vault",
-            "create:display_link"
+            "create:linked_controller",
+            "create:clipboard"
         ),
         "Create: интегрированная логистика"
     );
