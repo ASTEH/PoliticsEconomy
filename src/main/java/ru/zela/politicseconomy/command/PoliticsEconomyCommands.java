@@ -38,6 +38,8 @@ import ru.zela.politicseconomy.economy.NationalMaterialLedgerSavedData;
 import ru.zela.politicseconomy.economy.TaxBlockShopService;
 import ru.zela.politicseconomy.economyui.EconomyMenu;
 import ru.zela.politicseconomy.integration.PoliticsModIntegration;
+import ru.zela.politicseconomy.integration.MillenaireIntegration;
+import ru.zela.politicseconomy.integration.MillenaireStateSavedData;
 import ru.zela.politicseconomy.infrastructure.InfrastructureManager;
 import ru.zela.politicseconomy.infrastructure.MaintenanceLedgerSavedData;
 import ru.zela.politicseconomy.infrastructure.MaintenanceService;
@@ -67,6 +69,10 @@ public final class PoliticsEconomyCommands {
                         .executes(context -> territoryStatus(context.getSource()))))
                 .then(Commands.literal("profile")
                     .executes(context -> showProfile(context.getSource())))
+                .then(Commands.literal("millenaire")
+                    .executes(context -> showMillenaire(context.getSource()))
+                    .then(Commands.literal("info")
+                        .executes(context -> showMillenaireInfo(context.getSource()))))
                 .then(Commands.literal("direction")
                     .executes(context -> showDirection(context.getSource()))
                     .then(Commands.argument("direction", StringArgumentType.word())
@@ -829,6 +835,222 @@ public final class PoliticsEconomyCommands {
             () -> Component.literal("Для союзника: 0%").withStyle(ChatFormatting.GREEN),
             false
         );
+        return 1;
+    }
+
+    private static int showMillenaire(CommandSourceStack source) {
+        if (!MillenaireIntegration.isAvailable()) {
+            source.sendFailure(Component.literal("Millénaire не установлен или его API недоступен."));
+            return 0;
+        }
+
+        ServerPlayer player = null;
+        try {
+            player = source.getPlayerOrException();
+        } catch (Exception ignored) {
+        }
+
+        source.sendSuccess(
+            () -> Component.literal("=== Государства Millénaire ===")
+                .withStyle(ChatFormatting.GOLD),
+            false
+        );
+
+        var snapshots = MillenaireIntegration.snapshots(source.getServer());
+        if (snapshots.isEmpty()) {
+            source.sendSuccess(
+                () -> Component.literal("Поселения Millénaire пока не найдены.")
+                    .withStyle(ChatFormatting.GRAY),
+                false
+            );
+            return 1;
+        }
+
+        for (MillenaireIntegration.VillageSnapshot state : snapshots) {
+            long treasury = MillenaireStateSavedData
+                .get(source.getServer())
+                .treasury(state.villageId());
+
+            source.sendSuccess(
+                () -> Component.literal(
+                    state.name()
+                        + " | " + state.culture()
+                        + " | население " + state.population()
+                        + " | казна $" + treasury
+                        + " | территория " + state.territory().size() + " ч."
+                ).withStyle(
+                    player != null && state.territory().contains(player.chunkPosition())
+                        ? ChatFormatting.AQUA
+                        : ChatFormatting.WHITE
+                ),
+                false
+            );
+        }
+
+        source.sendSuccess(
+            () -> Component.literal("Подробнее: /pe millenaire info")
+                .withStyle(ChatFormatting.GRAY),
+            false
+        );
+        return 1;
+    }
+
+    private static int showMillenaireInfo(CommandSourceStack source) {
+        if (!MillenaireIntegration.isAvailable()) {
+            source.sendFailure(Component.literal("Millénaire не установлен или его API недоступен."));
+            return 0;
+        }
+
+        ServerPlayer player;
+        try {
+            player = source.getPlayerOrException();
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("Эта команда доступна только игроку."));
+            return 0;
+        }
+
+        MillenaireIntegration.VillageSnapshot state =
+            MillenaireIntegration.snapshotAtChunk(
+                player.getServer(),
+                player.chunkPosition()
+            );
+
+        if (state == null) {
+            source.sendFailure(Component.literal(
+                "В текущем чанке нет территории государства Millénaire."
+            ));
+            return 0;
+        }
+
+        String key = state.stateKey();
+        MillenaireStateSavedData saved = MillenaireStateSavedData.get(player.getServer());
+        saved.ensureState(
+            state.villageId(),
+            state.name(),
+            player.getServer().getTickCount()
+        );
+
+        var direction = CountryDirectionManager.getDirection(player.getServer(), key);
+        var government = CountryPolicyManager.getGovernment(player.getServer(), key);
+        var religion = CountryPolicyManager.getReligion(player.getServer(), key);
+
+        source.sendSuccess(
+            () -> Component.literal("=== Государство Millénaire: " + state.name() + " ===")
+                .withStyle(ChatFormatting.GOLD),
+            false
+        );
+        source.sendSuccess(
+            () -> Component.literal(
+                "ID: " + state.villageId()
+                    + " | культура: " + state.culture()
+                    + " | тип: " + state.villageType()
+            ).withStyle(ChatFormatting.GRAY),
+            false
+        );
+        source.sendSuccess(
+            () -> Component.literal(
+                "Население: " + state.population()
+                    + " | взрослые: " + state.adults()
+                    + " | дети: " + state.children()
+            ).withStyle(ChatFormatting.AQUA),
+            false
+        );
+        source.sendSuccess(
+            () -> Component.literal(
+                "Территория: " + state.territory().size()
+                    + " чанков | центр: " + state.center().getX()
+                    + ", " + state.center().getY()
+                    + ", " + state.center().getZ()
+            ).withStyle(ChatFormatting.GREEN),
+            false
+        );
+        source.sendSuccess(
+            () -> Component.literal(
+                "Казна PoliticsEconomy: $" + saved.treasury(state.villageId())
+            ).withStyle(ChatFormatting.YELLOW),
+            false
+        );
+        source.sendSuccess(
+            () -> Component.literal(
+                "Направление: " + (direction == null ? "не выбрано" : direction.displayName())
+                    + " | правительство: "
+                    + (government == null ? "не выбрано" : government.displayName())
+                    + " | религия: "
+                    + (religion == null ? "не выбрано" : religion.displayName())
+            ).withStyle(ChatFormatting.LIGHT_PURPLE),
+            false
+        );
+        source.sendSuccess(
+            () -> Component.literal(
+                "Развитие: уровень "
+                    + CountryDevelopmentService.level(player.getServer(), key)
+                    + " | очки "
+                    + CountryDevelopmentService.points(player.getServer(), key)
+            ).withStyle(ChatFormatting.WHITE),
+            false
+        );
+
+        source.sendSuccess(
+            () -> Component.literal("Рабочая сила по профессиям:")
+                .withStyle(ChatFormatting.GOLD),
+            false
+        );
+        for (WorkforceSector sector : WorkforceSector.values()) {
+            int workers = state.workersBySector().getOrDefault(sector, 0);
+            int slots = state.workplaceSnapshot()
+                .workplaceSlots()
+                .getOrDefault(sector, 0);
+            int blocks = state.workplaceSnapshot()
+                .workplaceCounts()
+                .getOrDefault(sector, 0);
+            source.sendSuccess(
+                () -> Component.literal(
+                    sector.displayName()
+                        + ": " + workers + " работников / " + slots
+                        + " мест | зданий " + blocks
+                ).withStyle(workers > 0 ? ChatFormatting.GREEN : ChatFormatting.GRAY),
+                false
+            );
+        }
+
+        source.sendSuccess(
+            () -> Component.literal(
+                "Экономические товары в складах Millénaire: "
+                    + state.warehouse().size() + " видов"
+            ).withStyle(ChatFormatting.GOLD),
+            false
+        );
+
+        state.warehouse().entrySet().stream()
+            .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
+            .limit(12)
+            .forEach(entry -> source.sendSuccess(
+                () -> Component.literal(
+                    "  " + entry.getKey() + " × " + entry.getValue()
+                ).withStyle(ChatFormatting.AQUA),
+                false
+            ));
+
+        source.sendSuccess(
+            () -> Component.literal(
+                "Связей с другими поселениями: " + state.relations().size()
+            ).withStyle(ChatFormatting.GOLD),
+            false
+        );
+
+        if (!state.relations().isEmpty()) {
+            state.relations().entrySet().stream()
+                .limit(10)
+                .forEach(entry -> source.sendSuccess(
+                    () -> Component.literal(
+                        "  " + entry.getKey() + " → отношение " + entry.getValue()
+                    ).withStyle(entry.getValue() >= 0
+                        ? ChatFormatting.GREEN
+                        : ChatFormatting.RED),
+                    false
+                ));
+        }
+
         return 1;
     }
 
