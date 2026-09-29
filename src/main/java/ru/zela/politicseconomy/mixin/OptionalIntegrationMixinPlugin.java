@@ -28,7 +28,13 @@ public final class OptionalIntegrationMixinPlugin implements IMixinConfigPlugin 
         String mixinClassName
     ) {
         if (mixinClassName.endsWith("MtsMillenaireCombatMixin")) {
-            return isPresent(MTS_WRAPPER_WORLD);
+            /*
+             * Mixin invokes shouldApplyMixin only for the target class that
+             * is currently being transformed. Matching the target directly
+             * is more reliable than Class.forName() during early loading,
+             * when the MTS class loader may not yet be visible here.
+             */
+            return MTS_WRAPPER_WORLD.equals(targetClassName);
         }
         return true;
     }
@@ -63,16 +69,4 @@ public final class OptionalIntegrationMixinPlugin implements IMixinConfigPlugin 
     ) {
     }
 
-    private static boolean isPresent(String className) {
-        try {
-            Class.forName(
-                className,
-                false,
-                OptionalIntegrationMixinPlugin.class.getClassLoader()
-            );
-            return true;
-        } catch (Throwable ignored) {
-            return false;
-        }
-    }
 }
