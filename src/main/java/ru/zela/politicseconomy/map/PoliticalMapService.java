@@ -52,6 +52,15 @@ public final class PoliticalMapService {
         }
     }
 
+    public static void syncAll(MinecraftServer server) {
+        if (server == null) return;
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            if (player.level().dimension() == Level.OVERWORLD) {
+                sync(player);
+            }
+        }
+    }
+
     public static void sync(ServerPlayer player) {
         if (player.level().dimension() != Level.OVERWORLD) {
             return;
