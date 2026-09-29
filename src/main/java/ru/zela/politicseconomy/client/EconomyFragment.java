@@ -21,6 +21,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 import ru.zela.politicseconomy.country.CountryDirection;
 import ru.zela.politicseconomy.country.CountryReformCostTable;
+import ru.zela.politicseconomy.country.WorkforceSector;
 import ru.zela.politicseconomy.country.GovernmentType;
 import ru.zela.politicseconomy.country.ReligionType;
 import ru.zela.politicseconomy.network.EconomyNetwork;
@@ -190,6 +191,8 @@ public final class EconomyFragment extends Fragment {
         state.setPadding(dp(14), dp(12), dp(14), dp(12));
         pageHost.addView(state, marginPanel());
 
+        addWorkforcePanel(context);
+
         LinearLayout development = panel(context);
         development.addView(sectionTitle(context,
             "РАЗВИТИЕ ГОСУДАРСТВА  •  " + snapshot.developmentLevel() + "/5"));
@@ -230,6 +233,94 @@ public final class EconomyFragment extends Fragment {
             addResourceRow(context, warehouse, i);
         }
         pageHost.addView(warehouse, marginPanel());
+    }
+
+    private void addWorkforcePanel(Context context) {
+        LinearLayout workforce = panel(context);
+        workforce.addView(sectionTitle(context, "РАБОЧАЯ СИЛА"));
+
+        workforce.addView(label(
+            context,
+            format(snapshot.workingPopulation()) + " доступны для работы  •  "
+                + format(snapshot.employedPopulation()) + " заняты  •  "
+                + format(snapshot.unemployedPopulation()) + " без рабочего места",
+            11,
+            snapshot.unemployedPopulation() > 0 ? WARNING : SUCCESS
+        ));
+
+        workforce.addView(label(
+            context,
+            "Рабочие места: " + format(snapshot.workplaceCapacity())
+                + ". Их создают только реальные производственные блоки.",
+            10,
+            MUTED
+        ));
+
+        for (int i = 0; i < WorkforceSector.values().length; i++) {
+            WorkforceSector sector = WorkforceSector.values()[i];
+            workforce.addView(workforceSectorRow(context, sector, i),
+                marginPanel());
+        }
+
+        pageHost.addView(workforce, marginPanel());
+    }
+
+    private View workforceSectorRow(
+        Context context,
+        WorkforceSector sector,
+        int index
+    ) {
+        int allocation = valueAt(snapshot.sectorAllocation(), index);
+        int workers = valueAt(snapshot.sectorWorkers(), index);
+        int slots = valueAt(snapshot.workplaceSlots(), index);
+        int workplaceCount = valueAt(snapshot.workplaceCounts(), index);
+        double bonus = valueAt(snapshot.sectorBonuses(), index);
+
+        LinearLayout card = row(context);
+        card.setBackground(solid(PANEL_3, dp(8)));
+        card.setPadding(dp(8), dp(5), dp(8), dp(5));
+
+        card.addView(itemIcon(context, sector.iconItemId(), 26),
+            new LinearLayout.LayoutParams(dp(30), dp(34)));
+
+        LinearLayout textBlock = column(context);
+        textBlock.addView(label(context, sector.displayName(), 12, TEXT));
+        textBlock.addView(label(
+            context,
+            allocation + "% распределено  •  " + format(workers) + "/" + format(slots)
+                + " занято",
+            10,
+            workers < Math.min(
+                allocation <= 0 ? 0 : (int) Math.ceil(
+                    snapshot.workingPopulation() * allocation / 100.0D
+                ),
+                Math.max(0, slots)
+            ) ? WARNING : MUTED
+        ));
+        textBlock.addView(label(
+            context,
+            "Мест: " + format(workplaceCount)
+                + "  •  бонус " + signed(bonus),
+            9,
+            bonus > 0.0001D ? SUCCESS : MUTED
+        ));
+        card.addView(textBlock, new LinearLayout.LayoutParams(0, dp(44), 1));
+
+        Button minus = smallButton(context, "−");
+        minus.setTextSize(12);
+        minus.setEnabled(allocation > 0);
+        minus.setOnClickListener(v ->
+            EconomyNetwork.sendAction("workforce", sector.commandName() + ":-5"));
+        card.addView(minus, new LinearLayout.LayoutParams(dp(42), dp(36)));
+
+        Button plus = smallButton(context, "+");
+        plus.setTextSize(12);
+        plus.setEnabled(allocation < 100);
+        plus.setOnClickListener(v ->
+            EconomyNetwork.sendAction("workforce", sector.commandName() + ":5"));
+        card.addView(plus, new LinearLayout.LayoutParams(dp(42), dp(36)));
+
+        return card;
     }
 
     private void showCountrySettings(Context context) {
