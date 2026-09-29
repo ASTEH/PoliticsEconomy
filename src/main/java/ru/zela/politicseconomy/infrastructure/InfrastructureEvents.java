@@ -4,10 +4,12 @@ import net.krona.politicsmod.PoliticsManager;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.BedBlock;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.neoforged.neoforge.event.level.BlockEvent;
 import ru.zela.politicseconomy.country.CountryPopulationService;
 import ru.zela.politicseconomy.country.CountryWorkplaceService;
 import ru.zela.politicseconomy.integration.EnterpriseMaterialControlService;
+import ru.zela.politicseconomy.territory.TerritoryService;
 
 /** Records explicitly placed infrastructure and keeps bed-population counters current. */
 public final class InfrastructureEvents {
@@ -17,6 +19,14 @@ public final class InfrastructureEvents {
         if (event.isCanceled()) return;
         if (!(event.getEntity() instanceof ServerPlayer)) return;
         if (!(event.getLevel() instanceof ServerLevel level)) return;
+        if (event.getEntity() instanceof ServerPlayer player) {
+            String blockId = BuiltInRegistries.BLOCK.getKey(event.getPlacedBlock().getBlock()).toString();
+            if ((blockId.equals("politicsmod:founding_stone") || blockId.equals("politicsmod:city_stone"))
+                && !TerritoryService.canPlaceAdministrativeBlock(player, new net.minecraft.world.level.ChunkPos(event.getPos()), blockId)) {
+                event.setCanceled(true);
+                return;
+            }
+        }
 
         PoliticsManager politics = PoliticsManager.get(level);
         String ownerCountry = politics == null
