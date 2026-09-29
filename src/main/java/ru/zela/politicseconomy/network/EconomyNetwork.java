@@ -55,6 +55,26 @@ public final class EconomyNetwork {
                     return;
                 }
 
+                if ("warehouse_deposit".equals(payload.action())) {
+                    ru.zela.politicseconomy.economy.NationalMaterialInventoryService.DepositResult deposit =
+                        ru.zela.politicseconomy.economy.NationalMaterialInventoryService.deposit(
+                            player, payload.value()
+                        );
+                    ru.zela.politicseconomy.economy.NationalMaterialInventoryService.tellResult(player, deposit);
+                    var country = ru.zela.politicseconomy.integration.PoliticsModIntegration.playerCountry(player).orElse(null);
+                    if (country != null) send(player, EconomyMenu.buildSnapshot(player, country));
+                    return;
+                }
+
+                if ("warehouse_deposit_all".equals(payload.action())) {
+                    ru.zela.politicseconomy.economy.NationalMaterialInventoryService.DepositResult deposit =
+                        ru.zela.politicseconomy.economy.NationalMaterialInventoryService.deposit(player, null);
+                    ru.zela.politicseconomy.economy.NationalMaterialInventoryService.tellResult(player, deposit);
+                    var country = ru.zela.politicseconomy.integration.PoliticsModIntegration.playerCountry(player).orElse(null);
+                    if (country != null) send(player, EconomyMenu.buildSnapshot(player, country));
+                    return;
+                }
+
                 if ("market_sell".equals(payload.action())) {
                     String raw = payload.value();
                     int separator = raw.indexOf('|');
