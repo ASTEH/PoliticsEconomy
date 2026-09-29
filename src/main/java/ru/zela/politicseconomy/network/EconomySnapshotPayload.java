@@ -22,10 +22,13 @@ public record EconomySnapshotPayload(
     int[] cityIncome, int[] cityInfrastructure, int[] cityPopulation, int[] cityTaxBlocks,
     boolean[] cityCapitals, boolean[] cityMine,
     int developmentLevel, int developmentPoints, int developmentNextThreshold,
-    String developmentPerk, String developmentNextPerk
+    String developmentPerk, String developmentNextPerk,
+    String[] marketItemIds, String[] marketItemNames,
+    int[] marketBaseDemand, int[] marketRemaining, int[] marketSold,
+    int[] marketImported, int[] marketPrices, long personalWallet
 ) implements CustomPacketPayload {
     public static final Type<EconomySnapshotPayload> TYPE = new Type<>(ResourceLocation.fromNamespaceAndPath("politicseconomy", "economy_snapshot"));
-    private static final int MAX_MATERIALS = 32, MAX_MODIFIERS = 32, MAX_WORKFORCE = 8;
+    private static final int MAX_MATERIALS = 32, MAX_MODIFIERS = 32, MAX_WORKFORCE = 8, MAX_MARKET_GOODS = 64;
 
     public static final StreamCodec<RegistryFriendlyByteBuf, EconomySnapshotPayload> STREAM_CODEC = new StreamCodec<>() {
         @Override public EconomySnapshotPayload decode(RegistryFriendlyByteBuf buf) {
@@ -45,7 +48,10 @@ public record EconomySnapshotPayload(
             int[] cityTreasuries=readInts(buf,96), cityIncome=readInts(buf,96), cityInfrastructure=readInts(buf,96), cityPopulation=readInts(buf,96), cityTaxBlocks=readInts(buf,96);
             boolean[] cityCapitals=readBooleans(buf,96), cityMine=readBooleans(buf,96); int level=buf.readVarInt(), points=buf.readVarInt(), next=buf.readVarInt();
             String perk=buf.readUtf(256), nextPerk=buf.readUtf(256);
-            return new EconomySnapshotPayload(countryName,direction,government,religion,population,workforce,workingPopulation,employedPopulation,unemployedPopulation,workplaceCapacity,workplaceCounts,workplaceSlots,sectorWorkers,sectorAllocation,sectorBonuses,policySummary,unrest,demand,support,treasury,infrastructureCost,moneyDebt,dieselModifier,totalMaterialPerCycle,materialIds,materialNames,materialStockpile,materialDebt,materialPerCycle,modifierNames,modifierValues,cityNames,cityCountries,cityMayors,cityTreasuries,cityIncome,cityInfrastructure,cityPopulation,cityTaxBlocks,cityCapitals,cityMine,level,points,next,perk,nextPerk);
+            String[] marketItemIds=readStrings(buf,MAX_MARKET_GOODS,128), marketItemNames=readStrings(buf,MAX_MARKET_GOODS,128);
+            int[] marketBaseDemand=readInts(buf,MAX_MARKET_GOODS), marketRemaining=readInts(buf,MAX_MARKET_GOODS), marketSold=readInts(buf,MAX_MARKET_GOODS), marketImported=readInts(buf,MAX_MARKET_GOODS), marketPrices=readInts(buf,MAX_MARKET_GOODS);
+            long personalWallet=buf.readLong();
+            return new EconomySnapshotPayload(countryName,direction,government,religion,population,workforce,workingPopulation,employedPopulation,unemployedPopulation,workplaceCapacity,workplaceCounts,workplaceSlots,sectorWorkers,sectorAllocation,sectorBonuses,policySummary,unrest,demand,support,treasury,infrastructureCost,moneyDebt,dieselModifier,totalMaterialPerCycle,materialIds,materialNames,materialStockpile,materialDebt,materialPerCycle,modifierNames,modifierValues,cityNames,cityCountries,cityMayors,cityTreasuries,cityIncome,cityInfrastructure,cityPopulation,cityTaxBlocks,cityCapitals,cityMine,level,points,next,perk,nextPerk,marketItemIds,marketItemNames,marketBaseDemand,marketRemaining,marketSold,marketImported,marketPrices,personalWallet);
         }
         @Override public void encode(RegistryFriendlyByteBuf buf, EconomySnapshotPayload v) {
             buf.writeUtf(limit(v.countryName,128),128); buf.writeUtf(limit(v.direction,64),64); buf.writeUtf(limit(v.government,64),64); buf.writeUtf(limit(v.religion,64),64);
@@ -58,6 +64,7 @@ public record EconomySnapshotPayload(
             writeStrings(buf,v.materialIds,MAX_MATERIALS,120); writeStrings(buf,v.materialNames,MAX_MATERIALS,240); writeInts(buf,v.materialStockpile,MAX_MATERIALS); writeInts(buf,v.materialDebt,MAX_MATERIALS); writeDoubles(buf,v.materialPerCycle,MAX_MATERIALS);
             writeStrings(buf,v.modifierNames,MAX_MODIFIERS,120); writeDoubles(buf,v.modifierValues,MAX_MODIFIERS); writeStrings(buf,v.cityNames,96,120); writeStrings(buf,v.cityCountries,96,120); writeStrings(buf,v.cityMayors,96,120); writeInts(buf,v.cityTreasuries,96); writeInts(buf,v.cityIncome,96); writeInts(buf,v.cityInfrastructure,96); writeInts(buf,v.cityPopulation,96); writeInts(buf,v.cityTaxBlocks,96); writeBooleans(buf,v.cityCapitals,96); writeBooleans(buf,v.cityMine,96);
             buf.writeVarInt(Math.max(1,v.developmentLevel)); buf.writeVarInt(Math.max(0,v.developmentPoints)); buf.writeVarInt(Math.max(0,v.developmentNextThreshold)); buf.writeUtf(limit(v.developmentPerk,256),256); buf.writeUtf(limit(v.developmentNextPerk,256),256);
+            writeStrings(buf,v.marketItemIds,MAX_MARKET_GOODS,128); writeStrings(buf,v.marketItemNames,MAX_MARKET_GOODS,128); writeInts(buf,v.marketBaseDemand,MAX_MARKET_GOODS); writeInts(buf,v.marketRemaining,MAX_MARKET_GOODS); writeInts(buf,v.marketSold,MAX_MARKET_GOODS); writeInts(buf,v.marketImported,MAX_MARKET_GOODS); writeInts(buf,v.marketPrices,MAX_MARKET_GOODS); buf.writeLong(Math.max(0L,v.personalWallet));
         }
     };
     private static void writeInts(FriendlyByteBuf b,int[] v,int max){int n=Math.min(max,v==null?0:v.length);b.writeVarInt(n);for(int i=0;i<n;i++)b.writeVarInt(Math.max(0,v[i]));}
