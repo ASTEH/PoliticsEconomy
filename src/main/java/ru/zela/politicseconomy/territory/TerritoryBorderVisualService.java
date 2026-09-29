@@ -8,7 +8,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.ChunkPos;
-import net.minecraft.world.level.Heightmap;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.Level;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import org.joml.Vector3f;
