@@ -139,39 +139,49 @@ public final class EconomyScreen extends Screen {
     }
 
     private void layoutTradeInputs() {
-        int scrollOffset = (int) scroll;
-
-        int orderTop = tradeOrderTop - scrollOffset;
+        // drawTrade() receives an already scroll-adjusted Y coordinate.
+        // Subtracting scroll here again caused the text fields to "fly" while scrolling.
+        int orderTop = tradeOrderTop;
         tradeItem.setX(contentLeft() + 14);
-        tradeItem.setY(orderTop + 38);
-        tradeItem.setWidth(182);
+        tradeItem.setY(orderTop + 39);
+        tradeItem.setWidth(260);
 
-        tradeAmount.setX(contentLeft() + 206);
-        tradeAmount.setY(orderTop + 38);
-        tradeAmount.setWidth(72);
+        tradeAmount.setX(contentLeft() + 284);
+        tradeAmount.setY(orderTop + 39);
+        tradeAmount.setWidth(88);
 
-        tradeMaxPrice.setX(contentLeft() + 288);
-        tradeMaxPrice.setY(orderTop + 38);
-        tradeMaxPrice.setWidth(88);
+        tradeMaxPrice.setX(contentLeft() + 382);
+        tradeMaxPrice.setY(orderTop + 39);
+        tradeMaxPrice.setWidth(98);
 
-        int ownTop = tradeOwnOrdersTop - scrollOffset;
-        tradeAcceptPrice.setX(tradeOwnOrdersLeft + 92);
-        tradeAcceptPrice.setY(ownTop + 24);
-        tradeAcceptPrice.setWidth(64);
+        int ownTop = tradeOwnOrdersTop;
+        tradeAcceptPrice.setX(tradeOwnOrdersLeft + 108);
+        tradeAcceptPrice.setY(ownTop + 14);
+        tradeAcceptPrice.setWidth(70);
 
-        tradeDispatchAmount.setX(tradeOwnOrdersLeft + 218);
-        tradeDispatchAmount.setY(ownTop + 24);
-        tradeDispatchAmount.setWidth(64);
+        tradeDispatchAmount.setX(tradeOwnOrdersLeft + 265);
+        tradeDispatchAmount.setY(ownTop + 14);
+        tradeDispatchAmount.setWidth(70);
     }
 
     private void updateTradeInputVisibility() {
         boolean visible = page == Page.TRADE && modalAction == null;
         if (tradeItem == null) return;
-        tradeItem.visible = visible;
-        tradeAmount.visible = visible;
-        tradeMaxPrice.visible = visible;
-        tradeAcceptPrice.visible = visible;
-        tradeDispatchAmount.visible = visible;
+
+        // Keep widgets disabled outside the content viewport so their vanilla
+        // hitboxes cannot remain active when their visual rows are scrolled away.
+        int top = contentTop();
+        int bottom = height - 12;
+
+        tradeItem.visible = visible && inViewport(tradeItem.getY(), tradeItem.getHeight(), top, bottom);
+        tradeAmount.visible = visible && inViewport(tradeAmount.getY(), tradeAmount.getHeight(), top, bottom);
+        tradeMaxPrice.visible = visible && inViewport(tradeMaxPrice.getY(), tradeMaxPrice.getHeight(), top, bottom);
+        tradeAcceptPrice.visible = visible && inViewport(tradeAcceptPrice.getY(), tradeAcceptPrice.getHeight(), top, bottom);
+        tradeDispatchAmount.visible = visible && inViewport(tradeDispatchAmount.getY(), tradeDispatchAmount.getHeight(), top, bottom);
+    }
+
+    private static boolean inViewport(int y, int h, int top, int bottom) {
+        return y + h > top && y < bottom;
     }
 
     @Override
@@ -203,6 +213,7 @@ public final class EconomyScreen extends Screen {
         }
         if (page == Page.TRADE && modalAction == null) {
             layoutTradeInputs();
+            updateTradeInputVisibility();
             tradeItem.render(graphics, mouseX, mouseY, partialTick);
             tradeAmount.render(graphics, mouseX, mouseY, partialTick);
             tradeMaxPrice.render(graphics, mouseX, mouseY, partialTick);
@@ -676,13 +687,16 @@ public final class EconomyScreen extends Screen {
         int left = tradeItem.getX();
         int top = tradeItem.getY() + tradeItem.getHeight() + 2;
         int right = left + tradeItem.getWidth();
-        int bottom = top + matches.size() * 28 + 2;
+        int maxBottom = height - 12;
+        int bottom = Math.min(top + matches.size() * 28 + 2, maxBottom);
+        int visibleRows = Math.max(0, (bottom - top - 2) / 28);
 
         g.fill(left, top, right, bottom, PANEL_2);
         outline(g, left, top, right, bottom, BORDER);
 
         int rowY = top + 1;
-        for (TradeItemOption option : matches) {
+        for (int matchIndex = 0; matchIndex < visibleRows; matchIndex++) {
+            TradeItemOption option = matches.get(matchIndex);
             boolean hover = inside(mouseX, mouseY, left + 1, rowY, right - 1, rowY + 27);
             if (hover) {
                 g.fill(left + 1, rowY, right - 1, rowY + 27, PANEL_3);
@@ -731,18 +745,21 @@ public final class EconomyScreen extends Screen {
         y += 110;
 
         tradeOrderTop = y;
-        panel(g, left, y, right, y + 82);
-        g.drawString(font, "СОЗДАТЬ ЗАКУПКУ", left + 14, y + 12, TEXT, true);
-        g.drawString(font, "Предмет", left + 14, y + 31, MUTED, false);
-        g.drawString(font, "Количество", left + 206, y + 31, MUTED, false);
-        g.drawString(font, "Макс. цена", left + 288, y + 31, MUTED, false);
-        g.drawString(font, "Выберите предмет по русскому названию или item ID.",
-            right - 286, y + 31, MUTED, false);
-        g.drawString(font, "Деньги резервируются из казны страны.",
-            right - 286, y + 62, MUTED, false);
+        int orderBottom = y + 108;
+        panel(g, left, y, right, orderBottom);
+
+        g.drawString(font, "СОЗДАТЬ ЗАКУПКУ", left + 14, y + 11, TEXT, true);
+
+        g.drawString(font, "Предмет", left + 14, y + 28, MUTED, false);
+        g.drawString(font, "Количество", left + 284, y + 28, MUTED, false);
+        g.drawString(font, "Макс. цена / шт.", left + 382, y + 28, MUTED, false);
+
+        g.drawString(font,
+            "Поиск по русскому названию или item ID. Выберите товар из списка.",
+            left + 14, y + 70, MUTED, false);
 
         boolean selectedItemValid = resolveSelectedTradeItemId() != null;
-        drawButton(g, right - 145, y + 38, right - 10, y + 67,
+        drawButton(g, right - 148, y + 68, right - 10, y + 95,
             "СОЗДАТЬ ЗАКАЗ",
             selectedItemValid ? ACCENT_DARK : PANEL_3,
             selectedItemValid ? ACCENT : MUTED,
@@ -751,7 +768,11 @@ public final class EconomyScreen extends Screen {
                 ? () -> sendTrade("trade_order_create",
                     selectedTradeItemId + "|" + tradeAmount.getValue() + "|" + tradeMaxPrice.getValue())
                 : null);
-        y += 92;
+
+        g.drawString(font, "Деньги резервируются из казны страны.",
+            right - 360, y + 53, MUTED, false);
+
+        y = orderBottom + 10;
 
         int gap = 10;
         int half = (right - left - gap) / 2;
@@ -772,7 +793,7 @@ public final class EconomyScreen extends Screen {
         panel(g, left, y, right, bottom);
         g.drawString(font, "МОИ ЗАКАЗЫ", left + 14, y + 12, TEXT, true);
         g.drawString(font, "Цена принятия", left + 14, y + 31, MUTED, false);
-        g.drawString(font, "Партия", left + 140, y + 31, MUTED, false);
+        g.drawString(font, "Партия", left + 150, y + 31, MUTED, false);
         int rowY = y + 48;
 
         if (snapshot.tradeOwnOrders().length == 0) {
@@ -1158,7 +1179,7 @@ public final class EconomyScreen extends Screen {
                 Math.max(1, Math.max(effectCount(true), effectCount(false))) * 30 + 22;
             case CITIES -> end = y + 40 + Math.max(1, snapshot.cityNames().length) * 102 + 10;
             case MARKET -> end = y + 40 + 88 + Math.max(1, snapshot.marketItemIds().length) * 77 + 10;
-            case TRADE -> end = y + 40 + 110 + 92 +
+            case TRADE -> end = y + 40 + 110 + 118 +
                 Math.max(1, Math.max(snapshot.tradeOwnOrders().length, snapshot.tradeOpenOrders().length)) * 84 +
                 10 + 52 + Math.max(1, snapshot.tradeShipments().length) * 84 + 10;
             default -> end = y;
