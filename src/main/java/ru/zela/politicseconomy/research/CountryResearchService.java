@@ -36,10 +36,11 @@ public final class CountryResearchService {
     public static CountryResearch byId(String id){for(CountryResearch r:CountryResearch.values())if(r.id().equals(id))return r;return null;}
 
     public static String status(MinecraftServer server,String country,CountryResearch r){
-        if(get(server).has(country,r.id()))return "COMPLETED";
+        Set<String> completed = completed(server, country);
+        if(completed.contains(r.id()))return "COMPLETED";
         if(CountryDirectionManager.getDirection(server,country)!=r.direction())return "LOCKED";
         if(CountryDevelopmentService.level(server,country)<r.minLevel())return "LEVEL";
-        if(!get(server).getCompleted(country).containsAll(r.prerequisites()))return "PREREQUISITE";
+        if(!completed.containsAll(r.prerequisites()))return "PREREQUISITE";
         if(points(server,country)<r.researchCost())return "POINTS";
         Country actual=countryObject(server,country);
         if(actual==null||actual.balance<r.moneyCost())return "MONEY";
