@@ -46,54 +46,6 @@ dependencies {
     // Create's Basin classes reference Ponder's API (VirtualBlockEntity, etc.).
     implementation("net.createmod.ponder:ponder-neoforge:${ponder_version}")
 
-    // OpenUI MC 0.0.11 for Minecraft 1.21.1 / NeoForge.
-    // CurseMaven and the CurseForge API are avoided here because some environments
-    // receive DNS/403 responses from those endpoints. The official CurseForge CDN
-    // hosts the same published jar directly.
-    def openUiJar = layout.buildDirectory.file(
-        'deps/openui-mc-neoforge-1.21.1-0.0.11.jar'
-    )
-
-    implementation files(openUiJar)
-
-    tasks.register('downloadOpenUi') {
-        outputs.file(openUiJar)
-        doLast {
-            File target = openUiJar.get().asFile
-            if (target.exists() && target.length() > 100_000) {
-                return
-            }
-
-            target.parentFile.mkdirs()
-
-            def url = new URL(
-                'https://github.com/UpperMoon0/OpenUI-MC/releases/download/v0.0.11/openui-mc-neoforge-1.21.1-0.0.11.jar'
-            )
-            def connection = url.openConnection()
-            connection.setConnectTimeout(30_000)
-            connection.setReadTimeout(60_000)
-            connection.setUseCaches(false)
-            connection.setRequestProperty('User-Agent', 'Gradle/PoliticsEconomy')
-
-            println("Downloading OpenUI MC 0.0.11 from the OpenUI GitHub release...")
-            connection.getInputStream().withCloseable { input ->
-                target.withOutputStream { output ->
-                    input.transferTo(output)
-                }
-            }
-
-            if (!target.exists() || target.length() < 100_000) {
-                throw new GradleException(
-                    "OpenUI MC download failed or returned an invalid file: " + target
-                )
-            }
-        }
-    }
-
-    tasks.named('compileJava').configure {
-        dependsOn 'downloadOpenUi'
-    }
-
     // Optional Xaero's World Map API. Provided by the player's modpack at runtime.
     // 1.40.2+ exposes the element wrapper used by this client-only political overlay.
 
