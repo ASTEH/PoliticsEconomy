@@ -397,6 +397,8 @@ public final class EconomyScreen extends Screen {
             y += 86;
         }
 
+        y = drawAttentionPanel(g, y, left, right);
+
         panel(g, left, y, right, y + 104);
         g.drawString(font, "ПОЛИТИЧЕСКИЙ ПРОФИЛЬ", left + 14, y + 12, TEXT, true);
         info(g, left + 14, y + 33, right - 14, "Направление", snapshot.direction(), "minecraft:compass");
@@ -493,8 +495,58 @@ public final class EconomyScreen extends Screen {
         return bottom;
     }
 
+    private int drawAttentionPanel(GuiGraphics g, int y, int left, int right) {
+        List<String> issues = new ArrayList<>();
+
+        int debtMaterials = 0;
+        for (int i = 0; i < materialCount(); i++) {
+            if (valueAt(snapshot.materialDebt(), i) > 0) debtMaterials++;
+        }
+        if (debtMaterials > 0) {
+            issues.add("Материальный долг: " + debtMaterials + " поз.");
+        }
+        if (snapshot.moneyDebt() > 0.0001D) {
+            issues.add("Денежный долг: $" + formatDouble(snapshot.moneyDebt()));
+        }
+
+        int unemployed = Math.max(0, snapshot.unemployedPopulation());
+        if (unemployed > 0) {
+            issues.add("Без работы: " + format(unemployed) + " жителей");
+        }
+
+        if ("Не выбрано".equals(snapshot.direction())) issues.add("Не выбрано экономическое направление");
+        if ("Не выбрано".equals(snapshot.government())) issues.add("Не выбрана форма правления");
+        if ("Не выбрано".equals(snapshot.religion())) issues.add("Не выбрана религия");
+
+        int lines = Math.min(4, issues.size());
+        int bottom = y + (issues.isEmpty() ? 58 : 34 + lines * 18);
+        panel(g, left, y, right, bottom);
+
+        int color = issues.isEmpty() ? POSITIVE : GOLD;
+        g.drawString(font, issues.isEmpty() ? "СОСТОЯНИЕ" : "ТРЕБУЕТ ВНИМАНИЯ",
+            left + 14, y + 12, color, true);
+
+        if (issues.isEmpty()) {
+            g.drawString(font, "Срочных проблем по доступным показателям нет.",
+                left + 14, y + 31, MUTED, false);
+        } else {
+            for (int i = 0; i < lines; i++) {
+                g.drawString(font, "• " + clipToWidth(issues.get(i), right - left - 28),
+                    left + 14, y + 31 + i * 18, TEXT, false);
+            }
+            if (issues.size() > lines) {
+                g.drawString(font, "… и ещё " + (issues.size() - lines),
+                    left + 14, y + 31 + lines * 18, MUTED, false);
+                bottom += 18;
+            }
+        }
+
+        return bottom + 10;
+    }
+
     private int drawWarehousePanel(GuiGraphics g, int y, int left, int right, int mouseX, int mouseY) {
-        int rows = Math.max(1, materialCount());
+        List<Integer> materialOrder = sortedMaterialIndices();
+        int rows = Math.max(1, materialOrder.size());
         int rowH = 38;
         int headerH = 88;
         int bottom = y + headerH + rows * rowH + 8;
@@ -512,7 +564,7 @@ public final class EconomyScreen extends Screen {
             () -> EconomyNetwork.sendAction("warehouse_deposit_all", ""));
 
         int rowY = y + headerH - 4;
-        for (int i = 0; i < materialCount(); i++) {
+        for (int i : materialOrder) {
             int baseX = left + 14;
             String name = clipToWidth(
                 valueAt(snapshot.materialNames(), i),
@@ -520,6 +572,7 @@ public final class EconomyScreen extends Screen {
             );
             int stock = valueAt(snapshot.materialStockpile(), i);
             int debt = valueAt(snapshot.materialDebt(), i);
+            int deficit = materialCycleDeficit(i);
             ItemStack icon = materialIconStack(valueAt(snapshot.materialIds(), i));
             if (!icon.isEmpty()) g.renderItem(icon, baseX, rowY - 7);
 
@@ -527,10 +580,11 @@ public final class EconomyScreen extends Screen {
 
             String status = stock + " шт. • " +
                 String.format(Locale.ROOT, "%.2f/c", valueAt(snapshot.materialPerCycle(), i)) +
-                (debt > 0 ? " • долг " + debt : "");
+                (debt > 0 ? " • долг " + debt : "") +
+                (debt <= 0 && deficit > 0 ? " • не хватает " + deficit + "/цикл" : "");
             status = clipToWidth(status, Math.max(80, right - baseX - 150));
             g.drawString(font, status, baseX + 24, rowY + 14,
-                debt > 0 ? NEGATIVE : MUTED, false);
+                debt > 0 ? NEGATIVE : deficit > 0 ? GOLD : MUTED, false);
 
             rowY += rowH;
         }
@@ -642,6 +696,8 @@ public final class EconomyScreen extends Screen {
 
     private int drawEffects(GuiGraphics g, int y, int left, int right) {
         y = title(g, left, y, "ЭФФЕКТЫ", "Итоговые модификаторы страны");
+        g.drawString(font, "Зелёный = улучшает результат • красный = ухудшает результат",
+            left, y - 7, MUTED, false);
 
         int gap = 10;
         int half = (right - left - gap) / 2;
@@ -665,9 +721,10 @@ public final class EconomyScreen extends Screen {
         int row = 0;
         for (int i = 0; i < snapshot.modifierNames().length; i++) {
             double value = valueAt(snapshot.modifierValues(), i);
-            if ((positive && value <= 0.0001) || (!positive && value >= -0.0001)) continue;
+            boolean beneficial = isEffectPositive(snapshot.modifierNames()[i], value);
+            if (beneficial != positive) continue;
 
-            ItemStack effectIcon = itemStack(positive ? "minecraft:emerald" : "minecraft:redstone");
+            ItemStack effectIcon = itemStack(beneficial ? "minecraft:emerald" : "minecraft:redstone");
             if (!effectIcon.isEmpty()) g.renderItem(effectIcon, x, y + row * 30 - 7);
             String valueText = signed(value);
             int nameRight = right - font.width(valueText) - 10;
@@ -675,7 +732,7 @@ public final class EconomyScreen extends Screen {
                 clipToWidth(snapshot.modifierNames()[i], Math.max(60, nameRight - (x + 22))),
                 x + 22, y + row * 30, TEXT, false);
             g.drawString(font, valueText, right - font.width(valueText),
-                y + row * 30, positive ? POSITIVE : NEGATIVE, true);
+                y + row * 30, beneficial ? POSITIVE : NEGATIVE, true);
             row++;
         }
 
@@ -1280,8 +1337,8 @@ public final class EconomyScreen extends Screen {
         boolean cancelDialog = "trade_cancel".equals(modalAction);
         g.fill(0, 0, width, height, 0xFF000000);
 
-        int w = Math.min(cancelDialog ? 600 : 520, width - 32);
-        int h = cancelDialog ? 238 : 172;
+        int w = Math.min(cancelDialog ? 600 : 580, width - 32);
+        int h = cancelDialog ? 238 : 224;
         int left = (width - w) / 2;
         int top = (height - h) / 2;
 
@@ -1316,19 +1373,29 @@ public final class EconomyScreen extends Screen {
                 default -> "Не выбрано".equals(snapshot.religion());
             };
 
-            g.drawString(font,
-                first
-                    ? "Первый выбор данного параметра бесплатен."
-                    : "Это полноценная реформа. Сервер проверит деньги и материалы.",
-                left + 18, top + 66, MUTED, false);
+            String description = first
+                ? "Первый выбор данного параметра бесплатен."
+                : "Это полноценная реформа. Сервер проверит деньги и материалы.";
+
+            int textY = top + 66;
+            for (String line : wrapText(description, w - 36)) {
+                g.drawString(font, line, left + 18, textY, MUTED, false);
+                textY += 12;
+            }
 
             String cost = first
                 ? "БЕСПЛАТНО"
                 : CountryReformCostTable.summary(
                     modalAction, false, snapshot.population(), snapshot.developmentLevel());
 
-            g.drawString(font, "Стоимость: " + clip(cost, 55),
-                left + 18, top + 88, first ? POSITIVE : GOLD, true);
+            g.drawString(font, "СТОИМОСТЬ", left + 18, textY + 4, MUTED, true);
+            textY += 20;
+
+            int maxCostWidth = w - 36;
+            for (String line : wrapText(cost, maxCostWidth)) {
+                g.drawString(font, line, left + 18, textY, first ? POSITIVE : GOLD, true);
+                textY += 12;
+            }
         }
 
         int buttonY = top + h - 42;
@@ -1627,10 +1694,55 @@ public final class EconomyScreen extends Screen {
 
     private int effectCount(boolean positive) {
         int count = 0;
-        for (double value : snapshot.modifierValues()) {
-            if ((positive && value > 0.0001) || (!positive && value < -0.0001)) count++;
+        for (int i = 0; i < snapshot.modifierValues().length; i++) {
+            double value = valueAt(snapshot.modifierValues(), i);
+            if (isEffectPositive(valueAt(snapshot.modifierNames(), i), value) == positive) count++;
         }
         return count;
+    }
+
+    private boolean isEffectPositive(String name, double value) {
+        if (Math.abs(value) < 0.0001) return false;
+
+        String normalized = name == null ? "" : name.toLowerCase(Locale.ROOT);
+        boolean lowerIsBetter =
+            normalized.contains("содержание")
+                || normalized.contains("расход")
+                || normalized.contains("потребление")
+                || normalized.contains("комиссия")
+                || normalized.contains("стоимость");
+
+        return lowerIsBetter ? value < 0 : value > 0;
+    }
+
+    private int materialCycleDeficit(int index) {
+        double perCycle = valueAt(snapshot.materialPerCycle(), index);
+        int stock = valueAt(snapshot.materialStockpile(), index);
+        int needed = Math.max(0, (int) Math.ceil(perCycle - 1.0E-9D));
+        return Math.max(0, needed - stock);
+    }
+
+    private List<Integer> sortedMaterialIndices() {
+        List<Integer> order = new ArrayList<>();
+        for (int i = 0; i < materialCount(); i++) {
+            order.add(i);
+        }
+
+        order.sort(
+            Comparator
+                .comparingInt((Integer i) -> valueAt(snapshot.materialDebt(), i) > 0 ? 0 : 1)
+                .thenComparingInt(i -> materialCycleDeficit(i) > 0 ? 0 : 1)
+                .thenComparingInt(i -> -valueAt(snapshot.materialDebt(), i))
+                .thenComparingInt(i -> -materialCycleDeficit(i))
+                .thenComparingDouble(i -> {
+                    double perCycle = valueAt(snapshot.materialPerCycle(), i);
+                    return perCycle <= 0 ? Double.POSITIVE_INFINITY
+                        : valueAt(snapshot.materialStockpile(), i) / perCycle;
+                })
+                .thenComparing(i -> valueAt(snapshot.materialNames(), i), String.CASE_INSENSITIVE_ORDER)
+        );
+
+        return order;
     }
 
     private void changeWorkforce(WorkforceSector sector, int delta) {
@@ -1669,6 +1781,42 @@ public final class EconomyScreen extends Screen {
     private static String tradeItemName(String itemId) {
         ItemStack stack = itemStack(itemId);
         return stack.isEmpty() ? itemId : stack.getHoverName().getString();
+    }
+
+    private List<String> wrapText(String value, int maxPixels) {
+        List<String> lines = new ArrayList<>();
+        if (value == null || value.isBlank()) {
+            lines.add("");
+            return lines;
+        }
+        if (maxPixels <= 0) {
+            lines.add("");
+            return lines;
+        }
+
+        StringBuilder line = new StringBuilder();
+        for (String word : value.split("\s+")) {
+            String candidate = line.length() == 0 ? word : line + " " + word;
+            if (font.width(candidate) <= maxPixels) {
+                line.setLength(0);
+                line.append(candidate);
+            } else {
+                if (line.length() > 0) {
+                    lines.add(line.toString());
+                }
+                if (font.width(word) <= maxPixels) {
+                    line.setLength(0);
+                    line.append(word);
+                } else {
+                    lines.add(clipToWidth(word, maxPixels));
+                    line.setLength(0);
+                }
+            }
+        }
+        if (line.length() > 0) {
+            lines.add(line.toString());
+        }
+        return lines;
     }
 
     private String clip(String value, int maxChars) {
