@@ -74,37 +74,75 @@ public final class MaintenanceService {
                 InfrastructureManager.getCountryStats(server, countryName);
 
             double maintenance = Math.max(0.0, stats.adjustedMaintenance());
-            if (maintenance <= EPSILON && ledger.getDebt(countryName) <= EPSILON) {
-                continue;
-            }
+            chargeState(server, ledger, countryName, maintenance, Math.max(0, country.balance),
+                amount -> country.balance = amount);
+        }
 
-            double pending = ledger.getPending(countryName) + maintenance;
-            int wholeMaintenance = (int) Math.floor(pending + EPSILON);
-            pending -= wholeMaintenance;
-            ledger.setPending(countryName, pending);
-
-            double existingDebt = ledger.getDebt(countryName);
-            int wholeDebt = (int) Math.floor(existingDebt + EPSILON);
-            double debtFraction = existingDebt - wholeDebt;
-
-            long totalDueLong = (long) wholeMaintenance + wholeDebt;
-            int totalDue = totalDueLong > Integer.MAX_VALUE
-                ? Integer.MAX_VALUE
-                : (int) totalDueLong;
-
-            int balanceBefore = Math.max(0, country.balance);
-            int paid = Math.min(balanceBefore, totalDue);
-            int unpaid = totalDue - paid;
-
-            country.balance = balanceBefore - paid;
-
-            // All unpaid whole dollars become debt. Keep the fractional portion
-            // separate so that it can eventually become a whole dollar too.
-            ledger.setDebt(countryName, unpaid + debtFraction);
+        // Millénaire states use their own treasury, while maintenance is still
+        // charged through the same persistent debt ledger.
+        for (ru.zela.politicseconomy.integration.MillenaireIntegration.VillageSnapshot state
+            : ru.zela.politicseconomy.integration.MillenaireIntegration.snapshots(server)) {
+            String countryName = state.stateKey();
+            double maintenance =
+                ru.zela.politicseconomy.integration.MillenaireIntegration.maintenanceCost(
+                    server, country
+                );
+            chargeState(
+                server,
+                ledger,
+                countryName,
+                maintenance,
+                (int) Math.min(Integer.MAX_VALUE,
+                    ru.zela.politicseconomy.integration.MillenaireStateSavedData
+                        .get(server).treasury(state.villageId())),
+                amount -> {
+                    long current = ru.zela.politicseconomy.integration.MillenaireStateSavedData
+                        .get(server).treasury(state.villageId());
+                    long paid = Math.max(0, current - amount);
+                    if (paid > 0) {
+                        ru.zela.politicseconomy.integration.MillenaireStateSavedData
+                            .get(server)
+                            .setTreasury(state.villageId(), amount);
+                    }
+                }
+            );
         }
 
         politics.saveData();
         ledger.setDirty();
+    }
+
+    private static void chargeState(
+        MinecraftServer server,
+        MaintenanceLedgerSavedData ledger,
+        String stateKey,
+        double maintenance,
+        int balanceBefore,
+        java.util.function.IntConsumer setBalance
+    ) {
+        if (maintenance <= EPSILON && ledger.getDebt(stateKey) <= EPSILON) {
+            return;
+        }
+
+        double pending = ledger.getPending(stateKey) + maintenance;
+        int wholeMaintenance = (int) Math.floor(pending + EPSILON);
+        pending -= wholeMaintenance;
+        ledger.setPending(stateKey, pending);
+
+        double existingDebt = ledger.getDebt(stateKey);
+        int wholeDebt = (int) Math.floor(existingDebt + EPSILON);
+        double debtFraction = existingDebt - wholeDebt;
+
+        long totalDueLong = (long) wholeMaintenance + wholeDebt;
+        int totalDue = totalDueLong > Integer.MAX_VALUE
+            ? Integer.MAX_VALUE
+            : (int) totalDueLong;
+
+        int paid = Math.min(Math.max(0, balanceBefore), totalDue);
+        int unpaid = totalDue - paid;
+
+        setBalance(Math.max(0, balanceBefore - paid));
+        ledger.setDebt(stateKey, unpaid + debtFraction);
     }
 
     public static MaintenanceLedgerSavedData getLedger(MinecraftServer server) {
