@@ -461,13 +461,16 @@ public final class EconomyScreen extends Screen {
             format(snapshot.unemployedPopulation()) + " без места";
         g.drawString(font, clipToWidth(workforceSummary, Math.max(120, right - left - 52)),
             left + 150, y + 11, MUTED, false);
-        target(left + 8, y + 4, right - 8, y + headerH, () -> workforceExpanded = !workforceExpanded);
+        target(left + 8, y + 4, right - 8, y + headerH,
+            () -> {
+                workforceExpanded = !workforceExpanded;
+                scroll = Math.min(scroll, estimatedMaxScroll());
+            });
 
         if (!workforceExpanded) return bottom;
 
         int contentTop = y + headerH + 28;
         int iconX = left + 12;
-        int nameX = left + 34;
         int nameX = left + 34;
         int workersRight = left + 126;
         int percentRight = left + 175;
@@ -564,9 +567,9 @@ public final class EconomyScreen extends Screen {
     private int drawWarehousePanel(GuiGraphics g, int y, int left, int right, int mouseX, int mouseY) {
         List<Integer> materialOrder = sortedMaterialIndices();
         int rowH = 38;
-        int headerH = 38;
+        int headerH = warehouseExpanded ? 72 : 34;
         int bottom = warehouseExpanded
-            ? y + headerH + 38 + Math.max(1, materialOrder.size()) * rowH + 8
+            ? y + headerH + Math.max(1, materialOrder.size()) * rowH + 8
             : y + headerH + 8;
 
         panel(g, left, y, right, bottom);
@@ -575,7 +578,11 @@ public final class EconomyScreen extends Screen {
         if (!warehouseIcon.isEmpty()) g.renderItem(warehouseIcon, left + 10, y + 9);
         g.drawString(font, "ГОСУДАРСТВЕННЫЙ СКЛАД", left + 38, y + 12, TEXT, true);
         g.drawString(font, warehouseExpanded ? "▼" : "▶", right - 28, y + 12, ACCENT, true);
-        target(left + 8, y + 4, right - 8, y + headerH, () -> warehouseExpanded = !warehouseExpanded);
+        target(left + 8, y + 4, right - 8, y + 30,
+            () -> {
+                warehouseExpanded = !warehouseExpanded;
+                scroll = Math.min(scroll, estimatedMaxScroll());
+            });
 
         if (!warehouseExpanded) {
             g.drawString(font,
@@ -585,17 +592,17 @@ public final class EconomyScreen extends Screen {
             return bottom;
         }
 
-        g.drawString(font, "Запасы и ресурсные обязательства", left + 14, y + 27, MUTED, false);
+        g.drawString(font, "Запасы и ресурсные обязательства", left + 14, y + 31, MUTED, false);
         g.drawString(font,
-            clipToWidth("Сортировка: долг → дефицит → запас", Math.max(120, right - left - 176)),
-            left + 14, y + 47, MUTED, false);
+            clipToWidth("Сортировка: долг → дефицит → запас", Math.max(120, right - left - 190)),
+            left + 14, y + 50, MUTED, false);
 
-        drawButton(g, right - 154, y + 35, right - 14, y + 61,
+        drawButton(g, right - 154, y + 38, right - 14, y + 64,
             "ПОПОЛНИТЬ ИЗ ИНВ.",
             ACCENT_DARK, ACCENT, mouseX, mouseY,
             () -> EconomyNetwork.sendAction("warehouse_deposit_all", ""));
 
-        int rowY = y + headerH + 38 - 4;
+        int rowY = y + headerH - 4;
         for (int i : materialOrder) {
             int baseX = left + 14;
             String name = clipToWidth(
@@ -1386,7 +1393,7 @@ public final class EconomyScreen extends Screen {
         return count;
     }
 
-        private void drawModal(GuiGraphics g, int mouseX, int mouseY) {
+    private void drawModal(GuiGraphics g, int mouseX, int mouseY) {
         boolean cancelDialog = "trade_cancel".equals(modalAction);
         g.fill(0, 0, width, height, 0xFF000000);
 
@@ -1697,8 +1704,8 @@ public final class EconomyScreen extends Screen {
                     ? 34 + 28 + WorkforceSector.values().length * 34 + 8
                     : 42;
                 int warehouse = warehouseExpanded
-                    ? 38 + 38 + Math.max(1, materialCount()) * 38 + 8
-                    : 46;
+                    ? 72 + Math.max(1, materialCount()) * 38 + 8
+                    : 42;
                 int total = 40 + 170 + attention + 10 + 114 + 98 + 10 + Math.max(workforce, warehouse);
                 end = y + total;
             }
