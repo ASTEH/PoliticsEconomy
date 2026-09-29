@@ -596,6 +596,7 @@ public final class EconomyScreen extends Screen {
                 + valueAt(snapshot.cityNames(), i)
                 + (valueAt(snapshot.cityMine(), i) ? " • ВАША" : "");
 
+            int sx = right - 300;
             ItemStack cityIcon = itemStack(valueAt(snapshot.cityMine(), i) ? "minecraft:gold_block" : "minecraft:bricks");
             if (!cityIcon.isEmpty()) g.renderItem(cityIcon, left + 10, y + 8);
             int cityTextRight = sx - 12;
@@ -607,8 +608,6 @@ public final class EconomyScreen extends Screen {
             g.drawString(font,
                 "Мэр: " + clipToWidth(valueAt(snapshot.cityMayors(), i), Math.max(100, cityTextRight - (left + 34))),
                 left + 34, y + 50, MUTED, false);
-
-            int sx = right - 300;
             miniStatIcon(g, sx, y + 12, "Казна", "$" + format(valueAt(snapshot.cityTreasuries(), i)), "minecraft:emerald", GOLD);
             miniStatIcon(g, sx + 96, y + 12, "Доход", "$" + format(valueAt(snapshot.cityIncome(), i)), "minecraft:paper", POSITIVE);
             miniStatIcon(g, sx + 192, y + 12, "Насел.", format(valueAt(snapshot.cityPopulation(), i)), "minecraft:player_head", ACCENT);
