@@ -6,13 +6,12 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Pseudo;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Coerce;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
-import ru.zela.politicseconomy.integration.MillenaireIntegration;
-
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.List;
@@ -25,6 +24,7 @@ import java.util.List;
  * missed by that hit path. This mixin restores the villager wrapper to the
  * generated MTS hit list without making MTS a hard dependency of the mod.
  */
+@Pseudo
 @Mixin(
     targets = "mcinterface1211.WrapperWorld",
     remap = false
@@ -64,14 +64,15 @@ public abstract class MtsMillenaireCombatMixin {
 
         Vec3 motionVec = pointToVec3(motion);
         Vec3 end = motionVec == null ? center : center.add(motionVec);
+        double padding = 0.05D;
 
         AABB search = new AABB(
-            Math.min(center.x, end.x) - width,
-            Math.min(center.y, end.y) - height,
-            Math.min(center.z, end.z) - depth,
-            Math.max(center.x, end.x) + width,
-            Math.max(center.y, end.y) + height,
-            Math.max(center.z, end.z) + depth
+            Math.min(center.x, end.x) - width - padding,
+            Math.min(center.y, end.y) - height - padding,
+            Math.min(center.z, end.z) - depth - padding,
+            Math.max(center.x, end.x) + width + padding,
+            Math.max(center.y, end.y) + height + padding,
+            Math.max(center.z, end.z) + depth + padding
         );
 
         Level level = world;
@@ -119,8 +120,7 @@ public abstract class MtsMillenaireCombatMixin {
         return entity != null
             && entity.getClass().getName().equals(
                 "org.millenaire.entity.MillVillager"
-            )
-            && MillenaireIntegration.isAvailable();
+            );
     }
 
     private static Object createMtsWrapper(Entity entity) {
