@@ -133,9 +133,8 @@ public final class CountryPopulationService {
                     BlockPos pos = new BlockPos(x, y, z);
                     var state = chunk.getBlockState(pos);
                     if (state.getBlock() instanceof BedBlock
-                        && state.getValue(
-                            net.minecraft.world.level.block.state.properties.BedPart.PART
-                        ) == net.minecraft.world.level.block.state.properties.BedPart.HEAD) {
+                        && state.getValue(BedBlock.PART)
+                        == net.minecraft.world.level.block.state.properties.BedPart.HEAD) {
                         heads.add(pos);
                     }
                 }
