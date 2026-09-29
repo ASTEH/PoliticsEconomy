@@ -20,6 +20,7 @@ import icyllis.modernui.widget.TextView;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 import ru.zela.politicseconomy.country.CountryDirection;
+import ru.zela.politicseconomy.country.CountryReformCostTable;
 import ru.zela.politicseconomy.country.GovernmentType;
 import ru.zela.politicseconomy.country.ReligionType;
 import ru.zela.politicseconomy.network.EconomyNetwork;
@@ -759,10 +760,11 @@ public final class EconomyFragment extends Fragment {
     }
 
     private Image loadTexture(ResourceLocation location) {
-        try (var resource = Minecraft.getInstance()
-            .getResourceManager()
-            .getResource(location)
-            .orElse(null)) {
+        try {
+            var resource = Minecraft.getInstance()
+                .getResourceManager()
+                .getResource(location)
+                .orElse(null);
 
             if (resource == null) {
                 return null;
