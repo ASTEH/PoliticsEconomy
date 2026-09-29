@@ -7,6 +7,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import ru.zela.politicseconomy.country.CountryDevelopmentService;
+import ru.zela.politicseconomy.research.CountryResearchService;
 
 /**
  * Consumes exact material items required by the recipes of a country's placed infrastructure.
@@ -90,6 +91,7 @@ public final class NationalMaterialConsumptionService {
 
             if (!demand.materials().isEmpty() && !ledger.hasAnyDebt(countryName)) {
                 CountryDevelopmentService.addActivity(server, countryName, 5);
+                CountryResearchService.addPoints(server, countryName, 1);
             }
         }
 

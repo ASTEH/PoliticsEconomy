@@ -30,7 +30,8 @@ public final class EconomyScreen extends Screen {
         MARKET("Рынок", "minecraft:emerald"),
         TRADE("Торговля", "minecraft:chest"),
         TRADE_HISTORY("История заказов", "minecraft:written_book"),
-        DEBTS("Долги", "minecraft:iron_block");
+        DEBTS("Долги", "minecraft:iron_block"),
+        RESEARCH("Исследования", "minecraft:bookshelf");
 
         final String title;
         final String iconId;
@@ -253,6 +254,7 @@ public final class EconomyScreen extends Screen {
             case TRADE -> end = drawTrade(graphics, end, left, right, mouseX, mouseY);
             case TRADE_HISTORY -> end = drawTradeHistory(graphics, end, left, right, mouseX, mouseY);
             case DEBTS -> end = drawDebts(graphics, end, left, right, mouseX, mouseY);
+            case RESEARCH -> end = drawResearch(graphics, end, left, right, mouseX, mouseY);
         }
         if (page == Page.TRADE && modalAction == null) {
             layoutTradeInputs();
@@ -1337,6 +1339,51 @@ public final class EconomyScreen extends Screen {
         return y + 4;
     }
 
+    private int drawResearch(GuiGraphics g, int y, int left, int right, int mouseX, int mouseY) {
+        y = title(g, left, y, "ИССЛЕДОВАНИЯ", "Технологии выбранного экономического направления");
+        panel(g, left, y, right, y + 76);
+        ItemStack rpIcon = itemStack("minecraft:knowledge_book");
+        if (!rpIcon.isEmpty()) g.renderItem(rpIcon, left + 12, y + 12);
+        g.drawString(font, "ОЧКИ ИССЛЕДОВАНИЙ", left + 42, y + 12, TEXT, true);
+        g.drawString(font, format(snapshot.researchPoints()), left + 42, y + 31, GOLD, true);
+        g.drawString(font, "Очки появляются за успешные экономические циклы.",
+            left + 42, y + 50, MUTED, false);
+        y += 88;
+
+        int rowH = 92;
+        String[] rows = snapshot.researchRows();
+        for (int i = 0; i < rows.length; i++) {
+            String[] parts = rows[i].split("\\|", -1);
+            if (parts.length < 8) continue;
+            String id=parts[0], name=parts[1], description=parts[2], status=parts[3];
+            int rpCost=parseIntSafe(parts[4]), moneyCost=parseIntSafe(parts[5]), minLevel=parseIntSafe(parts[6]);
+            panel(g, left, y, right, y + rowH - 6);
+            boolean hover=inside(mouseX,mouseY,left,y,right,y+rowH-6);
+            if(hover && !"COMPLETED".equals(status))g.fill(left+1,y+1,right-1,y+rowH-7,PANEL_2);
+            ItemStack icon=itemStack(parts[7]);
+            if(!icon.isEmpty())g.renderItem(icon,left+12,y+12);
+            g.drawString(font,"I-"+(i+1),left+42,y+10,MUTED,true);
+            g.drawString(font,clipToWidth(name,Math.max(160,right-left-250)),left+42,y+26,TEXT,true);
+            String stateText; int stateColor;
+            if("COMPLETED".equals(status)){stateText="ИССЛЕДОВАНО";stateColor=POSITIVE;}
+            else if("AVAILABLE".equals(status)){stateText="ДОСТУПНО";stateColor=ACCENT;}
+            else if("LEVEL".equals(status)){stateText="НУЖЕН УРОВЕНЬ "+minLevel;stateColor=MUTED;}
+            else if("PREREQUISITE".equals(status)){stateText="НУЖНО ПРЕДЫДУЩЕЕ";stateColor=GOLD;}
+            else if("POINTS".equals(status)){stateText="НУЖНЫ ОЧКИ";stateColor=GOLD;}
+            else if("MONEY".equals(status)){stateText="НЕДОСТАТОЧНО ДЕНЕГ";stateColor=NEGATIVE;}
+            else{stateText="ЗАБЛОКИРОВАНО";stateColor=MUTED;}
+            g.drawString(font,stateText,right-170,y+12,stateColor,true);
+            g.drawString(font,clipToWidth(description,Math.max(220,right-left-250)),left+42,y+46,MUTED,false);
+            g.drawString(font,"Стоимость: "+rpCost+" очк. • $"+moneyCost+" • уровень "+minLevel,left+42,y+64,MUTED,false);
+            if("AVAILABLE".equals(status)){
+                drawButton(g,right-154,y+42,right-14,y+68,"ИССЛЕДОВАТЬ",ACCENT_DARK,ACCENT,mouseX,mouseY,
+                    () -> EconomyNetwork.sendAction("research",id));
+            }
+            y+=rowH;
+        }
+        return y + 8;
+    }
+
     private int drawDebts(GuiGraphics g, int y, int left, int right, int mouseX, int mouseY) {
         y = title(g, left, y, "ДОЛГИ", "Обязательства государства перед экономической системой");
 
@@ -1753,6 +1800,7 @@ public final class EconomyScreen extends Screen {
             case MARKET -> end = y + 40 + 88 + Math.max(1, snapshot.marketItemIds().length) * 77 + 10;
             case TRADE_HISTORY -> end = y + 40 + 38 + Math.max(1, snapshot.tradeHistory().length) * 118 + 10;
             case DEBTS -> end = y + 40 + 102 + 70 + Math.max(1, materialDebtCount()) * 48 + 20;
+            case RESEARCH -> end = y + 40 + 76 + 12 + Math.max(1, snapshot.researchRows().length) * 92 + 8;
             case TRADE -> {
                 int tradeWidth = width - contentLeft() - 16;
                 int ownHeight = 56 + Math.max(1, snapshot.tradeOwnOrders().length) * 84;
@@ -1963,6 +2011,10 @@ public final class EconomyScreen extends Screen {
     private static String signed(double value) {
         if (Math.abs(value) < 0.0001) return "0%";
         return String.format(Locale.ROOT, "%+.0f%%", value);
+    }
+
+    private static int parseIntSafe(String value) {
+        try { return Integer.parseInt(value); } catch (NumberFormatException ignored) { return 0; }
     }
 
     private static int valueAt(int[] values, int index) {

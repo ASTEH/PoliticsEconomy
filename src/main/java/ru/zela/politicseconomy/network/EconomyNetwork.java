@@ -55,6 +55,16 @@ public final class EconomyNetwork {
                     return;
                 }
 
+                if ("research".equals(payload.action())) {
+                    ru.zela.politicseconomy.research.CountryResearchService.Result result =
+                        ru.zela.politicseconomy.research.CountryResearchService.research(player, payload.value());
+                    player.sendSystemMessage(net.minecraft.network.chat.Component.literal(result.message())
+                        .withStyle(result.success() ? net.minecraft.ChatFormatting.GREEN : net.minecraft.ChatFormatting.RED));
+                    var country = ru.zela.politicseconomy.integration.PoliticsModIntegration.playerCountry(player).orElse(null);
+                    if (country != null) send(player, EconomyMenu.buildSnapshot(player, country));
+                    return;
+                }
+
                 if ("warehouse_deposit".equals(payload.action())) {
                     ru.zela.politicseconomy.economy.NationalMaterialInventoryService.DepositResult deposit =
                         ru.zela.politicseconomy.economy.NationalMaterialInventoryService.deposit(

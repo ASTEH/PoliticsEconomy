@@ -3,6 +3,7 @@ package ru.zela.politicseconomy.country;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import ru.zela.politicseconomy.economy.ResourceExtractionCategory;
+import ru.zela.politicseconomy.research.CountryResearchService;
 import net.krona.politicsmod.config.PoliticsConfig;
 
 import java.util.function.ToDoubleFunction;
@@ -21,7 +22,8 @@ public final class CountryDirectionBonusService {
         }
         int developmentLevel = CountryDevelopmentService.level(server, countryName);
         return CountryDirectionProfile.forDirection(direction)
-            .withDevelopmentLevel(direction, developmentLevel);
+            .withDevelopmentLevel(direction, developmentLevel)
+            .withResearch(CountryResearchService.completed(server, countryName));
     }
 
     /** Effective market fee percentage used by both server logic and the market UI. */
