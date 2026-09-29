@@ -1,10 +1,9 @@
 package ru.zela.politicseconomy.client;
 
-import icyllis.modernui.mc.MuiModApi;
 import net.minecraft.client.Minecraft;
 import ru.zela.politicseconomy.network.EconomySnapshotPayload;
 
-/** Opens the Modern UI dashboard on the client after a server snapshot arrives. */
+/** Opens or updates the native Minecraft economy dashboard. */
 public final class EconomyClientPayloadHandler {
     private EconomyClientPayloadHandler() {}
 
@@ -15,17 +14,12 @@ public final class EconomyClientPayloadHandler {
                 return;
             }
 
-            if (EconomyFragment.updateActive(payload)) {
+            if (minecraft.screen instanceof EconomyScreen screen) {
+                screen.applySnapshot(payload);
                 return;
             }
 
-            minecraft.setScreen(
-                MuiModApi.get().createScreen(
-                    new EconomyFragment(payload),
-                    null,
-                    minecraft.screen
-                )
-            );
+            minecraft.setScreen(new EconomyScreen(payload));
         });
     }
 }
