@@ -204,30 +204,38 @@ public final class CountryResearchContentService {
     public static void onRightClickEntity(PlayerInteractEvent.EntityInteract event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
         if (creativeOperator(player)) return;
-        denyIfLocked(player, event.getItemStack(), event);
+        if (isLocked(player, event.getItemStack())) {
+            event.setCanceled(true);
+            denyLockedItem(player, event.getItemStack());
+        }
     }
 
     public static void onRightClickEntitySpecific(PlayerInteractEvent.EntityInteractSpecific event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
         if (creativeOperator(player)) return;
-        denyIfLocked(player, event.getItemStack(), event);
+        if (isLocked(player, event.getItemStack())) {
+            event.setCanceled(true);
+            denyLockedItem(player, event.getItemStack());
+        }
     }
 
-    private static void denyIfLocked(
-        ServerPlayer player,
-        ItemStack stack,
-        net.neoforged.neoforge.event.entity.player.PlayerInteractEvent event
-    ) {
+    private static boolean isLocked(ServerPlayer player, ItemStack stack) {
         CountryResearch technology = requiredTechnology(stack);
-        if (technology == null) return;
+        if (technology == null) return false;
 
         Country country = playerCountry(player);
-        boolean allowed = country != null
-            && CountryResearchService.completed(player.getServer(), country.getName()).contains(technology.id());
-        if (allowed) return;
+        return country == null
+            || !CountryResearchService.completed(player.getServer(), country.getName()).contains(technology.id());
+    }
 
-        event.setCanceled(true);
-        deny(player, net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()), technology);
+    private static void denyLockedItem(ServerPlayer player, ItemStack stack) {
+        CountryResearch technology = requiredTechnology(stack);
+        if (technology == null) return;
+        deny(
+            player,
+            net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()),
+            technology
+        );
     }
 
     public static void onAttackEntity(net.neoforged.neoforge.event.entity.player.AttackEntityEvent event) {
