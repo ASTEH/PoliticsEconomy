@@ -50,9 +50,6 @@ public final class XaeroPoliticalMinimapOverlay {
             return;
         }
 
-        double halfW = specW * 0.5D;
-        double halfH = specH * 0.5D;
-
         int radiusChunks = calculateChunkRadius(zoom, specW, specH);
         int centerChunkX = Mth.floor(renderX) >> 4;
         int centerChunkZ = Mth.floor(renderZ) >> 4;
@@ -65,6 +62,10 @@ public final class XaeroPoliticalMinimapOverlay {
             VertexFormat.Mode.QUADS,
             DefaultVertexFormat.POSITION_COLOR
         );
+
+        poseStack.pushPose();
+        // Xaero's over-map renderer uses this Z layer for elements above the map.
+        poseStack.translate(0.0D, 0.0D, -980.0D);
 
         Matrix4f matrix = poseStack.last().pose();
         boolean drew = false;
@@ -85,21 +86,23 @@ public final class XaeroPoliticalMinimapOverlay {
                 }
 
                 String owner = leftOwner != null ? leftOwner : rightOwner;
-                double worldX = chunkX * 16.0D;
-                double worldZ1 = chunkZ * 16.0D;
-                double worldZ2 = worldZ1 + 16.0D;
-
                 Segment segment = transformSegment(
-                    worldX, worldZ1,
-                    worldX, worldZ2,
-                    renderX, renderZ,
-                    ps, pc, zoom,
-                    halfW, halfH,
+                    chunkX * 16.0D,
+                    chunkZ * 16.0D,
+                    chunkX * 16.0D,
+                    (chunkZ + 1) * 16.0D,
+                    renderX,
+                    renderZ,
+                    ps,
+                    pc,
+                    zoom,
+                    specW,
+                    specH,
                     circle
                 );
 
                 if (segment != null) {
-                    int color = countryColor(owner, 0xF0);
+                    int color = countryColor(owner, 0xFF);
                     addLineQuad(outer, matrix, segment, OUTER_THICKNESS, DARK_COLOR);
                     addLineQuad(inner, matrix, segment, INNER_THICKNESS, color);
                     drew = true;
@@ -118,27 +121,31 @@ public final class XaeroPoliticalMinimapOverlay {
                 }
 
                 String owner = topOwner != null ? topOwner : bottomOwner;
-                double worldZ = chunkZ * 16.0D;
-                double worldX1 = chunkX * 16.0D;
-                double worldX2 = worldX1 + 16.0D;
-
                 Segment segment = transformSegment(
-                    worldX1, worldZ,
-                    worldX2, worldZ,
-                    renderX, renderZ,
-                    ps, pc, zoom,
-                    halfW, halfH,
+                    chunkX * 16.0D,
+                    chunkZ * 16.0D,
+                    (chunkX + 1) * 16.0D,
+                    chunkZ * 16.0D,
+                    renderX,
+                    renderZ,
+                    ps,
+                    pc,
+                    zoom,
+                    specW,
+                    specH,
                     circle
                 );
 
                 if (segment != null) {
-                    int color = countryColor(owner, 0xF0);
+                    int color = countryColor(owner, 0xFF);
                     addLineQuad(outer, matrix, segment, OUTER_THICKNESS, DARK_COLOR);
                     addLineQuad(inner, matrix, segment, INNER_THICKNESS, color);
                     drew = true;
                 }
             }
         }
+
+        poseStack.popPose();
 
         if (!drew) {
             return;
@@ -162,8 +169,8 @@ public final class XaeroPoliticalMinimapOverlay {
     }
 
     private static int calculateChunkRadius(double zoom, int specW, int specH) {
-        double visibleBlocksX = specW / zoom;
-        double visibleBlocksZ = specH / zoom;
+        double visibleBlocksX = (specW * 2.0D) / zoom;
+        double visibleBlocksZ = (specH * 2.0D) / zoom;
         double maxVisibleBlocks = Math.max(visibleBlocksX, visibleBlocksZ);
 
         return Mth.clamp((int) Math.ceil(maxVisibleBlocks / 16.0D) + 2, 2, 32);
@@ -179,8 +186,8 @@ public final class XaeroPoliticalMinimapOverlay {
         double ps,
         double pc,
         double zoom,
-        double halfW,
-        double halfH,
+        int specW,
+        int specH,
         boolean circle
     ) {
         Point a = transformPoint(
@@ -190,15 +197,12 @@ public final class XaeroPoliticalMinimapOverlay {
             worldX2, worldZ2, renderX, renderZ, ps, pc, zoom
         );
 
-        double radiusX = Math.max(1.0D, halfW);
-        double radiusZ = Math.max(1.0D, halfH);
-
         if (circle) {
-            double radius = Math.min(radiusX, radiusZ);
+            double radius = Math.max(specW, specH);
             return clipToCircle(a, b, radius);
         }
 
-        return clipToRectangle(a, b, -radiusX, radiusX, -radiusZ, radiusZ);
+        return clipToRectangle(a, b, -specW, specW, -specH, specH);
     }
 
     private static Point transformPoint(
@@ -213,8 +217,8 @@ public final class XaeroPoliticalMinimapOverlay {
         double offX = worldX - renderX;
         double offZ = worldZ - renderZ;
 
-        double x = (ps * offX - pc * offZ) * zoom;
         double y = (pc * offX + ps * offZ) * zoom;
+        double x = (ps * offX - pc * offZ) * zoom;
 
         return new Point(x, y);
     }
@@ -290,6 +294,8 @@ public final class XaeroPoliticalMinimapOverlay {
 
             t0 = Math.max(t0, r0);
             t1 = Math.min(t1, r1);
+        } else {
+            return null;
         }
 
         if (t1 < 0.0D || t0 > 1.0D) {
@@ -321,35 +327,6 @@ public final class XaeroPoliticalMinimapOverlay {
                 Mth.lerp((float) t1, (float) a.y, (float) b.y)
             )
         );
-    }
-
-    private static void addLineQuad(
-        BufferBuilder builder,
-        Matrix4f matrix,
-        Segment segment,
-        float thickness,
-        int color
-    ) {
-        double dx = segment.b.x - segment.a.x;
-        double dy = segment.b.y - segment.a.y;
-        double length = Math.sqrt(dx * dx + dy * dy);
-
-        if (length < 0.001D) {
-            return;
-        }
-
-        double half = thickness * 0.5D;
-        double nx = -dy / length * half;
-        double ny = dx / length * half;
-
-        builder.addVertex(matrix, (float) (segment.a.x + nx), (float) (segment.a.y + ny), 0.0F)
-            .setColor(color);
-        builder.addVertex(matrix, (float) (segment.a.x - nx), (float) (segment.a.y - ny), 0.0F)
-            .setColor(color);
-        builder.addVertex(matrix, (float) (segment.b.x - nx), (float) (segment.b.y - ny), 0.0F)
-            .setColor(color);
-        builder.addVertex(matrix, (float) (segment.b.x + nx), (float) (segment.b.y + ny), 0.0F)
-            .setColor(color);
     }
 
     private static long chunkKey(int x, int z) {
