@@ -192,7 +192,7 @@ public final class CountryResearchContentService {
         if (creativeOperator(player)) return;
 
         ItemStack held = player.getItemInHand(event.getHand());
-        Country country = playerCountry(player);
+        String stateKey = playerTechnologyState(player);
 
         // Gate the block being interacted with as well as the held item. This
         // prevents an already-placed locked machine from being used with an
