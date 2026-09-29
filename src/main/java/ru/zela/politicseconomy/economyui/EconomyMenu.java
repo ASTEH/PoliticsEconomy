@@ -37,12 +37,41 @@ public final class EconomyMenu {
 
     public static void open(ServerPlayer player) {
         Country country = PoliticsModIntegration.playerCountry(player).orElse(null);
-        if (country == null) {
-            player.sendSystemMessage(Component.literal("Ты не состоишь ни в одной стране.").withStyle(ChatFormatting.RED));
+        if (country != null) {
+            EconomyNetwork.send(player, new ru.zela.politicseconomy.network.EconomyOpenPayload());
+            EconomyNetwork.send(player, buildSnapshot(player, country));
             return;
         }
+
+        var village = ru.zela.politicseconomy.integration.MillenaireIntegration.snapshotAtChunk(
+            player.getServer(), player.chunkPosition()
+        );
+        if (village == null) {
+            player.sendSystemMessage(
+                Component.literal("Ты не находишься на территории государства.")
+                    .withStyle(ChatFormatting.RED)
+            );
+            return;
+        }
+
+        var saved = ru.zela.politicseconomy.integration.MillenaireStateSavedData
+            .get(player.getServer());
+        saved.ensureState(
+            village.villageId(),
+            village.name(),
+            player.getServer().getTickCount()
+        );
+
         EconomyNetwork.send(player, new ru.zela.politicseconomy.network.EconomyOpenPayload());
-        EconomyNetwork.send(player, buildSnapshot(player, country));
+        EconomyNetwork.send(
+            player,
+            buildSnapshot(
+                player,
+                village.stateKey(),
+                (int) Math.min(Integer.MAX_VALUE, saved.treasury(village.villageId())),
+                true
+            )
+        );
     }
 
     private static String networkSafeMaterialId(NationalMaterialDemandService.MaterialDemand material, int index) {
@@ -56,14 +85,29 @@ public final class EconomyMenu {
     }
 
     public static EconomySnapshotPayload buildSnapshot(ServerPlayer player, Country country) {
-        String countryName = country.getName();
+        return buildSnapshot(player, country.getName(), Math.max(0, country.balance), false);
+    }
+
+    private static EconomySnapshotPayload buildSnapshot(
+        ServerPlayer player,
+        String countryName,
+        int treasury,
+        boolean millenaireState
+    ) {
         CountryDirection selectedDirection = CountryDirectionManager.getDirection(player.getServer(), countryName);
         CountryDirection direction = selectedDirection == null ? CountryDirection.INDUSTRIAL : selectedDirection;
         NationalMaterialLedgerSavedData national = NationalMaterialConsumptionService.getLedger(player.getServer());
         national.initializeCountry(countryName);
         MaintenanceLedgerSavedData moneyLedger = MaintenanceService.getLedger(player.getServer());
         var stats = InfrastructureManager.getCountryStats(player.getServer(), countryName);
-        double infrastructureCost = stats.adjustedMaintenance();
+        var millenaireSnapshot = millenaireState
+            ? ru.zela.politicseconomy.integration.MillenaireIntegration.snapshotForStateKey(
+                player.getServer(), countryName)
+            : null;
+        double infrastructureCost = millenaireState && millenaireSnapshot != null
+            ? ru.zela.politicseconomy.integration.MillenaireIntegration.maintenanceCost(
+                player.getServer(), millenaireSnapshot)
+            : stats.adjustedMaintenance();
         double moneyDebt = moneyLedger.getDebt(countryName);
         var materialDemand = NationalMaterialDemandService.dashboard(player.serverLevel(), countryName);
         String[] materialIds = new String[materialDemand.size()], materialNames = new String[materialDemand.size()];
@@ -73,7 +117,15 @@ public final class EconomyMenu {
             var material = materialDemand.get(i);
             materialIds[i] = networkSafeMaterialId(material, i);
             materialNames[i] = NationalMaterialDemandService.displayName(player.serverLevel(), material.acceptedItemIds());
-            materialStockpile[i] = material.acceptedItemIds().stream().mapToInt(itemId -> national.getStockpile(countryName, itemId)).sum();
+            materialStockpile[i] = millenaireState
+                ? material.acceptedItemIds().stream().mapToInt(
+                    itemId -> ru.zela.politicseconomy.integration.MillenaireIntegration
+                        .warehouse(player.getServer(), countryName)
+                        .getOrDefault(itemId, 0)
+                ).sum()
+                : material.acceptedItemIds().stream()
+                    .mapToInt(itemId -> national.getStockpile(countryName, itemId))
+                    .sum();
             materialDebt[i] = national.getDebt(countryName, material.key());
             materialPerCycle[i] = material.perCycleConsumption(); totalMaterialPerCycle += material.perCycleConsumption();
         }
@@ -127,7 +179,10 @@ public final class EconomyMenu {
         String demand = CountryPoliticalService.demandDisplay(player.getServer(), countryName);
         String supportSummary = CountryPoliticalService.supportSummary(player.getServer(), countryName);
 
-        java.util.List<CityDirectoryService.CitySnapshot> cities = CityDirectoryService.build(player.getServer(), player);
+        java.util.List<CityDirectoryService.CitySnapshot> cities =
+            millenaireState
+                ? java.util.List.of()
+                : CityDirectoryService.build(player.getServer(), player);
         String[] cityNames = new String[cities.size()], cityCountries = new String[cities.size()], cityMayors = new String[cities.size()];
         int[] cityTreasuries = new int[cities.size()], cityIncome = new int[cities.size()], cityInfrastructure = new int[cities.size()], cityPopulation = new int[cities.size()], cityTaxBlocks = new int[cities.size()];
         boolean[] cityCapitals = new boolean[cities.size()], cityMine = new boolean[cities.size()];
@@ -237,7 +292,7 @@ public final class EconomyMenu {
             CountryWorkforceService.sectorBonusPercent(player.getServer(), countryName, WorkforceSector.AGRICULTURE));
         addModifier(modifierNames, modifierValues, "Военная промышленность от рабочих",
             CountryWorkforceService.sectorBonusPercent(player.getServer(), countryName, WorkforceSector.MILITARY));
-        return new EconomySnapshotPayload(countryName, selectedDirection == null ? "Не выбрано" : selectedDirection.displayName(), government == null ? "Не выбрано" : government.displayName(), religion == null ? "Не выбрано" : religion.displayName(), population, workforce, workingPopulation, employedPopulation, unemployedPopulation, workplaceCapacity, workplaceCounts, workplaceSlots, sectorWorkers, sectorAllocation, sectorBonuses, policySummary, unrest, demand, supportSummary, country.balance, infrastructureCost, moneyDebt, dieselModifier, totalMaterialPerCycle, materialIds, materialNames, materialStockpile, materialDebt, materialPerCycle, modifierNames.toArray(String[]::new), modifierValues.stream().mapToDouble(Double::doubleValue).toArray(), researchPoints, researchRows, cityNames, cityCountries, cityMayors, cityTreasuries, cityIncome, cityInfrastructure, cityPopulation, cityTaxBlocks, cityCapitals, cityMine, developmentLevel, developmentPoints, developmentNextThreshold, developmentTitle, developmentNextTitle, developmentPerk, developmentNextPerk, marketItemIds, marketItemNames, marketBaseDemand, marketRemaining, marketSold, marketImported, marketPrices, personalWallet, tradeTerminalSet, tradeTerminalPosition, tradeOwnOrders.toArray(String[]::new), tradeOpenOrders.toArray(String[]::new), tradeShipments.toArray(String[]::new), tradeHistory.toArray(String[]::new));
+        return new EconomySnapshotPayload(countryName, selectedDirection == null ? "Не выбрано" : selectedDirection.displayName(), government == null ? "Не выбрано" : government.displayName(), religion == null ? "Не выбрано" : religion.displayName(), population, workforce, workingPopulation, employedPopulation, unemployedPopulation, workplaceCapacity, workplaceCounts, workplaceSlots, sectorWorkers, sectorAllocation, sectorBonuses, policySummary, unrest, demand, supportSummary, treasury, infrastructureCost, moneyDebt, dieselModifier, totalMaterialPerCycle, materialIds, materialNames, materialStockpile, materialDebt, materialPerCycle, modifierNames.toArray(String[]::new), modifierValues.stream().mapToDouble(Double::doubleValue).toArray(), researchPoints, researchRows, cityNames, cityCountries, cityMayors, cityTreasuries, cityIncome, cityInfrastructure, cityPopulation, cityTaxBlocks, cityCapitals, cityMine, developmentLevel, developmentPoints, developmentNextThreshold, developmentTitle, developmentNextTitle, developmentPerk, developmentNextPerk, marketItemIds, marketItemNames, marketBaseDemand, marketRemaining, marketSold, marketImported, marketPrices, personalWallet, tradeTerminalSet, tradeTerminalPosition, tradeOwnOrders.toArray(String[]::new), tradeOpenOrders.toArray(String[]::new), tradeShipments.toArray(String[]::new), tradeHistory.toArray(String[]::new));
     }
 
     private static void addModifier(java.util.List<String> names, java.util.List<Double> values, String name, double value) { names.add(name); values.add(value); }
