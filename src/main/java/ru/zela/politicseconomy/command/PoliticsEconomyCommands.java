@@ -129,10 +129,12 @@ public final class PoliticsEconomyCommands {
                                     )))))
                         .then(Commands.literal("cancel")
                             .then(Commands.argument("id", IntegerArgumentType.integer(1))
-                                .executes(context -> tradeOrderCancel(
-                                    context.getSource(),
-                                    IntegerArgumentType.getInteger(context, "id")
-                                )))))
+                                .then(Commands.argument("reason", StringArgumentType.greedyString())
+                                    .executes(context -> tradeOrderCancel(
+                                        context.getSource(),
+                                        IntegerArgumentType.getInteger(context, "id"),
+                                        StringArgumentType.getString(context, "reason")
+                                    )))))
                     .then(Commands.literal("orders")
                         .executes(context -> tradeOrders(context.getSource())))
                     .then(Commands.literal("shipment")
@@ -326,10 +328,10 @@ public final class PoliticsEconomyCommands {
         }
     }
 
-    private static int tradeOrderCancel(CommandSourceStack source, int id) {
+    private static int tradeOrderCancel(CommandSourceStack source, int id, String reason) {
         try {
             return sendTrade(source, TradeService.cancelOrder(
-                source.getPlayerOrException(), id
+                source.getPlayerOrException(), id, reason
             ));
         } catch (Exception e) {
             source.sendFailure(Component.literal("Эта команда доступна только игроку."));
