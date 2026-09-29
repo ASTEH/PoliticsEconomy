@@ -159,9 +159,13 @@ public final class CountryWorkforceCycleService {
         ru.zela.politicseconomy.integration.MillenaireIntegration.VillageSnapshot state
     ) {
         int adults = Math.max(0, state.adults());
-        int productiveWorkers = state.workersBySector().values().stream()
-            .mapToInt(Integer::intValue)
-            .sum();
+        int productiveWorkers =
+            ru.zela.politicseconomy.integration.MillenaireIntegration
+                .sectorWorkers(server, state.stateKey())
+                .values()
+                .stream()
+                .mapToInt(Integer::intValue)
+                .sum();
         if (adults <= 0) return;
 
         // Local tax/productive revenue is intentionally modest: the village
