@@ -301,9 +301,13 @@ public final class XaeroPoliticalMinimapOverlay {
         while (type != null) {
             try {
                 Field field = type.getDeclaredField(name);
-                if (field.getType() != int.class && field.getType() != Integer.class) return null;
+                if (field.getType() != int.class && field.getType() != Integer.class) {
+                    type = type.getSuperclass();
+                    continue;
+                }
                 field.setAccessible(true);
-                return field.getInt(target);
+                Object value = field.get(target);
+                return value instanceof Number number ? number.intValue() : null;
             } catch (ReflectiveOperationException ignored) {
                 type = type.getSuperclass();
             }
@@ -320,9 +324,13 @@ public final class XaeroPoliticalMinimapOverlay {
                 if (!(field.getType() == double.class
                     || field.getType() == float.class
                     || field.getType() == Double.class
-                    || field.getType() == Float.class)) return null;
+                    || field.getType() == Float.class)) {
+                    type = type.getSuperclass();
+                    continue;
+                }
                 field.setAccessible(true);
-                return field.getDouble(target);
+                Object value = field.get(target);
+                return value instanceof Number number ? number.doubleValue() : null;
             } catch (ReflectiveOperationException ignored) {
                 type = type.getSuperclass();
             }
