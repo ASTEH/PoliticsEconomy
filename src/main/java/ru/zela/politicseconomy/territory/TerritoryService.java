@@ -277,7 +277,7 @@ public final class TerritoryService {
             occupation.progressTicks = Math.max(0, Math.min(CAPTURE_TICKS, occupation.progressTicks + delta));
             dirty = true;
 
-            if (attackers > 0 && server.getTickCount() % ACTIONBAR_INTERVAL == 0) {
+            if (attackers > 0 && server.overworld().getGameTime() % ACTIONBAR_INTERVAL == 0) {
                 int percent = (int) Math.round(occupation.progressTicks * 100.0D / CAPTURE_TICKS);
                 sendProgress(server, chunk, occupation, percent);
             }
@@ -309,8 +309,8 @@ public final class TerritoryService {
         }
 
         if (dirty) data.setDirty();
-        if (capturedAny && server.getTickCount() - lastMapBroadcastTick > 5) {
-            lastMapBroadcastTick = server.getTickCount();
+        if (capturedAny && server.overworld().getGameTime() - lastMapBroadcastTick > 5) {
+            lastMapBroadcastTick = server.overworld().getGameTime();
             PoliticalMapService.syncAll(server);
         }
     }
