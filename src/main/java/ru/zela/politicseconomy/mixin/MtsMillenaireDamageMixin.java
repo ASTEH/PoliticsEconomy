@@ -28,7 +28,7 @@ import java.util.WeakHashMap;
     remap = false
 )
 public abstract class MtsMillenaireDamageMixin {
-    private static final Map<Entity, Float> POLITICSECONOMY$HEALTH_BEFORE =
+    private static final Map<Entity, HealthSnapshot> POLITICSECONOMY$HEALTH_BEFORE =
         new WeakHashMap<>();
 
     @Shadow
@@ -53,7 +53,10 @@ public abstract class MtsMillenaireDamageMixin {
 
         double amount = readNumber(damage, "amount");
         if (amount > 0.0D && Double.isFinite(amount)) {
-            POLITICSECONOMY$HEALTH_BEFORE.put(entity, living.getHealth());
+            POLITICSECONOMY$HEALTH_BEFORE.put(
+                entity,
+                new HealthSnapshot(living.getHealth(), living.getAbsorptionAmount())
+            );
         }
     }
 
@@ -73,7 +76,7 @@ public abstract class MtsMillenaireDamageMixin {
             return;
         }
 
-        Float before = POLITICSECONOMY$HEALTH_BEFORE.remove(entity);
+        HealthSnapshot before = POLITICSECONOMY$HEALTH_BEFORE.remove(entity);
         if (before == null || !living.isAlive()) {
             return;
         }
@@ -83,8 +86,9 @@ public abstract class MtsMillenaireDamageMixin {
             return;
         }
 
-        if (living.getHealth() >= before) {
-            float newHealth = Math.max(0.0F, before - (float) amount);
+        if (living.getHealth() >= before.health()
+            && living.getAbsorptionAmount() >= before.absorption()) {
+            float newHealth = Math.max(0.0F, before.health() - (float) amount);
             living.setHealth(newHealth);
 
             if (newHealth <= 0.0F && living.isAlive()) {
@@ -114,6 +118,8 @@ public abstract class MtsMillenaireDamageMixin {
             return 0.0D;
         }
     }
+
+    private record HealthSnapshot(float health, float absorption) {}
 
     private static DamageSource genericDamageSource(LivingEntity entity) {
         try {
