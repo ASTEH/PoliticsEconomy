@@ -119,8 +119,16 @@ public final class EconomyNetwork {
                         );
                     }
                 }
-                case "trade_order_cancel" ->
-                    result = TradeService.cancelOrder(player, Integer.parseInt(value));
+                case "trade_order_cancel" -> {
+                    int separator = value.indexOf('|');
+                    if (separator <= 0 || separator >= value.length() - 1) {
+                        result = TradeService.TradeResult.fail("Укажи причину отмены заказа.");
+                    } else {
+                        int orderId = Integer.parseInt(value.substring(0, separator));
+                        String reason = value.substring(separator + 1);
+                        result = TradeService.cancelOrder(player, orderId, reason);
+                    }
+                }
                 case "trade_shipment_dispatch" -> {
                     String[] parts = value.split("\\|", -1);
                     if (parts.length != 2) {
