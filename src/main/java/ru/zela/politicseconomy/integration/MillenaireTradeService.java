@@ -200,6 +200,21 @@ public final class MillenaireTradeService {
                 )
             );
             market.addImported(buyer.stateKey(), need.itemId(), added);
+
+            int activity = Math.min(
+                6,
+                1 + added / 16
+            );
+            ru.zela.politicseconomy.country.CountryDevelopmentService.addActivity(
+                server,
+                buyer.stateKey(),
+                activity
+            );
+            ru.zela.politicseconomy.country.CountryDevelopmentService.addActivity(
+                server,
+                seller.stateKey(),
+                activity
+            );
             break;
         }
     }
