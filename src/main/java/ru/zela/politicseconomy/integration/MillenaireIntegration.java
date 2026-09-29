@@ -180,6 +180,47 @@ public final class MillenaireIntegration {
         return cachedSnapshots;
     }
 
+    /**
+     * Stable fingerprint of the currently known Millénaire states and their
+     * derived territory. The political map uses this to push an immediate
+     * update when a village appears, disappears, or expands/contracts because
+     * its building bounds changed.
+     */
+    public static long territoryFingerprint(MinecraftServer server) {
+        if (!isAvailable() || server == null || server.overworld() == null) {
+            return 0L;
+        }
+
+        long hash = 0xCBF29CE484222325L;
+        List<VillageSnapshot> states = new ArrayList<>(snapshots(server));
+        states.sort(java.util.Comparator.comparing(
+            VillageSnapshot::stateKey,
+            java.util.Comparator.nullsFirst(String::compareTo)
+        ));
+
+        for (VillageSnapshot state : states) {
+            hash ^= state.villageId().getMostSignificantBits();
+            hash *= 0x100000001B3L;
+            hash ^= state.villageId().getLeastSignificantBits();
+            hash *= 0x100000001B3L;
+
+            long[] territory = state.territory().stream()
+                .mapToLong(ChunkPos::toLong)
+                .sorted()
+                .toArray();
+
+            hash ^= territory.length;
+            hash *= 0x100000001B3L;
+
+            for (long chunk : territory) {
+                hash ^= chunk;
+                hash *= 0x100000001B3L;
+            }
+        }
+
+        return hash;
+    }
+
     public static VillageSnapshot snapshotAtChunk(MinecraftServer server, ChunkPos chunk) {
         if (!isAvailable() || server == null || chunk == null) return null;
         for (VillageSnapshot snapshot : snapshots(server)) {
