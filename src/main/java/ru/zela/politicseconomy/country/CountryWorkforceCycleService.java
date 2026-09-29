@@ -56,7 +56,6 @@ public final class CountryWorkforceCycleService {
             : ru.zela.politicseconomy.integration.MillenaireIntegration.snapshots(server)) {
             String name = state.stateKey();
             CountryPoliticalService.processCycle(server, name, cycle);
-            grantDividend(server, name, ledger);
             grantMillenaireRevenue(server, state);
         }
     }
