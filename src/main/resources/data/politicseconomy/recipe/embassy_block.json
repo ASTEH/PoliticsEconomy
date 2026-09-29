@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "SGS",
+    "IPI",
+    "SGS"
+  ],
+  "key": {
+    "S": { "item": "minecraft:stone_bricks" },
+    "G": { "item": "minecraft:gold_ingot" },
+    "I": { "item": "minecraft:iron_ingot" },
+    "P": { "item": "minecraft:paper" }
+  },
+  "result": {
+    "id": "politicsmod:embassy_block",
+    "count": 1
+  }
+}

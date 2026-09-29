@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "building",
+  "pattern": [
+    "PGP",
+    "BCB",
+    "PGP"
+  ],
+  "key": {
+    "P": { "tag": "minecraft:planks" },
+    "G": { "item": "minecraft:glass" },
+    "B": { "item": "minecraft:bricks" },
+    "C": { "item": "minecraft:chest" }
+  },
+  "result": {
+    "id": "politicsmod:residential_building",
+    "count": 1
+  }
+}
