@@ -23,17 +23,19 @@ import java.util.Locale;
 
 public final class EconomyScreen extends Screen {
     private enum Page {
-        OVERVIEW("Обзор"),
-        COUNTRY("Государство"),
-        EFFECTS("Эффекты"),
-        CITIES("Города"),
-        MARKET("Рынок"),
-        TRADE("Торговля");
+        OVERVIEW("Обзор", "minecraft:emerald"),
+        COUNTRY("Государство", "minecraft:compass"),
+        EFFECTS("Эффекты", "minecraft:redstone"),
+        CITIES("Города", "minecraft:bricks"),
+        MARKET("Рынок", "minecraft:emerald"),
+        TRADE("Торговля", "minecraft:chest");
 
         final String title;
+        final String iconId;
 
-        Page(String title) {
+        Page(String title, String iconId) {
             this.title = title;
+            this.iconId = iconId;
         }
     }
 
@@ -265,7 +267,9 @@ public final class EconomyScreen extends Screen {
                 g.fill(left + 7, y - 3, right - 7, y + 22, PANEL_3);
             }
 
-            g.drawString(font, item.title, left + 18, y + 4, selected ? TEXT : MUTED, selected);
+            ItemStack navIcon = itemStack(item.iconId);
+            if (!navIcon.isEmpty()) g.renderItem(navIcon, left + 12, y + 1);
+            g.drawString(font, item.title, left + 36, y + 4, selected ? TEXT : MUTED, selected);
             Page next = item;
             target(left + 7, y - 3, right - 7, y + 22, () -> {
                 page = next;
@@ -309,7 +313,9 @@ public final class EconomyScreen extends Screen {
         y += 114;
 
         panel(g, left, y, right, y + 88);
-        g.drawString(font, "РАЗВИТИЕ", left + 14, y + 12, TEXT, true);
+        ItemStack developmentIcon = itemStack("minecraft:diamond");
+        if (!developmentIcon.isEmpty()) g.renderItem(developmentIcon, left + 10, y + 10);
+        g.drawString(font, "РАЗВИТИЕ", left + 38, y + 12, TEXT, true);
         g.drawString(font,
             snapshot.developmentLevel() >= 5
                 ? "Максимальный уровень"
@@ -399,7 +405,14 @@ public final class EconomyScreen extends Screen {
         int rowH = 42;
         int bottom = y + 33 + values.size() * rowH;
         panel(g, left, y, right, bottom);
-        g.drawString(font, heading, left + 14, y + 11, TEXT, true);
+        String choiceIconId = switch (action) {
+            case "direction" -> "minecraft:compass";
+            case "government" -> "minecraft:iron_sword";
+            default -> "minecraft:book";
+        };
+        ItemStack choiceIcon = itemStack(choiceIconId);
+        if (!choiceIcon.isEmpty()) g.renderItem(choiceIcon, left + 10, y + 7);
+        g.drawString(font, heading, left + 38, y + 11, TEXT, true);
 
         int rowY = y + 30;
         for (Object object : values) {
@@ -489,7 +502,9 @@ public final class EconomyScreen extends Screen {
             double value = valueAt(snapshot.modifierValues(), i);
             if ((positive && value <= 0.0001) || (!positive && value >= -0.0001)) continue;
 
-            g.drawString(font, clip(snapshot.modifierNames()[i], 34), x, y + row * 30, TEXT, false);
+            ItemStack effectIcon = itemStack(positive ? "minecraft:emerald" : "minecraft:redstone");
+            if (!effectIcon.isEmpty()) g.renderItem(effectIcon, x, y + row * 30 - 7);
+            g.drawString(font, clip(snapshot.modifierNames()[i], 31), x + 22, y + row * 30, TEXT, false);
             String valueText = signed(value);
             g.drawString(font, valueText, right - font.width(valueText),
                 y + row * 30, positive ? POSITIVE : NEGATIVE, true);
@@ -521,9 +536,9 @@ public final class EconomyScreen extends Screen {
                 left + 34, y + 50, MUTED, false);
 
             int sx = right - 300;
-            miniStat(g, sx, y + 12, "Казна", "$" + format(valueAt(snapshot.cityTreasuries(), i)), GOLD);
-            miniStat(g, sx + 96, y + 12, "Доход", "$" + format(valueAt(snapshot.cityIncome(), i)), POSITIVE);
-            miniStat(g, sx + 192, y + 12, "Насел.", format(valueAt(snapshot.cityPopulation(), i)), ACCENT);
+            miniStatIcon(g, sx, y + 12, "Казна", "$" + format(valueAt(snapshot.cityTreasuries(), i)), "minecraft:emerald", GOLD);
+            miniStatIcon(g, sx + 96, y + 12, "Доход", "$" + format(valueAt(snapshot.cityIncome(), i)), "minecraft:paper", POSITIVE);
+            miniStatIcon(g, sx + 192, y + 12, "Насел.", format(valueAt(snapshot.cityPopulation(), i)), "minecraft:player_head", ACCENT);
             g.drawString(font,
                 "Инфра " + format(valueAt(snapshot.cityInfrastructure(), i)) +
                     "  •  Налоговые блоки " + format(valueAt(snapshot.cityTaxBlocks(), i)),
@@ -890,7 +905,7 @@ public final class EconomyScreen extends Screen {
 
     private void drawModal(GuiGraphics g, int mouseX, int mouseY) {
         // The modal is a true top layer: background panels and text must not remain readable.
-        g.fill(0, 0, width, height, 0xF2000000);
+        g.fill(0, 0, width, height, 0xFF000000);
 
         int w = Math.min(520, width - 32);
         int h = 172;
@@ -977,6 +992,13 @@ public final class EconomyScreen extends Screen {
     private void miniStat(GuiGraphics g, int x, int y, String label, String value, int color) {
         g.drawString(font, label.toUpperCase(Locale.ROOT), x, y, MUTED, false);
         g.drawString(font, value, x, y + 14, color, true);
+    }
+
+    private void miniStatIcon(GuiGraphics g, int x, int y, String label, String value, String iconId, int color) {
+        ItemStack icon = itemStack(iconId);
+        if (!icon.isEmpty()) g.renderItem(icon, x, y - 4);
+        g.drawString(font, label.toUpperCase(Locale.ROOT), x + 20, y, MUTED, false);
+        g.drawString(font, value, x + 20, y + 14, color, true);
     }
 
     private void miniButton(GuiGraphics g, int x, int y, String label, int mouseX, int mouseY, Runnable action) {
