@@ -48,6 +48,7 @@ public final class PoliticsEconomy {
         NeoForge.EVENT_BUS.addListener(ru.zela.politicseconomy.research.CountryResearchContentService::onRightClickEntity);
         NeoForge.EVENT_BUS.addListener(ru.zela.politicseconomy.research.CountryResearchContentService::onAttackEntity);
         NeoForge.EVENT_BUS.addListener(CountryWorkforceCycleService::onServerTick);
+        NeoForge.EVENT_BUS.addListener(ru.zela.politicseconomy.integration.MillenaireIntegration::onServerTick);
         NeoForge.EVENT_BUS.addListener(StarterKitService::onPlayerLoggedIn);
         NeoForge.EVENT_BUS.addListener(PoliticalMapService::onPlayerLoggedIn);
         NeoForge.EVENT_BUS.addListener(PoliticalMapService::onServerTick);
