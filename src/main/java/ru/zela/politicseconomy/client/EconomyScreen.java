@@ -208,13 +208,14 @@ public final class EconomyScreen extends UiScreen {
 
         return Ui.row(
             Ui.column(
-                Ui.title("POLITICS ECONOMY"),
-                Ui.text(countryTitle).nowrap(),
+                Ui.text("ECONOMIC COMMAND").nowrap(),
+                Ui.title(countryTitle),
                 Ui.text(populationText).nowrap()
-            ).gap(2),
+            ).gap(2).flex(),
             Ui.column(
-                Ui.text("ГОСУДАРСТВЕННЫЙ КОШЕЛЁК").nowrap(),
-                Ui.text(walletText).nowrap()
+                Ui.text("ДЕНЕЖНЫЙ ЦЕНТР").nowrap(),
+                Ui.text(walletText).nowrap(),
+                Ui.text("СЕРВЕРНЫЕ ДАННЫЕ").nowrap()
             ).gap(1)
         ).gap(8).fillWidth();
     }
