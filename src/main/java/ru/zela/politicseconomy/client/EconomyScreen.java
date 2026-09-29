@@ -721,6 +721,7 @@ public final class EconomyScreen extends Screen {
         int row = 0;
         for (int i = 0; i < snapshot.modifierNames().length; i++) {
             double value = valueAt(snapshot.modifierValues(), i);
+            if (Math.abs(value) < 0.0001) continue;
             boolean beneficial = isEffectPositive(snapshot.modifierNames()[i], value);
             if (beneficial != positive) continue;
 
@@ -1696,6 +1697,7 @@ public final class EconomyScreen extends Screen {
         int count = 0;
         for (int i = 0; i < snapshot.modifierValues().length; i++) {
             double value = valueAt(snapshot.modifierValues(), i);
+            if (Math.abs(value) < 0.0001) continue;
             if (isEffectPositive(valueAt(snapshot.modifierNames(), i), value) == positive) count++;
         }
         return count;
