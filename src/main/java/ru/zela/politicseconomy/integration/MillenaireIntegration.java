@@ -233,6 +233,94 @@ public final class MillenaireIntegration {
         return snapshot == null ? Map.of() : snapshot.warehouse();
     }
 
+    public static int consumeFromWarehouse(
+        MinecraftServer server,
+        String stateKey,
+        List<String> acceptedItemIds,
+        int amount
+    ) {
+        if (server == null || !isStateKey(stateKey) || amount <= 0 || acceptedItemIds == null || acceptedItemIds.isEmpty()) {
+            return 0;
+        }
+
+        UUID id = villageIdFromStateKey(stateKey);
+        if (id == null) return 0;
+
+        Object village = findVillageById(server.overworld(), id);
+        if (village == null) return 0;
+
+        int remaining = amount;
+        for (String itemId : acceptedItemIds) {
+            if (remaining <= 0) break;
+            ResourceLocation resource = parseResource(itemId);
+            if (resource == null) continue;
+
+            Item item = BuiltInRegistries.ITEM.getOptional(resource).orElse(null);
+            if (item == null) continue;
+
+            Object buildings = invoke(village, "getBuildings");
+            if (!(buildings instanceof Iterable<?> iterable)) break;
+            for (Object building : iterable) {
+                if (remaining <= 0) break;
+                Object inventory = invoke(building, "getInventory");
+                if (inventory == null) continue;
+                int removed = intValue(invoke(inventory, "remove", server.overworld(), item, remaining));
+                remaining -= Math.max(0, removed);
+            }
+        }
+
+        invalidateSnapshotCache();
+        return amount - remaining;
+    }
+
+    public static int addToWarehouse(
+        MinecraftServer server,
+        String stateKey,
+        String itemId,
+        int amount
+    ) {
+        if (server == null || !isStateKey(stateKey) || amount <= 0 || itemId == null) return 0;
+
+        UUID id = villageIdFromStateKey(stateKey);
+        ResourceLocation resource = parseResource(itemId);
+        if (id == null || resource == null) return 0;
+
+        Item item = BuiltInRegistries.ITEM.getOptional(resource).orElse(null);
+        if (item == null) return 0;
+
+        Object village = findVillageById(server.overworld(), id);
+        if (village == null) return 0;
+
+        int remaining = amount;
+        Object buildings = invoke(village, "getBuildings");
+        if (!(buildings instanceof Iterable<?> iterable)) return 0;
+
+        for (Object building : iterable) {
+            if (remaining <= 0) break;
+            Object inventory = invoke(building, "getInventory");
+            if (inventory == null) continue;
+
+            int added = intValue(invoke(inventory, "add", server.overworld(), item, remaining));
+            remaining -= Math.max(0, added);
+        }
+
+        invalidateSnapshotCache();
+        return amount - remaining;
+    }
+
+    private static ResourceLocation parseResource(String raw) {
+        try {
+            return ResourceLocation.parse(raw);
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
+    }
+
+    private static void invalidateSnapshotCache() {
+        cachedSecond = Long.MIN_VALUE;
+        cachedSnapshots = List.of();
+    }
+
     public static String displayName(MinecraftServer server, String stateKey) {
         VillageSnapshot snapshot = snapshotForStateKey(server, stateKey);
         return snapshot == null ? stateKey : snapshot.name();
