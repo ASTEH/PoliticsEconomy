@@ -7,6 +7,7 @@ import net.minecraft.world.level.saveddata.SavedData;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -223,6 +224,40 @@ public final class NationalMaterialLedgerSavedData extends SavedData {
             remaining -= used;
         }
         return due - remaining;
+    }
+
+    /**
+     * Immediately uses warehouse stock to repay outstanding material debt.
+     * This is intentionally separate from the regular economy cycle so that
+     * depositing the required items restores the country state at once.
+     *
+     * @return number of debt units paid immediately
+     */
+    public int settleAllDebtsFromStockpile(String countryName) {
+        if (countryName == null || countryName.isBlank()) {
+            return 0;
+        }
+        initializeCountry(countryName);
+
+        int totalPaid = 0;
+        for (Map.Entry<String, Integer> entry : new HashMap<>(debts.get(countryName)).entrySet()) {
+            String choiceKey = entry.getKey();
+            int debt = Math.max(0, entry.getValue() == null ? 0 : entry.getValue());
+            if (debt <= 0 || choiceKey == null || choiceKey.isBlank()) {
+                continue;
+            }
+
+            List<String> acceptedItemIds = java.util.Arrays.stream(choiceKey.split("\\|"))
+                .filter(itemId -> itemId != null && !itemId.isBlank())
+                .distinct()
+                .toList();
+            int paid = consumeAccepted(countryName, acceptedItemIds, debt);
+            if (paid > 0) {
+                setDebt(countryName, choiceKey, debt - paid);
+                totalPaid += paid;
+            }
+        }
+        return totalPaid;
     }
 
     public boolean hasAnyDebt(String countryName) {
