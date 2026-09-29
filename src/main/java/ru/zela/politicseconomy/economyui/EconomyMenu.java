@@ -40,6 +40,7 @@ public final class EconomyMenu {
             player.sendSystemMessage(Component.literal("Ты не состоишь ни в одной стране.").withStyle(ChatFormatting.RED));
             return;
         }
+        EconomyNetwork.send(player, new ru.zela.politicseconomy.network.EconomyOpenPayload());
         EconomyNetwork.send(player, buildSnapshot(player, country));
     }
 
