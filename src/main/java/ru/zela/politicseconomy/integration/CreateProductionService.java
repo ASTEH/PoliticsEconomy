@@ -1,6 +1,5 @@
 package ru.zela.politicseconomy.integration;
 
-import net.krona.politicsmod.politics.Country;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -25,8 +24,8 @@ public final class CreateProductionService {
     private CreateProductionService() {}
 
     public static double effectiveMultiplier(ServerLevel level, BlockPos machinePos) {
-        Country country = CountryContext.machineCountry(level, machinePos);
-        if (country == null) {
+        String countryKey = CountryContext.machineStateName(level, machinePos);
+        if (countryKey == null) {
             return 1.0D;
         }
 
@@ -35,18 +34,18 @@ public final class CreateProductionService {
             return 1.0D;
         }
 
-        CountryDirectionProfile profile = CountryDirectionBonusService.profile(server, country.getName());
+        CountryDirectionProfile profile = CountryDirectionBonusService.profile(server, countryKey);
         if (profile == null) {
             return 1.0D;
         }
 
-        CountryPolicyProfile policy = CountryPolicyBonusService.profile(server, country.getName());
+        CountryPolicyProfile policy = CountryPolicyBonusService.profile(server, countryKey);
         double modifier = profile.industrialProduction() + policy.industrialProduction()
             + CountryWorkforceService.sectorBonusPercent(
-                server, country.getName(), WorkforceSector.INDUSTRY
+                server, countryKey, WorkforceSector.INDUSTRY
             );
         return Math.max(0.0D, 1.0D + modifier / 100.0D)
-            * CountryPolicyBonusService.workforceMultiplier(server, country.getName());
+            * CountryPolicyBonusService.workforceMultiplier(server, countryKey);
     }
 
     /**
@@ -70,13 +69,12 @@ public final class CreateProductionService {
             return copyFluidOutputs(recipeOutputs);
         }
 
-        Country country = CountryContext.machineCountry(level, machinePos);
-        if (country == null) {
+        String countryKey = CountryContext.machineStateName(level, machinePos);
+        if (countryKey == null) {
             return copyFluidOutputs(recipeOutputs);
         }
 
         CreateProductionLedgerSavedData ledger = CreateProductionLedgerSavedData.get(server);
-        String countryKey = country.getName();
         Map<String, Double> workingRemainders = new LinkedHashMap<>();
         List<FluidStack> scaled = new ArrayList<>(recipeOutputs.size());
 
@@ -134,13 +132,12 @@ public final class CreateProductionService {
             return;
         }
 
-        Country country = CountryContext.machineCountry(level, machinePos);
-        if (country == null) {
+        String countryKey = CountryContext.machineStateName(level, machinePos);
+        if (countryKey == null) {
             return;
         }
 
         CreateProductionLedgerSavedData ledger = CreateProductionLedgerSavedData.get(server);
-        String countryKey = country.getName();
         Map<String, Double> workingRemainders = new LinkedHashMap<>();
         List<FluidStack> bonusOutputs = new ArrayList<>();
 
@@ -222,8 +219,8 @@ public final class CreateProductionService {
         BlockPos machinePos,
         ItemStack output
     ) {
-        Country country = CountryContext.machineCountry(level, machinePos);
-        if (country == null) {
+        String countryKey = CountryContext.machineStateName(level, machinePos);
+        if (countryKey == null) {
             return 1.0D;
         }
 
@@ -232,23 +229,23 @@ public final class CreateProductionService {
             return 1.0D;
         }
 
-        CountryDirectionProfile profile = CountryDirectionBonusService.profile(server, country.getName());
+        CountryDirectionProfile profile = CountryDirectionBonusService.profile(server, countryKey);
         if (profile == null) {
             return 1.0D;
         }
 
-        CountryPolicyProfile policy = CountryPolicyBonusService.profile(server, country.getName());
-        double modifier = profile.industrialProduction() + policy.industrialProduction();
+        CountryPolicyProfile policy = CountryPolicyBonusService.profile(server, countryKey);
+        double modifier = profile.industrialProduction() + policy.industrialProduction()
         var itemKey = BuiltInRegistries.ITEM.getKey(output.getItem());
         if (itemKey != null && "createbigcannons".equals(itemKey.getNamespace())) {
             modifier += profile.militaryProduction() + policy.militaryProduction()
                 + CountryWorkforceService.sectorBonusPercent(
-                    server, country.getName(), WorkforceSector.MILITARY
+                    server, countryKey, WorkforceSector.MILITARY
                 );
         }
 
         return Math.max(0.0D, 1.0D + modifier / 100.0D)
-            * CountryPolicyBonusService.workforceMultiplier(server, country.getName());
+            * CountryPolicyBonusService.workforceMultiplier(server, countryKey);
     }
 
     private static List<FluidStack> copyFluidOutputs(List<FluidStack> outputs) {
@@ -270,8 +267,8 @@ public final class CreateProductionService {
             return;
         }
 
-        Country country = CountryContext.machineCountry(level, machinePos);
-        if (country == null) {
+        String countryKey = CountryContext.machineStateName(level, machinePos);
+        if (countryKey == null) {
             return;
         }
 
@@ -281,7 +278,6 @@ public final class CreateProductionService {
         }
 
         CreateProductionLedgerSavedData ledger = CreateProductionLedgerSavedData.get(server);
-        String countryKey = country.getName();
 
         int originalSize = outputs.size();
         for (int i = 0; i < originalSize; i++) {
