@@ -28,13 +28,10 @@ public final class OptionalIntegrationMixinPlugin implements IMixinConfigPlugin 
         String mixinClassName
     ) {
         if (mixinClassName.endsWith("MtsMillenaireCombatMixin")) {
-            /*
-             * Mixin invokes shouldApplyMixin only for the target class that
-             * is currently being transformed. Matching the target directly
-             * is more reliable than Class.forName() during early loading,
-             * when the MTS class loader may not yet be visible here.
-             */
             return MTS_WRAPPER_WORLD.equals(targetClassName);
+        }
+        if (mixinClassName.endsWith("MtsMillenaireDamageMixin")) {
+            return "mcinterface1211.WrapperEntity".equals(targetClassName);
         }
         return true;
     }
