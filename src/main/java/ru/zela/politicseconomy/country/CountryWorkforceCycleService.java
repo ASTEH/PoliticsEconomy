@@ -48,6 +48,17 @@ public final class CountryWorkforceCycleService {
             CountryPoliticalService.processCycle(server, name, cycle);
             grantDividend(server, name, ledger);
         }
+
+        // Millénaire villages are autonomous economic states. They use their
+        // actual residents/buildings, but share the same political/workforce
+        // calculation pipeline as player countries.
+        for (ru.zela.politicseconomy.integration.MillenaireIntegration.VillageSnapshot state
+            : ru.zela.politicseconomy.integration.MillenaireIntegration.snapshots(server)) {
+            String name = state.stateKey();
+            CountryPoliticalService.processCycle(server, name, cycle);
+            grantDividend(server, name, ledger);
+            grantMillenaireRevenue(server, state);
+        }
     }
 
     private static void grantDividend(
@@ -115,7 +126,13 @@ public final class CountryWorkforceCycleService {
             );
 
             if (amount > 0) {
-                ledger.addStockpile(country, entry.getKey(), amount);
+                if (ru.zela.politicseconomy.integration.MillenaireIntegration.isStateKey(country)) {
+                    ru.zela.politicseconomy.integration.MillenaireIntegration.addToWarehouse(
+                        server, country, entry.getKey(), amount
+                    );
+                } else {
+                    ledger.addStockpile(country, entry.getKey(), amount);
+                }
             }
         }
 
@@ -135,6 +152,28 @@ public final class CountryWorkforceCycleService {
         if (amount > 0.0D) {
             target.merge(item, amount, Double::sum);
         }
+    }
+
+    private static void grantMillenaireRevenue(
+        MinecraftServer server,
+        ru.zela.politicseconomy.integration.MillenaireIntegration.VillageSnapshot state
+    ) {
+        int adults = Math.max(0, state.adults());
+        int productiveWorkers = state.workersBySector().values().stream()
+            .mapToInt(Integer::intValue)
+            .sum();
+        if (adults <= 0) return;
+
+        // Local tax/productive revenue is intentionally modest: the village
+        // still needs trade and real production to become wealthy.
+        long revenue = Math.max(
+            1L,
+            Math.round(adults * 0.50D + productiveWorkers * 0.50D)
+        );
+
+        ru.zela.politicseconomy.integration.MillenaireStateSavedData
+            .get(server)
+            .addTreasury(state.villageId(), revenue);
     }
 
     private static double factor(
