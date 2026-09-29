@@ -1,14 +1,9 @@
 package ru.zela.politicseconomy.client;
 
-import com.nstut.openui.api.UIComponent;
-import com.nstut.openui.api.Ui;
-import com.nstut.openui.controls.Dialog;
-import com.nstut.openui.controls.Toast;
-import com.nstut.openui.minecraft.UiScreen;
-import com.nstut.openui.state.ReadableSignal;
-import com.nstut.openui.state.Signal;
-import com.nstut.openui.state.Signals;
-import com.nstut.openui.theme.Theme;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -24,933 +19,1025 @@ import ru.zela.politicseconomy.network.EconomySnapshotPayload;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.function.Function;
 
-/**
- * Politics Economy dashboard built on OpenUI MC.
- *
- * The screen itself is long-lived. Server snapshots only update Signals,
- * while OpenUI updates the affected components/lists instead of rebuilding
- * the whole screen tree.
- */
-public final class EconomyScreen extends UiScreen {
+public final class EconomyScreen extends Screen {
     private enum Page {
-        OVERVIEW, COUNTRY, EFFECTS, CITIES, MARKET, TRADE
+        OVERVIEW("Обзор"),
+        COUNTRY("Государство"),
+        EFFECTS("Эффекты"),
+        CITIES("Города"),
+        MARKET("Рынок"),
+        TRADE("Торговля");
+
+        final String title;
+
+        Page(String title) {
+            this.title = title;
+        }
     }
 
-    private final Signal<EconomySnapshotPayload> snapshotSignal;
-    private final Signal<Page> pageSignal = Signals.of(Page.OVERVIEW);
+    private EconomySnapshotPayload snapshot;
+    private Page page = Page.OVERVIEW;
+    private double scroll;
 
-    private final ReadableSignal<List<WorkforceRow>> workforceRows;
-    private final ReadableSignal<List<MaterialRow>> materialRows;
-    private final ReadableSignal<List<EffectRow>> positiveEffects;
-    private final ReadableSignal<List<EffectRow>> negativeEffects;
-    private final ReadableSignal<List<CityRow>> cityRows;
-    private final ReadableSignal<List<MarketRow>> marketRows;
-    private final ReadableSignal<List<TradeOrderRow>> tradeOwnOrders;
-    private final ReadableSignal<List<TradeOrderOfferRow>> tradeOpenOrders;
-    private final ReadableSignal<List<TradeShipmentRow>> tradeShipments;
+    private final List<ClickTarget> targets = new ArrayList<>();
+    private String modalAction;
+    private String modalCommand;
+    private String modalTitle;
 
-    private final Signal<String> tradeItemInput = Signals.of("minecraft:iron_ingot");
-    private final Signal<String> tradeAmountInput = Signals.of("64");
-    private final Signal<String> tradeMaxPriceInput = Signals.of("20");
-    private final Signal<String> tradeAcceptPriceInput = Signals.of("15");
-    private final Signal<String> tradeDispatchAmountInput = Signals.of("64");
+    private EditBox tradeItem;
+    private EditBox tradeAmount;
+    private EditBox tradeMaxPrice;
+    private EditBox tradeAcceptPrice;
+    private EditBox tradeDispatchAmount;
+
+    private static final int BG = 0xFF0D1117;
+    private static final int PANEL = 0xFF151B23;
+    private static final int PANEL_2 = 0xFF1B222C;
+    private static final int PANEL_3 = 0xFF232D38;
+    private static final int BORDER = 0xFF303B49;
+    private static final int TEXT = 0xFFE7EDF5;
+    private static final int MUTED = 0xFF929EAD;
+    private static final int ACCENT = 0xFF4BA3FF;
+    private static final int ACCENT_DARK = 0xFF173A5B;
+    private static final int POSITIVE = 0xFF5FCB84;
+    private static final int POSITIVE_DARK = 0xFF173D2A;
+    private static final int NEGATIVE = 0xFFFF6B6B;
+    private static final int NEGATIVE_DARK = 0xFF4A2124;
+    private static final int GOLD = 0xFFFFC857;
 
     public EconomyScreen(EconomySnapshotPayload snapshot) {
         super(Component.literal("Politics Economy"));
-        this.snapshotSignal = Signals.of(snapshot);
-
-        this.workforceRows = Signals.computed(() -> {
-            EconomySnapshotPayload s = snapshotSignal.get();
-            List<WorkforceRow> result = new ArrayList<>();
-
-            WorkforceSector[] sectors = WorkforceSector.values();
-            for (int i = 0; i < sectors.length; i++) {
-                result.add(new WorkforceRow(
-                    sectors[i],
-                    valueAt(s.sectorAllocation(), i),
-                    valueAt(s.sectorWorkers(), i),
-                    valueAt(s.workplaceSlots(), i),
-                    valueAt(s.workplaceCounts(), i),
-                    valueAt(s.sectorBonuses(), i)
-                ));
-            }
-            return List.copyOf(result);
-        });
-
-        this.materialRows = Signals.computed(() -> {
-            EconomySnapshotPayload s = snapshotSignal.get();
-            List<MaterialRow> result = new ArrayList<>();
-
-            int count = Math.min(
-                Math.min(s.materialIds().length, s.materialNames().length),
-                Math.min(s.materialStockpile().length, s.materialDebt().length)
-            );
-
-            for (int i = 0; i < count; i++) {
-                result.add(new MaterialRow(
-                    s.materialIds()[i],
-                    s.materialNames()[i],
-                    valueAt(s.materialStockpile(), i),
-                    valueAt(s.materialDebt(), i),
-                    valueAt(s.materialPerCycle(), i)
-                ));
-            }
-
-            return List.copyOf(result);
-        });
-
-        this.positiveEffects = effectSignal(true);
-        this.negativeEffects = effectSignal(false);
-
-        this.cityRows = Signals.computed(() -> {
-            EconomySnapshotPayload s = snapshotSignal.get();
-            List<CityRow> result = new ArrayList<>();
-            int count = s.cityNames().length;
-
-            for (int i = 0; i < count; i++) {
-                result.add(new CityRow(
-                    s.cityNames()[i],
-                    valueAt(s.cityCountries(), i),
-                    valueAt(s.cityMayors(), i),
-                    valueAt(s.cityTreasuries(), i),
-                    valueAt(s.cityIncome(), i),
-                    valueAt(s.cityInfrastructure(), i),
-                    valueAt(s.cityPopulation(), i),
-                    valueAt(s.cityTaxBlocks(), i),
-                    valueAt(s.cityCapitals(), i),
-                    valueAt(s.cityMine(), i)
-                ));
-            }
-
-            return List.copyOf(result);
-        });
-
-        this.marketRows = Signals.computed(() -> {
-            EconomySnapshotPayload s = snapshotSignal.get();
-            List<MarketRow> result = new ArrayList<>();
-            int count = Math.min(
-                Math.min(s.marketItemIds().length, s.marketItemNames().length),
-                Math.min(s.marketBaseDemand().length, s.marketRemaining().length)
-            );
-
-            for (int i = 0; i < count; i++) {
-                result.add(new MarketRow(
-                    s.marketItemIds()[i],
-                    s.marketItemNames()[i],
-                    valueAt(s.marketBaseDemand(), i),
-                    valueAt(s.marketRemaining(), i),
-                    valueAt(s.marketSold(), i),
-                    valueAt(s.marketImported(), i),
-                    valueAt(s.marketPrices(), i)
-                ));
-            }
-
-            return List.copyOf(result);
-        });
-
-        this.tradeOwnOrders = Signals.computed(() -> {
-            List<TradeOrderRow> result = new ArrayList<>();
-            for (String raw : snapshotSignal.get().tradeOwnOrders()) {
-                TradeOrderRow row = parseTradeOrder(raw);
-                if (row != null) result.add(row);
-            }
-            return List.copyOf(result);
-        });
-
-        this.tradeOpenOrders = Signals.computed(() -> {
-            List<TradeOrderOfferRow> result = new ArrayList<>();
-            for (String raw : snapshotSignal.get().tradeOpenOrders()) {
-                TradeOrderOfferRow row = parseTradeOrderOffer(raw);
-                if (row != null) result.add(row);
-            }
-            return List.copyOf(result);
-        });
-
-        this.tradeShipments = Signals.computed(() -> {
-            List<TradeShipmentRow> result = new ArrayList<>();
-            for (String raw : snapshotSignal.get().tradeShipments()) {
-                TradeShipmentRow row = parseTradeShipment(raw);
-                if (row != null) result.add(row);
-            }
-            return List.copyOf(result);
-        });
+        this.snapshot = snapshot;
     }
 
     public void applySnapshot(EconomySnapshotPayload payload) {
-        Signals.batch(() -> snapshotSignal.set(payload));
-
-        if (uiRuntime() != null) {
-            Toast.show(
-                uiRuntime().overlays(),
-                Toast.success("Экономика обновлена", "Данные государства синхронизированы.")
-            );
-        }
+        this.snapshot = payload;
     }
 
     @Override
     protected void init() {
         super.init();
-        uiRuntime().theme(Theme.dark());
+
+        tradeItem = new EditBox(font, 0, 0, 182, 20, Component.literal("Предмет"));
+        tradeAmount = new EditBox(font, 0, 0, 72, 20, Component.literal("Количество"));
+        tradeMaxPrice = new EditBox(font, 0, 0, 88, 20, Component.literal("Цена"));
+        tradeAcceptPrice = new EditBox(font, 0, 0, 72, 20, Component.literal("Цена"));
+        tradeDispatchAmount = new EditBox(font, 0, 0, 72, 20, Component.literal("Партия"));
+
+        tradeItem.setValue("minecraft:iron_ingot");
+        tradeAmount.setValue("64");
+        tradeMaxPrice.setValue("20");
+        tradeAcceptPrice.setValue("15");
+        tradeDispatchAmount.setValue("64");
+
+        for (EditBox box : List.of(
+            tradeItem, tradeAmount, tradeMaxPrice, tradeAcceptPrice, tradeDispatchAmount
+        )) {
+            box.setTextColor(TEXT);
+            box.setTextColorUneditable(MUTED);
+            box.setBordered(true);
+            box.setMaxLength(120);
+            addRenderableWidget(box);
+        }
+
+        layoutTradeInputs();
+        updateTradeInputVisibility();
     }
 
     @Override
-    protected UIComponent buildUI() {
-        return Ui.responsive(size ->
-            Ui.padding(
-                size.width() < 760 ? 8 : 14,
-                Ui.card(
-                    Ui.column(
-                        header(),
-                        Ui.divider(),
-                        Ui.tabs(pageSignal)
-                            .tab(Page.OVERVIEW, "Обзор")
-                            .tab(Page.COUNTRY, "Государство")
-                            .tab(Page.EFFECTS, "Эффекты")
-                            .tab(Page.CITIES, "Города")
-                            .tab(Page.MARKET, "Рынок")
-                            .tab(Page.TRADE, "Торговля")
-                            .fillWidth(),
-                        Ui.switcher(pageSignal)
-                            .when(Page.OVERVIEW, this::overviewPage)
-                            .when(Page.COUNTRY, this::countryPage)
-                            .when(Page.EFFECTS, this::effectsPage)
-                            .when(Page.CITIES, this::citiesPage)
-                            .when(Page.MARKET, this::marketPage)
-                            .when(Page.TRADE, this::tradePage)
-                            .flex()
-                    ).gap(size.width() < 760 ? 6 : 9).fillWidth().fillHeight()
-                )
-                    .padding(size.width() < 760 ? 8 : 12)
-                    .elevated(true)
-                    .fillWidth()
-                    .fillHeight()
-            )
-        );
+    public void resize(Minecraft minecraft, int width, int height) {
+        String item = tradeItem == null ? "minecraft:iron_ingot" : tradeItem.getValue();
+        String amount = tradeAmount == null ? "64" : tradeAmount.getValue();
+        String max = tradeMaxPrice == null ? "20" : tradeMaxPrice.getValue();
+        String accept = tradeAcceptPrice == null ? "15" : tradeAcceptPrice.getValue();
+        String dispatch = tradeDispatchAmount == null ? "64" : tradeDispatchAmount.getValue();
+
+        super.resize(minecraft, width, height);
+
+        if (tradeItem != null) {
+            tradeItem.setValue(item);
+            tradeAmount.setValue(amount);
+            tradeMaxPrice.setValue(max);
+            tradeAcceptPrice.setValue(accept);
+            tradeDispatchAmount.setValue(dispatch);
+            layoutTradeInputs();
+            updateTradeInputVisibility();
+        }
     }
 
-    private UIComponent header() {
-        ReadableSignal<String> countryTitle = textSignal(s ->
-            s.countryName().toUpperCase(Locale.ROOT)
-                + "  /  " + s.direction()
-        );
+    private void layoutTradeInputs() {
+        int left = contentLeft();
+        int top = contentTop();
 
-        ReadableSignal<String> populationText = textSignal(s ->
-            "НАСЕЛЕНИЕ  " + format(s.population())
-        );
+        tradeItem.setX(left + 8);
+        tradeItem.setY(top + 48);
+        tradeAmount.setX(left + 198);
+        tradeAmount.setY(top + 48);
+        tradeMaxPrice.setX(left + 280);
+        tradeMaxPrice.setY(top + 48);
 
-        ReadableSignal<String> walletText = textSignal(s ->
-            "Кошелёк  $" + formatLong(s.personalWallet())
-        );
-
-        return Ui.row(
-            Ui.column(
-                Ui.title("POLITICS ECONOMY"),
-                Ui.text(countryTitle).nowrap(),
-                Ui.text(populationText).nowrap()
-            ).gap(2),
-            Ui.column(
-                Ui.text("ГОСУДАРСТВЕННЫЙ КОШЕЛЁК").nowrap(),
-                Ui.text(walletText).nowrap()
-            ).gap(1)
-        ).gap(8).fillWidth();
+        tradeAcceptPrice.setX(left + 120);
+        tradeAcceptPrice.setY(top + 224);
+        tradeDispatchAmount.setX(left + 318);
+        tradeDispatchAmount.setY(top + 224);
     }
 
-    private UIComponent overviewPage() {
-        ReadableSignal<Double> developmentProgress = Signals.computed(() -> {
-            EconomySnapshotPayload s = snapshotSignal.get();
-            if (s.developmentLevel() >= 5) return 1.0D;
-            if (s.developmentNextThreshold() <= 0) return 1.0D;
-            return Math.max(
-                0.0D,
-                Math.min(
-                    1.0D,
-                    s.developmentPoints() / (double) s.developmentNextThreshold()
-                )
-            );
-        });
-
-        UIComponent workforceList = Ui.list(
-            workforceRows,
-            this::workforceRow
-        ).key(WorkforceRow::sector).itemHeight(58).height(250);
-
-        UIComponent materialList = Ui.list(
-            materialRows,
-            this::materialRow
-        ).key(MaterialRow::itemId).itemHeight(48).height(180);
-
-        UIComponent metrics = metricLayout(
-            metric(
-                "КАЗНА",
-                textSignal(s -> "$" + format(s.treasury())),
-                "minecraft:emerald"
-            ),
-            metric(
-                "СОДЕРЖАНИЕ",
-                textSignal(s -> String.format(Locale.ROOT, "-%.2f $", s.infrastructureCost())),
-                "minecraft:anvil"
-            ),
-            metric(
-                "ДЕНЕЖНЫЙ ДОЛГ",
-                textSignal(s -> "$" + formatDouble(s.moneyDebt())),
-                "minecraft:redstone"
-            ),
-            metric(
-                "НАСЕЛЕНИЕ",
-                textSignal(s -> format(s.population())),
-                "minecraft:player_head"
-            )
-        );
-
-        UIComponent profile = Ui.card(
-            Ui.column(
-                Ui.heading("ПОЛИТИЧЕСКИЙ ПРОФИЛЬ"),
-                Ui.row(
-                    infoBlock("Направление", textSignal(EconomySnapshotPayload::direction), "minecraft:compass"),
-                    infoBlock("Правление", textSignal(EconomySnapshotPayload::government), "minecraft:iron_sword"),
-                    infoBlock("Религия", textSignal(EconomySnapshotPayload::religion), "minecraft:book")
-                ).gap(8)
-            ).gap(8)
-        ).padding(10).elevated(true).fillWidth();
-
-        UIComponent workforce = Ui.card(
-            Ui.column(
-                Ui.row(
-                    Ui.heading("РАБОЧАЯ СИЛА"),
-                    Ui.spacer(),
-                    Ui.text(textSignal(s ->
-                        format(s.workingPopulation()) + " доступны  •  "
-                            + format(s.employedPopulation()) + " заняты  •  "
-                            + format(s.unemployedPopulation()) + " без места"
-                    )).nowrap()
-                ).fillWidth(),
-                workforceList
-            ).gap(7).fillWidth().fillHeight()
-        ).padding(10).elevated(true).fillWidth().flex();
-
-        UIComponent development = Ui.card(
-            Ui.column(
-                Ui.row(
-                    Ui.column(
-                        Ui.heading("РАЗВИТИЕ"),
-                        Ui.text(textSignal(s ->
-                            s.developmentLevel() >= 5
-                                ? "Максимальный уровень"
-                                : format(s.developmentPoints()) + " / "
-                                    + format(s.developmentNextThreshold()) + " очков"
-                        ))
-                    ).gap(2),
-                    Ui.spacer(),
-                    Ui.text(textSignal(EconomySnapshotPayload::developmentPerk)).nowrap()
-                ).fillWidth(),
-                Ui.progress(developmentProgress).fillWidth().height(8)
-            ).gap(7)
-        ).padding(10).elevated(true).fillWidth();
-
-        UIComponent stockpile = Ui.card(
-            Ui.column(
-                Ui.row(
-                    Ui.heading("ГОСУДАРСТВЕННЫЙ СКЛАД"),
-                    Ui.spacer(),
-                    Ui.text(textSignal(s ->
-                        "Материалов: " + s.materialIds().length
-                    )).nowrap()
-                ).fillWidth(),
-                materialList
-            ).gap(7).fillWidth().fillHeight()
-        ).padding(10).elevated(true).fillWidth().height(220);
-
-        return Ui.scroll(
-            Ui.column(
-                metrics,
-                profile,
-                development,
-                workforce,
-                stockpile
-            ).gap(9).fillWidth()
-        ).flex();
+    private void updateTradeInputVisibility() {
+        boolean visible = page == Page.TRADE && modalAction == null;
+        if (tradeItem == null) return;
+        tradeItem.visible = visible;
+        tradeAmount.visible = visible;
+        tradeMaxPrice.visible = visible;
+        tradeAcceptPrice.visible = visible;
+        tradeDispatchAmount.visible = visible;
     }
 
-    private UIComponent countryPage() {
-        return Ui.scroll(
-            Ui.column(
-                Ui.card(
-                    Ui.column(
-                        Ui.title("УПРАВЛЕНИЕ ГОСУДАРСТВОМ"),
-                        Ui.text("Первые выборы бесплатны. Повторные изменения считаются реформами.")
-                    ).gap(4)
-                ).padding(10).elevated(true).fillWidth(),
+    @Override
+    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        renderBackground(graphics, mouseX, mouseY, partialTick);
+        targets.clear();
 
-                choiceSection(
-                    "ЭКОНОМИЧЕСКОЕ НАПРАВЛЕНИЕ",
-                    "direction",
-                    List.of(CountryDirection.values())
-                ),
+        graphics.fill(0, 0, width, height, BG);
+        graphics.fill(0, 0, 5, height, ACCENT);
 
-                choiceSection(
-                    "ФОРМА ПРАВЛЕНИЯ",
-                    "government",
-                    List.of(GovernmentType.values())
-                ),
+        drawHeader(graphics, mouseX, mouseY);
+        drawSidebar(graphics, mouseX, mouseY);
 
-                choiceSection(
-                    "РЕЛИГИЯ",
-                    "religion",
-                    List.of(ReligionType.values())
-                )
-            ).gap(9).fillWidth()
-        ).flex();
+        int left = contentLeft();
+        int right = width - 16;
+        int top = contentTop();
+        int bottom = height - 12;
+
+        graphics.enableScissor(left, top, right, bottom);
+        int end = top - (int) scroll;
+
+        switch (page) {
+            case OVERVIEW -> end = drawOverview(graphics, end, left, right, mouseX, mouseY);
+            case COUNTRY -> end = drawCountry(graphics, end, left, right, mouseX, mouseY);
+            case EFFECTS -> end = drawEffects(graphics, end, left, right);
+            case CITIES -> end = drawCities(graphics, end, left, right);
+            case MARKET -> end = drawMarket(graphics, end, left, right, mouseX, mouseY);
+            case TRADE -> end = drawTrade(graphics, end, left, right, mouseX, mouseY);
+        }
+        graphics.disableScissor();
+
+        if (page == Page.TRADE && modalAction == null) {
+            tradeItem.render(graphics, mouseX, mouseY, partialTick);
+            tradeAmount.render(graphics, mouseX, mouseY, partialTick);
+            tradeMaxPrice.render(graphics, mouseX, mouseY, partialTick);
+            tradeAcceptPrice.render(graphics, mouseX, mouseY, partialTick);
+            tradeDispatchAmount.render(graphics, mouseX, mouseY, partialTick);
+        }
+
+        drawCloseButton(graphics, mouseX, mouseY);
+
+        double maxScroll = Math.max(0, end - bottom);
+        if (maxScroll > 0) {
+            drawScrollBar(graphics, right + 5, top, bottom, maxScroll);
+        }
+
+        if (modalAction != null) {
+            drawModal(graphics, mouseX, mouseY);
+        }
     }
 
-    private UIComponent choiceSection(
-        String title,
-        String action,
-        List<?> values
-    ) {
-        List<UIComponent> rows = new ArrayList<>();
-        rows.add(Ui.heading(title));
+    private void drawHeader(GuiGraphics g, int mouseX, int mouseY) {
+        int left = 12;
+        int right = width - 16;
 
-        for (Object value : values) {
+        panel(g, left, 12, right, 64);
+        g.drawString(font, "POLITICS ECONOMY", 28, 22, TEXT, true);
+        g.drawString(font, snapshot.countryName().toUpperCase(Locale.ROOT), 28, 39, MUTED, false);
+
+        g.drawString(font, "КАЗНА", right - 183, 19, MUTED, true);
+        g.drawString(font, "$" + formatDouble(snapshot.balance()), right - 183, 34, GOLD, true);
+        g.drawString(font, format(snapshot.population()) + " населения", right - 183, 49, TEXT, false);
+
+        drawPill(g, snapshot.direction(), right - 360, 27, ACCENT_DARK, ACCENT);
+
+        boolean hover = inside(mouseX, mouseY, right - 31, 20, right - 10, 41);
+        g.fill(right - 31, 20, right - 10, 41, hover ? NEGATIVE_DARK : PANEL_2);
+        outline(g, right - 31, 20, right - 10, 41, hover ? NEGATIVE : BORDER);
+        g.drawCenteredString(font, "×", right - 20, 25, hover ? NEGATIVE : TEXT);
+        target(right - 31, 20, right - 10, 41, this::onClose);
+    }
+
+    private void drawSidebar(GuiGraphics g, int mouseX, int mouseY) {
+        int left = 12;
+        int right = 164;
+        int top = 76;
+        int bottom = height - 12;
+
+        panel(g, left, top, right, bottom);
+        g.drawString(font, "УПРАВЛЕНИЕ", left + 13, top + 12, MUTED, true);
+
+        int y = top + 31;
+        for (Page item : Page.values()) {
+            boolean selected = item == page;
+            boolean hover = inside(mouseX, mouseY, left + 7, y - 3, right - 7, y + 22);
+
+            if (selected) {
+                g.fill(left + 7, y - 3, right - 7, y + 22, ACCENT_DARK);
+                g.fill(left + 7, y - 3, left + 10, y + 22, ACCENT);
+            } else if (hover) {
+                g.fill(left + 7, y - 3, right - 7, y + 22, PANEL_3);
+            }
+
+            g.drawString(font, item.title, left + 18, y + 4, selected ? TEXT : MUTED, selected);
+            Page next = item;
+            target(left + 7, y - 3, right - 7, y + 22, () -> {
+                page = next;
+                scroll = 0;
+                updateTradeInputVisibility();
+            });
+            y += 29;
+        }
+
+        int infoY = bottom - 62;
+        g.drawString(font, "РАЗВИТИЕ", left + 13, infoY, MUTED, true);
+        g.drawString(font, "Уровень " + snapshot.developmentLevel(), left + 13, infoY + 14, TEXT, false);
+        double progress = snapshot.developmentNextThreshold() <= 0 ? 1 :
+            snapshot.developmentPoints() / (double) snapshot.developmentNextThreshold();
+        progress(g, left + 13, infoY + 31, right - 13, infoY + 37, progress, ACCENT);
+        g.drawString(font,
+            format(snapshot.developmentPoints()) + " / " + format(snapshot.developmentNextThreshold()),
+            left + 13, infoY + 44, MUTED, false);
+    }
+
+    private int drawOverview(GuiGraphics g, int y, int left, int right, int mouseX, int mouseY) {
+        y = title(g, left, y, "ОБЩАЯ КАРТИНА", "Ключевые показатели государства");
+
+        int gap = 8;
+        int w = (right - left - gap * 3) / 4;
+        metric(g, left, y, w, "КАЗНА", "$" + formatDouble(snapshot.balance()), "Государственные деньги", GOLD);
+        metric(g, left + w + gap, y, w, "СОДЕРЖАНИЕ",
+            "-$" + formatDouble(snapshot.infrastructureCost()), "Инфраструктура / цикл", NEGATIVE);
+        metric(g, left + 2 * (w + gap), y, w, "НАСЕЛЕНИЕ",
+            format(snapshot.population()), "Жители страны", ACCENT);
+        metric(g, left + 3 * (w + gap), y, w, "ДОЛГ",
+            "$" + formatDouble(snapshot.moneyDebt()), "Денежная задолженность",
+            snapshot.moneyDebt() > 0 ? NEGATIVE : POSITIVE);
+        y += 86;
+
+        panel(g, left, y, right, y + 104);
+        g.drawString(font, "ПОЛИТИЧЕСКИЙ ПРОФИЛЬ", left + 14, y + 12, TEXT, true);
+        info(g, left + 14, y + 33, right - 14, "Направление", snapshot.direction());
+        info(g, left + 14, y + 52, right - 14, "Правление", snapshot.government());
+        info(g, left + 14, y + 71, right - 14, "Религия", snapshot.religion());
+        y += 114;
+
+        panel(g, left, y, right, y + 88);
+        g.drawString(font, "РАЗВИТИЕ", left + 14, y + 12, TEXT, true);
+        g.drawString(font,
+            snapshot.developmentLevel() >= 5
+                ? "Максимальный уровень"
+                : format(snapshot.developmentPoints()) + " / " + format(snapshot.developmentNextThreshold()) + " очков",
+            left + 14, y + 31, MUTED, false);
+        g.drawString(font, clip(snapshot.developmentPerk(), 60), right - 260, y + 12, GOLD, false);
+        double dev = snapshot.developmentNextThreshold() <= 0 ? 1 :
+            snapshot.developmentPoints() / (double) snapshot.developmentNextThreshold();
+        progress(g, left + 14, y + 54, right - 14, y + 62, dev, ACCENT);
+        y += 98;
+
+        int half = (right - left - gap) / 2;
+        int workBottom = y + 52 + WorkforceSector.values().length * 38 + 12;
+        int matBottom = y + 52 + materialCount() * 38 + 12;
+
+        panel(g, left, y, left + half, workBottom);
+        panel(g, left + half + gap, y, right, matBottom);
+
+        g.drawString(font, "РАБОЧАЯ СИЛА", left + 14, y + 12, TEXT, true);
+        g.drawString(font,
+            format(snapshot.workingPopulation()) + " доступно • " +
+                format(snapshot.employedPopulation()) + " занято • " +
+                format(snapshot.unemployedPopulation()) + " без места",
+            left + 14, y + 31, MUTED, false);
+
+        int wy = y + 52;
+        WorkforceSector[] sectors = WorkforceSector.values();
+        for (int i = 0; i < sectors.length; i++) {
+            String line = clip(sectors[i].displayName(), 15) + "  " +
+                valueAt(snapshot.sectorAllocation(), i) + "%  " +
+                format(valueAt(snapshot.sectorWorkers(), i)) + "/" +
+                format(valueAt(snapshot.workplaceSlots(), i)) + "  " +
+                signed(valueAt(snapshot.sectorBonuses(), i));
+
+            g.drawString(font, line, left + 14, wy, TEXT, false);
+            final WorkforceSector sector = sectors[i];
+            miniButton(g, left + half - 61, wy - 5, "-", mouseX, mouseY, () -> changeWorkforce(sector, -5));
+            miniButton(g, left + half - 33, wy - 5, "+", mouseX, mouseY, () -> changeWorkforce(sector, 5));
+            wy += 38;
+        }
+
+        g.drawString(font, "ГОСУДАРСТВЕННЫЙ СКЛАД", left + half + gap + 14, y + 12, TEXT, true);
+        g.drawString(font, "Запасы и ресурсные обязательства",
+            left + half + gap + 14, y + 31, MUTED, false);
+
+        int sy = y + 52;
+        for (int i = 0; i < materialCount(); i++) {
+            String name = clip(valueAt(snapshot.materialNames(), i), 20);
+            int debt = valueAt(snapshot.materialDebt(), i);
+            g.drawString(font, name, left + half + gap + 14, sy, TEXT, false);
+            g.drawString(font,
+                valueAt(snapshot.materialStockpile(), i) + "  •  " +
+                    String.format(Locale.ROOT, "%.2f/c", valueAt(snapshot.materialPerCycle(), i)) +
+                    (debt > 0 ? "  • долг " + debt : ""),
+                left + half + gap + 14, sy + 14, debt > 0 ? NEGATIVE : MUTED, false);
+            sy += 38;
+        }
+
+        if (materialCount() == 0) {
+            g.drawString(font, "Склад пока пуст.", left + half + gap + 14, sy, MUTED, false);
+        }
+
+        return Math.max(workBottom, matBottom) + 10;
+    }
+
+    private int drawCountry(GuiGraphics g, int y, int left, int right, int mouseX, int mouseY) {
+        y = title(g, left, y, "ГОСУДАРСТВО", "Направление, форма правления и религия");
+        y = choiceSection(g, y, left, right, mouseX, mouseY,
+            "ЭКОНОМИЧЕСКОЕ НАПРАВЛЕНИЕ", "direction", List.of(CountryDirection.values()));
+        y += 10;
+        y = choiceSection(g, y, left, right, mouseX, mouseY,
+            "ФОРМА ПРАВЛЕНИЯ", "government", List.of(GovernmentType.values()));
+        y += 10;
+        y = choiceSection(g, y, left, right, mouseX, mouseY,
+            "РЕЛИГИЯ", "religion", List.of(ReligionType.values()));
+        return y + 10;
+    }
+
+    private int choiceSection(GuiGraphics g, int y, int left, int right,
+                              int mouseX, int mouseY, String heading, String action, List<?> values) {
+        int rowH = 42;
+        int bottom = y + 33 + values.size() * rowH;
+        panel(g, left, y, right, bottom);
+        g.drawString(font, heading, left + 14, y + 11, TEXT, true);
+
+        int rowY = y + 30;
+        for (Object object : values) {
             String display;
             String command;
 
-            if (value instanceof CountryDirection direction) {
+            if (object instanceof CountryDirection direction) {
                 display = direction.displayName();
                 command = direction.commandName();
-            } else if (value instanceof GovernmentType government) {
+            } else if (object instanceof GovernmentType government) {
                 display = government.displayName();
                 command = government.commandName();
             } else {
-                ReligionType religion = (ReligionType) value;
+                ReligionType religion = (ReligionType) object;
                 display = religion.displayName();
                 command = religion.commandName();
             }
 
-            rows.add(choiceRow(action, command, display));
-        }
-
-        return Ui.card(
-            Ui.column(rows.toArray(UIComponent[]::new)).gap(6)
-        ).padding(10).elevated(true).fillWidth();
-    }
-
-    private UIComponent choiceRow(String action, String command, String display) {
-        ReadableSignal<Boolean> selected = Signals.computed(() -> {
-            EconomySnapshotPayload s = snapshotSignal.get();
-            return switch (action) {
-                case "direction" -> s.direction().equals(display);
-                case "government" -> s.government().equals(display);
-                default -> s.religion().equals(display);
-            };
-        });
-
-        ReadableSignal<String> cost = Signals.computed(() -> {
-            EconomySnapshotPayload s = snapshotSignal.get();
-            boolean firstChoice = switch (action) {
-                case "direction" -> "Не выбрано".equals(s.direction());
-                case "government" -> "Не выбрано".equals(s.government());
-                default -> "Не выбрано".equals(s.religion());
+            boolean selected = switch (action) {
+                case "direction" -> snapshot.direction().equals(display);
+                case "government" -> snapshot.government().equals(display);
+                default -> snapshot.religion().equals(display);
             };
 
-            if (firstChoice) {
-                return "Первый выбор • бесплатно";
+            if (inside(mouseX, mouseY, left + 8, rowY, right - 8, rowY + 36)) {
+                g.fill(left + 8, rowY, right - 8, rowY + 36, PANEL_3);
             }
 
-            return CountryReformCostTable.summary(
-                action,
-                false,
-                s.population(),
-                s.developmentLevel()
-            );
-        });
+            g.drawString(font, display, left + 18, rowY + 6, selected ? TEXT : MUTED, selected);
+            g.drawString(font, reformCost(action), left + 18, rowY + 22,
+                selected ? POSITIVE : MUTED, false);
 
-        return Ui.card(
-            Ui.row(
-                Ui.column(
-                    Ui.text(display).nowrap(),
-                    Ui.text(cost).nowrap()
-                ).gap(2).flex(),
-                Ui.switcher(selected)
-                    .when(true, () ->
-                        Ui.button("ВЫБРАНО", () -> {})
-                            .success()
-                            .small()
-                            .enabled(false)
-                    )
-                    .when(false, () ->
-                        Ui.button("ВЫБРАТЬ", () ->
-                            openReformDialog(action, command, display)
-                        ).primary().small()
-                    )
-            ).gap(8).fillWidth()
-        ).padding(8).elevated(true).fillWidth();
+            int bx = right - 98;
+            drawButton(g, bx, rowY + 7, right - 16, rowY + 29,
+                selected ? "ВЫБРАНО" : "ВЫБРАТЬ",
+                selected ? POSITIVE_DARK : ACCENT_DARK,
+                selected ? POSITIVE : ACCENT, mouseX, mouseY,
+                selected ? null : () -> openReformDialog(action, command, display));
+
+            rowY += rowH;
+        }
+        return bottom;
     }
 
-    private void openReformDialog(
-        String action,
-        String command,
-        String title
-    ) {
-        EconomySnapshotPayload s = snapshotSignal.get();
+    private String reformCost(String action) {
+        boolean first = switch (action) {
+            case "direction" -> "Не выбрано".equals(snapshot.direction());
+            case "government" -> "Не выбрано".equals(snapshot.government());
+            default -> "Не выбрано".equals(snapshot.religion());
+        };
+        return first
+            ? "Первый выбор • бесплатно"
+            : CountryReformCostTable.summary(action, false, snapshot.population(), snapshot.developmentLevel());
+    }
 
-        boolean firstChoice = switch (action) {
-            case "direction" -> "Не выбрано".equals(s.direction());
-            case "government" -> "Не выбрано".equals(s.government());
-            default -> "Не выбрано".equals(s.religion());
+    private void openReformDialog(String action, String command, String title) {
+        modalAction = action;
+        modalCommand = command;
+        modalTitle = title;
+        updateTradeInputVisibility();
+    }
+
+    private int drawEffects(GuiGraphics g, int y, int left, int right) {
+        y = title(g, left, y, "ЭФФЕКТЫ", "Итоговые модификаторы страны");
+
+        int gap = 10;
+        int half = (right - left - gap) / 2;
+        int pos = effectCount(true);
+        int neg = effectCount(false);
+
+        int leftBottom = y + 38 + Math.max(1, pos) * 30 + 12;
+        int rightBottom = y + 38 + Math.max(1, neg) * 30 + 12;
+        panel(g, left, y, left + half, leftBottom);
+        panel(g, left + half + gap, y, right, rightBottom);
+
+        g.drawString(font, "ПОЛОЖИТЕЛЬНЫЕ", left + 14, y + 12, POSITIVE, true);
+        drawEffectList(g, left + 14, y + 36, left + half - 14, true);
+        g.drawString(font, "ОТРИЦАТЕЛЬНЫЕ", left + half + gap + 14, y + 12, NEGATIVE, true);
+        drawEffectList(g, left + half + gap + 14, y + 36, right - 14, false);
+
+        return Math.max(leftBottom, rightBottom) + 10;
+    }
+
+    private void drawEffectList(GuiGraphics g, int x, int y, int right, boolean positive) {
+        int row = 0;
+        for (int i = 0; i < snapshot.modifierNames().length; i++) {
+            double value = valueAt(snapshot.modifierValues(), i);
+            if ((positive && value <= 0.0001) || (!positive && value >= -0.0001)) continue;
+
+            g.drawString(font, clip(snapshot.modifierNames()[i], 34), x, y + row * 30, TEXT, false);
+            String valueText = signed(value);
+            g.drawString(font, valueText, right - font.width(valueText),
+                y + row * 30, positive ? POSITIVE : NEGATIVE, true);
+            row++;
+        }
+
+        if (row == 0) {
+            g.drawString(font, "Нет активных эффектов.", x, y, MUTED, false);
+        }
+    }
+
+    private int drawCities(GuiGraphics g, int y, int left, int right) {
+        y = title(g, left, y, "ГОРОДА", "Экономические показатели зарегистрированных городов");
+
+        for (int i = 0; i < snapshot.cityNames().length; i++) {
+            int bottom = y + 94;
+            panel(g, left, y, right, bottom);
+
+            String name = (valueAt(snapshot.cityCapitals(), i) ? "СТОЛИЦА • " : "")
+                + valueAt(snapshot.cityNames(), i)
+                + (valueAt(snapshot.cityMine(), i) ? " • ВАША" : "");
+
+            g.drawString(font, clip(name, 50), left + 14, y + 12, TEXT, true);
+            g.drawString(font, "Государство: " + clip(valueAt(snapshot.cityCountries(), i), 30),
+                left + 14, y + 31, MUTED, false);
+            g.drawString(font, "Мэр: " + clip(valueAt(snapshot.cityMayors(), i), 30),
+                left + 14, y + 50, MUTED, false);
+
+            int sx = right - 300;
+            miniStat(g, sx, y + 12, "Казна", "$" + format(valueAt(snapshot.cityTreasuries(), i)), GOLD);
+            miniStat(g, sx + 96, y + 12, "Доход", "$" + format(valueAt(snapshot.cityIncome(), i)), POSITIVE);
+            miniStat(g, sx + 192, y + 12, "Насел.", format(valueAt(snapshot.cityPopulation(), i)), ACCENT);
+            g.drawString(font,
+                "Инфра " + format(valueAt(snapshot.cityInfrastructure(), i)) +
+                    "  •  Налоговые блоки " + format(valueAt(snapshot.cityTaxBlocks(), i)),
+                sx, y + 53, MUTED, false);
+
+            y = bottom + 8;
+        }
+
+        if (snapshot.cityNames().length == 0) {
+            panel(g, left, y, right, y + 60);
+            g.drawString(font, "Зарегистрированных городов нет.", left + 14, y + 22, MUTED, false);
+            y += 68;
+        }
+
+        return y + 4;
+    }
+
+    private int drawMarket(GuiGraphics g, int y, int left, int right, int mouseX, int mouseY) {
+        y = title(g, left, y, "РЫНОК", "Население покупает реальные предметы; здесь можно продавать им товары");
+
+        panel(g, left, y, right, y + 78);
+        g.drawString(font, "КОШЕЛЁК НАСЕЛЕНИЯ", left + 14, y + 13, MUTED, true);
+        g.drawString(font, "$" + formatLong(snapshot.personalWallet()), left + 14, y + 32, GOLD, true);
+        g.drawString(font, "Цена растёт при дефиците.", left + 200, y + 25, TEXT, false);
+        y += 88;
+
+        for (int i = 0; i < snapshot.marketItemIds().length; i++) {
+            int bottom = y + 70;
+            panel(g, left, y, right, bottom);
+
+            ItemStack stack = itemStack(valueAt(snapshot.marketItemIds(), i));
+            if (!stack.isEmpty()) g.renderItem(stack, left + 12, y + 13);
+
+            g.drawString(font, clip(valueAt(snapshot.marketItemNames(), i), 27),
+                left + 48, y + 12, TEXT, true);
+
+            g.drawString(font,
+                "Спрос " + format(valueAt(snapshot.marketBaseDemand(), i)) +
+                    " • осталось " + format(valueAt(snapshot.marketRemaining(), i)) +
+                    " • продано " + format(valueAt(snapshot.marketSold(), i)) +
+                    " • импорт " + format(valueAt(snapshot.marketImported(), i)),
+                left + 48, y + 31, MUTED, false);
+
+            double fulfilled = valueAt(snapshot.marketBaseDemand(), i) <= 0 ? 1 :
+                1 - valueAt(snapshot.marketRemaining(), i) /
+                    (double) Math.max(1, valueAt(snapshot.marketBaseDemand(), i));
+            progress(g, left + 48, y + 49, right - 215, y + 56, fulfilled, POSITIVE);
+
+            g.drawString(font, "$" + format(valueAt(snapshot.marketPrices(), i)) + "/шт.",
+                right - 200, y + 13, GOLD, true);
+
+            int idx = i;
+            drawButton(g, right - 142, y + 40, right - 78, y + 63,
+                "×1", PANEL_3, ACCENT, mouseX, mouseY, () -> sellMarket(idx, 1));
+            drawButton(g, right - 74, y + 40, right - 10, y + 63,
+                "×16", ACCENT_DARK, ACCENT, mouseX, mouseY, () -> sellMarket(idx, 16));
+
+            y = bottom + 7;
+        }
+
+        return y + 6;
+    }
+
+    private int drawTrade(GuiGraphics g, int y, int left, int right, int mouseX, int mouseY) {
+        y = title(g, left, y, "ТОРГОВЛЯ", "Физические грузы и поставщики — деньги закреплены за реальными поставками");
+
+        panel(g, left, y, right, y + 100);
+        g.drawString(font, "ТОРГОВЫЙ ТЕРМИНАЛ", left + 14, y + 13, TEXT, true);
+        g.drawString(font,
+            snapshot.tradeTerminalSet()
+                ? "Назначен • " + snapshot.tradeTerminalPosition()
+                : "Не назначен",
+            left + 14, y + 32,
+            snapshot.tradeTerminalSet() ? POSITIVE : NEGATIVE, false);
+        g.drawString(font, "Используется для физического входа и выхода грузов.",
+            left + 14, y + 54, MUTED, false);
+
+        drawButton(g, right - 160, y + 21, right - 14, y + 48,
+            snapshot.tradeTerminalSet() ? "ПЕРЕНАЗНАЧИТЬ" : "НАЗНАЧИТЬ",
+            snapshot.tradeTerminalSet() ? PANEL_3 : ACCENT_DARK,
+            snapshot.tradeTerminalSet() ? TEXT : ACCENT,
+            mouseX, mouseY, () -> sendTrade("trade_terminal_set", ""));
+        y += 110;
+
+        panel(g, left, y, right, y + 82);
+        g.drawString(font, "СОЗДАТЬ ЗАКУПКУ", left + 14, y + 12, TEXT, true);
+        g.drawString(font, "Предмет", left + 10, y + 31, MUTED, false);
+        g.drawString(font, "Количество", left + 200, y + 31, MUTED, false);
+        g.drawString(font, "Макс. цена", left + 282, y + 31, MUTED, false);
+        g.drawString(font, "Деньги резервируются из казны страны.",
+            right - 286, y + 62, MUTED, false);
+
+        drawButton(g, right - 145, y + 38, right - 10, y + 67,
+            "СОЗДАТЬ ЗАКАЗ", ACCENT_DARK, ACCENT, mouseX, mouseY,
+            () -> sendTrade("trade_order_create",
+                tradeItem.getValue() + "|" + tradeAmount.getValue() + "|" + tradeMaxPrice.getValue()));
+        y += 92;
+
+        int gap = 10;
+        int half = (right - left - gap) / 2;
+        int ownEnd = drawTradeOwnOrders(g, y, left, left + half, mouseX, mouseY);
+        int openEnd = drawTradeOpenOrders(g, y, left + half + gap, right, mouseX, mouseY);
+        y = Math.max(ownEnd, openEnd) + 10;
+
+        return drawTradeShipments(g, y, left, right, mouseX, mouseY);
+    }
+
+    private int drawTradeOwnOrders(GuiGraphics g, int y, int left, int right, int mouseX, int mouseY) {
+        int rowH = 84;
+        int count = Math.max(1, snapshot.tradeOwnOrders().length);
+        int bottom = y + 52 + count * rowH;
+        panel(g, left, y, right, bottom);
+        g.drawString(font, "МОИ ЗАКАЗЫ", left + 14, y + 12, TEXT, true);
+        g.drawString(font, "Цена принятия", left + 14, y + 31, MUTED, false);
+        int rowY = y + 48;
+
+        if (snapshot.tradeOwnOrders().length == 0) {
+            g.drawString(font, "Заказов нет.", left + 14, rowY + 10, MUTED, false);
+            return bottom;
+        }
+
+        for (String raw : snapshot.tradeOwnOrders()) {
+            TradeOrderRow row = parseTradeOrder(raw);
+            if (row == null) continue;
+
+            g.fill(left + 8, rowY, right - 8, rowY + rowH - 6, PANEL_2);
+            g.drawString(font, "#" + row.id() + " • " + clip(row.itemId(), 21),
+                left + 14, rowY + 8, TEXT, true);
+            g.drawString(font,
+                format(row.remaining()) + "/" + format(row.quantity()) +
+                    " • max $" + row.maxPrice(),
+                left + 14, rowY + 26, MUTED, false);
+            g.drawString(font, "Статус: " + tradeStatus(row.status()),
+                left + 14, rowY + 44, MUTED, false);
+
+            boolean seller = snapshot.countryName().equals(row.seller());
+            boolean canDispatch = seller && row.remaining() > 0 &&
+                ("ACCEPTED".equals(row.status()) || "SHIPPING".equals(row.status()));
+            boolean canCancel = !seller && ("OPEN".equals(row.status()) || "ACCEPTED".equals(row.status()));
+
+            if (canDispatch) {
+                drawButton(g, right - 100, rowY + 7, right - 14, rowY + 30,
+                    "ОТПРАВИТЬ", ACCENT_DARK, ACCENT, mouseX, mouseY,
+                    () -> sendTrade("trade_shipment_dispatch",
+                        row.id() + "|" + tradeDispatchAmount.getValue()));
+            }
+            drawButton(g, right - 100, rowY + 36, right - 14, rowY + 59,
+                "ОТМЕНИТЬ", canCancel ? NEGATIVE_DARK : PANEL_3,
+                canCancel ? NEGATIVE : MUTED, mouseX, mouseY,
+                canCancel ? () -> sendTrade("trade_order_cancel", String.valueOf(row.id())) : null);
+
+            rowY += rowH;
+        }
+        return bottom;
+    }
+
+    private int drawTradeOpenOrders(GuiGraphics g, int y, int left, int right, int mouseX, int mouseY) {
+        int rowH = 84;
+        int count = Math.max(1, snapshot.tradeOpenOrders().length);
+        int bottom = y + 52 + count * rowH;
+        panel(g, left, y, right, bottom);
+        g.drawString(font, "ДОСТУПНЫЕ ЗАКУПКИ", left + 14, y + 12, TEXT, true);
+        g.drawString(font, "Можно стать поставщиком.", left + 14, y + 31, MUTED, false);
+        int rowY = y + 48;
+
+        if (snapshot.tradeOpenOrders().length == 0) {
+            g.drawString(font, "Открытых заказов нет.", left + 14, rowY + 10, MUTED, false);
+            return bottom;
+        }
+
+        for (String raw : snapshot.tradeOpenOrders()) {
+            TradeOrderOfferRow row = parseTradeOrderOffer(raw);
+            if (row == null) continue;
+
+            g.fill(left + 8, rowY, right - 8, rowY + rowH - 6, PANEL_2);
+            g.drawString(font, "#" + row.id() + " • " + clip(row.itemId(), 19),
+                left + 14, rowY + 8, TEXT, true);
+            g.drawString(font, "Покупатель: " + clip(row.buyer(), 20),
+                left + 14, rowY + 26, MUTED, false);
+            g.drawString(font,
+                "Нужно " + format(row.remaining()) + " • максимум $" + row.maxPrice() + "/шт",
+                left + 14, rowY + 44, MUTED, false);
+
+            drawButton(g, right - 96, rowY + 30, right - 14, rowY + 53,
+                "ПРИНЯТЬ", POSITIVE_DARK, POSITIVE, mouseX, mouseY,
+                () -> sendTrade("trade_order_accept",
+                    row.id() + "|" + tradeAcceptPrice.getValue()));
+            rowY += rowH;
+        }
+        return bottom;
+    }
+
+    private int drawTradeShipments(GuiGraphics g, int y, int left, int right, int mouseX, int mouseY) {
+        int rowH = 84;
+        int count = Math.max(1, snapshot.tradeShipments().length);
+        int bottom = y + 52 + count * rowH;
+        panel(g, left, y, right, bottom);
+        g.drawString(font, "ЛОГИСТИКА", left + 14, y + 12, TEXT, true);
+        g.drawString(font, "Логист получает оплату после физической доставки.",
+            left + 14, y + 31, MUTED, false);
+        int rowY = y + 48;
+
+        if (snapshot.tradeShipments().length == 0) {
+            g.drawString(font, "Активных грузов нет.", left + 14, rowY + 10, MUTED, false);
+            return bottom;
+        }
+
+        for (String raw : snapshot.tradeShipments()) {
+            TradeShipmentRow row = parseTradeShipment(raw);
+            if (row == null) continue;
+
+            g.fill(left + 8, rowY, right - 8, rowY + rowH - 6, PANEL_2);
+            g.drawString(font,
+                "#" + row.id() + " • заказ #" + row.orderId() + " • " + clip(row.itemId(), 23),
+                left + 14, rowY + 8, TEXT, true);
+            g.drawString(font,
+                row.seller() + " → " + row.buyer() + " • ×" + format(row.quantity()),
+                left + 14, rowY + 26, MUTED, false);
+            g.drawString(font,
+                tradeStatus(row.status()) + " • " + row.originChunk() + " → " + row.destinationChunk(),
+                left + 14, rowY + 44, MUTED, false);
+
+            boolean canHaul = "WAITING_LOGISTICS".equals(row.status()) &&
+                !snapshot.countryName().equals(row.seller()) &&
+                !snapshot.countryName().equals(row.buyer());
+
+            if (canHaul) {
+                drawButton(g, right - 116, rowY + 28, right - 14, rowY + 53,
+                    "ВЗЯТЬ ГРУЗ", ACCENT_DARK, ACCENT, mouseX, mouseY,
+                    () -> sendTrade("trade_shipment_haul", String.valueOf(row.id())));
+            }
+
+            rowY += rowH;
+        }
+
+        return bottom;
+    }
+
+    private void drawModal(GuiGraphics g, int mouseX, int mouseY) {
+        g.fill(0, 0, width, height, 0xAA000000);
+
+        int w = Math.min(520, width - 32);
+        int h = 172;
+        int left = (width - w) / 2;
+        int top = (height - h) / 2;
+
+        panel(g, left, top, left + w, top + h);
+        g.drawString(font, "ПОДТВЕРЖДЕНИЕ РЕФОРМЫ", left + 18, top + 17, MUTED, true);
+        g.drawString(font, clip(modalTitle, 52), left + 18, top + 39, TEXT, true);
+
+        boolean first = switch (modalAction) {
+            case "direction" -> "Не выбрано".equals(snapshot.direction());
+            case "government" -> "Не выбрано".equals(snapshot.government());
+            default -> "Не выбрано".equals(snapshot.religion());
         };
 
-        String description = firstChoice
-            ? "Это первый выбор данного параметра. Он устанавливается бесплатно."
-            : "Это полноценная реформа государства. Стоимость списывается из казны и государственного склада.";
+        g.drawString(font,
+            first
+                ? "Первый выбор данного параметра бесплатен."
+                : "Это полноценная реформа. Сервер проверит деньги и материалы.",
+            left + 18, top + 66, MUTED, false);
 
-        String cost = firstChoice
+        String cost = first
             ? "БЕСПЛАТНО"
             : CountryReformCostTable.summary(
-                action,
-                false,
-                s.population(),
-                s.developmentLevel()
-            );
+                modalAction, false, snapshot.population(), snapshot.developmentLevel());
 
-        Dialog.confirm(
-            uiRuntime().overlays(),
-            "Сменить параметр",
-            title + "\n\n" + description + "\n\nСтоимость: " + cost,
-            () -> {
-                EconomyNetwork.sendAction(action, command);
-                Toast.show(
-                    uiRuntime().overlays(),
-                    Toast.info("Реформа отправлена", "Сервер проверяет стоимость и условия.")
-                );
-            },
-            () -> {}
+        g.drawString(font, "Стоимость: " + clip(cost, 55),
+            left + 18, top + 88, first ? POSITIVE : GOLD, true);
+
+        drawButton(g, left + w - 196, top + h - 42, left + w - 104, top + h - 15,
+            "ОТМЕНА", PANEL_3, TEXT, mouseX, mouseY, this::closeModal);
+        drawButton(g, left + w - 95, top + h - 42, left + w - 18, top + h - 15,
+            "ПОДТВЕРДИТЬ", ACCENT_DARK, ACCENT, mouseX, mouseY, () -> {
+                EconomyNetwork.sendAction(modalAction, modalCommand);
+                closeModal();
+            });
+    }
+
+    private void closeModal() {
+        modalAction = null;
+        modalCommand = null;
+        modalTitle = null;
+        updateTradeInputVisibility();
+    }
+
+    private void drawCloseButton(GuiGraphics g, int mouseX, int mouseY) {
+        int right = width - 16;
+        boolean hover = inside(mouseX, mouseY, right - 31, 20, right - 10, 41);
+        g.fill(right - 31, 20, right - 10, 41, hover ? NEGATIVE_DARK : PANEL_2);
+        outline(g, right - 31, 20, right - 10, 41, hover ? NEGATIVE : BORDER);
+        g.drawCenteredString(font, "×", right - 20, 25, hover ? NEGATIVE : TEXT);
+        target(right - 31, 20, right - 10, 41, this::onClose);
+    }
+
+    private int title(GuiGraphics g, int left, int y, String heading, String subtitle) {
+        g.drawString(font, heading, left, y + 1, TEXT, true);
+        g.drawString(font, subtitle, left, y + 18, MUTED, false);
+        return y + 40;
+    }
+
+    private void metric(GuiGraphics g, int x, int y, int w, String title, String value, String subtitle, int accent) {
+        panel(g, x, y, x + w, y + 76);
+        g.fill(x, y, x + 3, y + 76, accent);
+        g.drawString(font, title, x + 12, y + 10, MUTED, true);
+        g.drawString(font, value, x + 12, y + 28, TEXT, true);
+        g.drawString(font, clip(subtitle, 21), x + 12, y + 49, MUTED, false);
+    }
+
+    private void info(GuiGraphics g, int x, int y, int right, String name, String value) {
+        g.drawString(font, name, x, y, MUTED, false);
+        String v = clip(value, 35);
+        g.drawString(font, v, right - font.width(v), y, TEXT, true);
+    }
+
+    private void miniStat(GuiGraphics g, int x, int y, String label, String value, int color) {
+        g.drawString(font, label.toUpperCase(Locale.ROOT), x, y, MUTED, false);
+        g.drawString(font, value, x, y + 14, color, true);
+    }
+
+    private void miniButton(GuiGraphics g, int x, int y, String label, int mouseX, int mouseY, Runnable action) {
+        drawButton(g, x, y, x + 24, y + 20, label, PANEL_3, TEXT, mouseX, mouseY, action);
+    }
+
+    private void drawButton(GuiGraphics g, int left, int top, int right, int bottom,
+                            String text, int fill, int accent,
+                            int mouseX, int mouseY, Runnable action) {
+        boolean enabled = action != null;
+        boolean hover = enabled && inside(mouseX, mouseY, left, top, right, bottom);
+        g.fill(left, top, right, bottom, hover ? brighten(fill) : fill);
+        outline(g, left, top, right, bottom, hover ? accent : BORDER);
+        int tx = left + Math.max(4, (right - left - font.width(text)) / 2);
+        g.drawString(font, text, tx, top + 6, enabled ? (hover ? TEXT : accent) : MUTED, true);
+        if (enabled) target(left, top, right, bottom, action);
+    }
+
+    private void drawPill(GuiGraphics g, String text, int x, int y, int fill, int accent) {
+        if (text == null || text.isBlank() || "Не выбрано".equals(text)) return;
+        int w = font.width(clip(text, 21)) + 14;
+        g.fill(x, y, x + w, y + 17, fill);
+        outline(g, x, y, x + w, y + 17, accent);
+        g.drawString(font, clip(text, 21), x + 7, y + 4, accent, true);
+    }
+
+    private void progress(GuiGraphics g, int left, int top, int right, int bottom, double value, int color) {
+        double v = Math.max(0, Math.min(1, value));
+        g.fill(left, top, right, bottom, PANEL_3);
+        g.fill(left, top, left + (int) ((right - left) * v), bottom, color);
+    }
+
+    private void drawScrollBar(GuiGraphics g, int x, int top, int bottom, double maxScroll) {
+        int h = bottom - top;
+        int thumb = Math.max(24, (int) (h * h / (h + maxScroll)));
+        int y = top + (int) ((h - thumb) * (scroll / Math.max(1, maxScroll)));
+        g.fill(x, top, x + 3, bottom, PANEL_3);
+        g.fill(x, y, x + 3, y + thumb, ACCENT);
+    }
+
+    private void panel(GuiGraphics g, int left, int top, int right, int bottom) {
+        g.fill(left, top, right, bottom, PANEL);
+        outline(g, left, top, right, bottom, BORDER);
+    }
+
+    private void target(int left, int top, int right, int bottom, Runnable action) {
+        targets.add(new ClickTarget(left, top, right, bottom, action));
+    }
+
+    private static boolean inside(double x, double y, int left, int top, int right, int bottom) {
+        return x >= left && x <= right && y >= top && y <= bottom;
+    }
+
+    private static int brighten(int color) {
+        int a = color >>> 24;
+        int r = Math.min(255, ((color >>> 16) & 255) + 12);
+        int green = Math.min(255, ((color >>> 8) & 255) + 12);
+        int b = Math.min(255, (color & 255) + 12);
+        return (a << 24) | (r << 16) | (green << 8) | b;
+    }
+
+    private static void outline(GuiGraphics g, int left, int top, int right, int bottom, int color) {
+        g.fill(left, top, right, top + 1, color);
+        g.fill(left, bottom - 1, right, bottom, color);
+        g.fill(left, top, left + 1, bottom, color);
+        g.fill(right - 1, top, right, bottom, color);
+    }
+
+    @Override
+    public boolean mouseClicked(double mouseX, double mouseY, int button) {
+        if (button != 0) return super.mouseClicked(mouseX, mouseY, button);
+
+        if (modalAction == null && page == Page.TRADE && super.mouseClicked(mouseX, mouseY, button)) {
+            return true;
+        }
+
+        for (int i = targets.size() - 1; i >= 0; i--) {
+            ClickTarget click = targets.get(i);
+            if (click.contains(mouseX, mouseY)) {
+                click.action.run();
+                return true;
+            }
+        }
+
+        return super.mouseClicked(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        return super.mouseReleased(mouseX, mouseY, button);
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+        if (modalAction != null) return true;
+        if (mouseX < contentLeft() || mouseX > width - 16 || mouseY < contentTop() || mouseY > height - 12) {
+            return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+        }
+
+        double max = estimatedMaxScroll();
+        scroll = Math.max(0, Math.min(max, scroll - scrollY * 32));
+        return true;
+    }
+
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (modalAction != null && keyCode == 256) {
+            closeModal();
+            return true;
+        }
+        return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    private double estimatedMaxScroll() {
+        int y = contentTop();
+        int end;
+        switch (page) {
+            case OVERVIEW -> end = y + 40 + 86 + 114 + 98 +
+                52 + Math.max(WorkforceSector.values().length, materialCount()) * 38 + 20;
+            case COUNTRY -> end = y + 40 +
+                33 + CountryDirection.values().length * 42 +
+                10 + 33 + GovernmentType.values().length * 42 +
+                10 + 33 + ReligionType.values().length * 42 + 10;
+            case EFFECTS -> end = y + 40 + 38 +
+                Math.max(1, Math.max(effectCount(true), effectCount(false))) * 30 + 22;
+            case CITIES -> end = y + 40 + Math.max(1, snapshot.cityNames().length) * 102 + 10;
+            case MARKET -> end = y + 40 + 88 + Math.max(1, snapshot.marketItemIds().length) * 77 + 10;
+            case TRADE -> end = y + 40 + 110 + 92 +
+                Math.max(1, Math.max(snapshot.tradeOwnOrders().length, snapshot.tradeOpenOrders().length)) * 84 +
+                10 + 52 + Math.max(1, snapshot.tradeShipments().length) * 84 + 10;
+            default -> end = y;
+        }
+        return Math.max(0, end - (height - 12));
+    }
+
+    private int contentLeft() {
+        return 176;
+    }
+
+    private int contentTop() {
+        return 76;
+    }
+
+    private int materialCount() {
+        return Math.min(
+            Math.min(snapshot.materialIds().length, snapshot.materialNames().length),
+            Math.min(snapshot.materialStockpile().length, snapshot.materialDebt().length)
         );
     }
 
-    private UIComponent effectsPage() {
-        UIComponent positive = Ui.card(
-            Ui.column(
-                Ui.heading("ПОЛОЖИТЕЛЬНЫЕ ЭФФЕКТЫ"),
-                Ui.list(positiveEffects, this::effectRow)
-                    .key(EffectRow::name)
-                    .itemHeight(34)
-                    .flex()
-            ).gap(7).fillWidth().fillHeight()
-        ).padding(10).elevated(true).fillWidth().flex();
-
-        UIComponent negative = Ui.card(
-            Ui.column(
-                Ui.heading("ОТРИЦАТЕЛЬНЫЕ ЭФФЕКТЫ"),
-                Ui.list(negativeEffects, this::effectRow)
-                    .key(EffectRow::name)
-                    .itemHeight(34)
-                    .flex()
-            ).gap(7).fillWidth().fillHeight()
-        ).padding(10).elevated(true).fillWidth().flex();
-
-        return Ui.column(
-            Ui.card(
-                Ui.column(
-                    Ui.title("ЭФФЕКТЫ ГОСУДАРСТВА"),
-                    Ui.text("Все значения ниже рассчитываются сервером из направления, политики, развития и населения.")
-                ).gap(4)
-            ).padding(10).elevated(true).fillWidth(),
-            Ui.row(positive, negative).gap(9).fillWidth().flex()
-        ).gap(9).fillWidth().fillHeight();
-    }
-
-    private UIComponent effectRow(EffectRow row) {
-        return Ui.card(
-            Ui.row(
-                Ui.text(row.name()).nowrap().flex(),
-                Ui.badge(signed(row.value()))
-            ).gap(8).fillWidth()
-        ).padding(6).fillWidth();
-    }
-
-    private UIComponent citiesPage() {
-        return Ui.column(
-            Ui.card(
-                Ui.column(
-                    Ui.title("ГОРОДА СЕРВЕРА"),
-                    Ui.text("Экономические показатели зарегистрированных городов.")
-                ).gap(4)
-            ).padding(10).elevated(true).fillWidth(),
-            Ui.list(cityRows, this::cityRow)
-                .key(CityRow::name)
-                .itemHeight(118)
-                .flex()
-        ).gap(9).fillWidth().fillHeight();
-    }
-
-    private UIComponent cityRow(CityRow row) {
-        String title = row.capital()
-            ? "СТОЛИЦА  •  " + row.name()
-            : row.name();
-
-        if (row.mine()) {
-            title += "  •  ВАША";
+    private int effectCount(boolean positive) {
+        int count = 0;
+        for (double value : snapshot.modifierValues()) {
+            if ((positive && value > 0.0001) || (!positive && value < -0.0001)) count++;
         }
-
-        return Ui.card(
-            Ui.column(
-                Ui.row(
-                    Ui.text(title).nowrap().flex(),
-                    Ui.badge("$" + format(row.treasury()))
-                ).gap(8).fillWidth(),
-                Ui.text(row.country()).nowrap(),
-                Ui.row(
-                    miniMetric("Доход", "$" + format(row.income()), "minecraft:paper"),
-                    miniMetric("Население", format(row.population()), "minecraft:player_head"),
-                    miniMetric("Инфра", format(row.infrastructure()), "minecraft:iron_ingot"),
-                    miniMetric("Налоги", format(row.taxBlocks()), "minecraft:emerald")
-                ).gap(6).fillWidth(),
-                Ui.text("Мэр: " + row.mayor()).nowrap()
-            ).gap(5).fillWidth()
-        ).padding(8).elevated(true).fillWidth();
+        return count;
     }
 
-    private UIComponent marketPage() {
-        UIComponent marketList = Ui.list(
-            marketRows,
-            this::marketRow
-        ).key(MarketRow::itemId).itemHeight(74).flex();
-
-        return Ui.column(
-            Ui.card(
-                Ui.column(
-                    Ui.row(
-                        Ui.column(
-                            Ui.title("ВНУТРЕННИЙ РЫНОК"),
-                            Ui.text("Население покупает реальные предметы. Ты можешь продавать товары своей стране.")
-                        ).gap(3).flex(),
-                        Ui.text(textSignal(s ->
-                            "$" + formatLong(s.personalWallet())
-                        )).nowrap()
-                    ).gap(8).fillWidth(),
-                    Ui.row(
-                        Ui.chip("Цена = дефицит"),
-                        Ui.chip("Импорт после ½ цикла"),
-                        Ui.chip("Trade Warehouse = внешний рынок")
-                    ).gap(5).fillWidth()
-                ).gap(7).fillWidth()
-            ).padding(10).elevated(true).fillWidth(),
-
-            Ui.card(
-                Ui.column(
-                    Ui.row(
-                        Ui.heading("ТОВАРЫ"),
-                        Ui.spacer(),
-                        Ui.text(textSignal(s ->
-                            "В спросе: " + s.marketItemIds().length
-                        )).nowrap()
-                    ).fillWidth(),
-                    marketList
-                ).gap(7).fillWidth().fillHeight()
-            ).padding(10).elevated(true).fillWidth().flex()
-        ).gap(9).fillWidth().fillHeight();
+    private void changeWorkforce(WorkforceSector sector, int delta) {
+        EconomyNetwork.sendAction("workforce", sector.commandName() + ":" + delta);
     }
 
-    private UIComponent marketRow(MarketRow row) {
-        double fulfilled = row.baseDemand() <= 0
-            ? 1.0D
-            : 1.0D - row.remaining() / (double) row.baseDemand();
-
-        UIComponent icon = Ui.icon(itemStack(row.itemId()))
-            .width(34)
-            .height(34);
-
-        UIComponent stats = Ui.column(
-            Ui.text(row.name()).nowrap(),
-            Ui.text(
-                "Спрос " + format(row.remaining()) + "/" + format(row.baseDemand())
-                    + "  •  продано " + format(row.sold())
-                    + "  •  импорт " + format(row.imported())
-            ).nowrap(),
-            Ui.progress(Signals.of(fulfilled)).height(5).fillWidth(),
-            Ui.text("$" + format(row.price()) + " / шт.").nowrap()
-        ).gap(2).flex();
-
-        return Ui.card(
-            Ui.row(
-                icon,
-                stats,
-                Ui.column(
-                    Ui.button("×1", () -> sellMarket(row, 1))
-                        .small()
-                        .outline(),
-                    Ui.button("×16", () -> sellMarket(row, 16))
-                        .small()
-                        .primary()
-                ).gap(4)
-            ).gap(8).fillWidth()
-        ).padding(6).fillWidth();
-    }
-
-    private UIComponent tradePage() {
-        EconomySnapshotPayload snapshot = snapshotSignal.get();
-        String country = snapshot.countryName();
-
-        UIComponent terminalCard = Ui.card(
-            Ui.column(
-                Ui.row(
-                    Ui.column(
-                        Ui.heading("ТОРГОВЫЙ ТЕРМИНАЛ"),
-                        Ui.text(snapshot.tradeTerminalSet()
-                            ? "Назначен • чанки " + snapshot.tradeTerminalPosition()
-                            : "Не назначен • наведи взгляд на контейнер/хранилище и нажми «Назначить»")
-                    ).gap(3).flex(),
-                    snapshot.tradeTerminalSet()
-                        ? Ui.button("ПЕРЕНАЗНАЧИТЬ", () -> sendTrade("trade_terminal_set", ""))
-                            .small().outline()
-                        : Ui.button("НАЗНАЧИТЬ", () -> sendTrade("trade_terminal_set", ""))
-                            .small().primary()
-                ).gap(8).fillWidth(),
-                Ui.text("Терминал должен находиться в государстве и иметь доступный инвентарь. Все грузы остаются физическими предметами.")
-            ).gap(5)
-        ).padding(10).elevated(true).fillWidth();
-
-        UIComponent createOrder = Ui.card(
-            Ui.column(
-                Ui.heading("СОЗДАТЬ ЗАКУПКУ"),
-                Ui.row(
-                    Ui.column(
-                        Ui.text("Предмет"),
-                        Ui.textField(tradeItemInput)
-                            .placeholder("minecraft:iron_ingot")
-                            .width(190)
-                    ).gap(2).flex(),
-                    Ui.column(
-                        Ui.text("Количество"),
-                        Ui.textField(tradeAmountInput)
-                            .placeholder("64")
-                            .width(90)
-                    ).gap(2),
-                    Ui.column(
-                        Ui.text("Макс. цена / шт."),
-                        Ui.textField(tradeMaxPriceInput)
-                            .placeholder("20")
-                            .width(100)
-                    ).gap(2),
-                    Ui.button("СОЗДАТЬ ЗАКАЗ", () ->
-                        sendTrade(
-                            "trade_order_create",
-                            tradeItemInput.get() + "|" + tradeAmountInput.get() + "|" + tradeMaxPriceInput.get()
-                        )
-                    ).primary()
-                ).gap(6).fillWidth(),
-                Ui.text("При создании заказа деньги резервируются в казне. Поставщик потом принимает его по своей цене.")
-            ).gap(6)
-        ).padding(10).elevated(true).fillWidth();
-
-        UIComponent ownOrders = Ui.card(
-            Ui.column(
-                Ui.row(
-                    Ui.heading("МОИ ЗАКАЗЫ"),
-                    Ui.spacer(),
-                    Ui.text("Цена принятия"),
-                    Ui.textField(tradeAcceptPriceInput)
-                        .placeholder("15")
-                        .width(75)
-                ).gap(6).fillWidth(),
-                Ui.list(
-                    tradeOwnOrders,
-                    this::tradeOwnOrderRow
-                ).key(TradeOrderRow::id).itemHeight(82).flex()
-            ).gap(7).fillWidth().fillHeight()
-        ).padding(10).elevated(true).fillWidth().flex();
-
-        UIComponent marketOrders = Ui.card(
-            Ui.column(
-                Ui.row(
-                    Ui.heading("ДОСТУПНЫЕ ЗАКУПКИ"),
-                    Ui.spacer(),
-                    Ui.text("Ваша страна может принять чужой заказ и стать поставщиком.")
-                ).fillWidth(),
-                Ui.list(
-                    tradeOpenOrders,
-                    this::tradeOpenOrderRow
-                ).key(TradeOrderOfferRow::id).itemHeight(82).flex()
-            ).gap(7).fillWidth().fillHeight()
-        ).padding(10).elevated(true).fillWidth().flex();
-
-        UIComponent logistics = Ui.card(
-            Ui.column(
-                Ui.row(
-                    Ui.column(
-                        Ui.heading("ЛОГИСТИКА"),
-                        Ui.text("Логист получает деньги только после физической доставки груза в терминал покупателя.")
-                    ).gap(3).flex(),
-                    Ui.text("Партия"),
-                    Ui.textField(tradeDispatchAmountInput)
-                        .placeholder("64")
-                        .width(75)
-                ).gap(6).fillWidth(),
-                Ui.list(
-                    tradeShipments,
-                    row -> tradeShipmentRow(row, country)
-                ).key(TradeShipmentRow::id).itemHeight(92).flex()
-            ).gap(7).fillWidth().fillHeight()
-        ).padding(10).elevated(true).fillWidth().flex();
-
-        return Ui.scroll(
-            Ui.column(
-                terminalCard,
-                createOrder,
-                Ui.responsive(size -> size.width() < 850
-                    ? Ui.column(ownOrders, marketOrders).gap(9).fillWidth()
-                    : Ui.row(ownOrders, marketOrders).gap(9).fillWidth().fillHeight()
-                ),
-                logistics
-            ).gap(9).fillWidth()
-        ).flex();
-    }
-
-    private UIComponent tradeOwnOrderRow(TradeOrderRow row) {
-        String sellerText = "—".equals(row.seller())
-            ? "поставщик не выбран"
-            : "поставщик: " + row.seller();
-
-        boolean mySeller = row.seller().equals(snapshotSignal.get().countryName());
-        boolean myBuyer = !mySeller;
-        boolean canDispatch = mySeller
-            && row.remaining() > 0
-            && ("ACCEPTED".equals(row.status()) || "SHIPPING".equals(row.status()));
-        boolean canCancel = myBuyer
-            && ("OPEN".equals(row.status()) || "ACCEPTED".equals(row.status()));
-
-        return Ui.card(
-            Ui.row(
-                Ui.icon(itemStack(row.itemId())).width(30).height(30),
-                Ui.column(
-                    Ui.row(
-                        Ui.text("#" + row.id() + "  " + row.itemId()).nowrap().flex(),
-                        Ui.badge(format(row.remaining()) + "/" + format(row.quantity()))
-                    ).fillWidth(),
-                    Ui.text(
-                        sellerText
-                            + "  •  максимум $" + row.maxPrice() + "/шт"
-                            + "  •  резерв $" + formatLong(row.reserved())
-                    ).nowrap(),
-                    Ui.text("Статус: " + tradeStatus(row.status())).nowrap()
-                ).gap(2).flex(),
-                Ui.column(
-                    canDispatch
-                        ? Ui.button("ОТПРАВИТЬ", () ->
-                            sendTrade(
-                                "trade_shipment_dispatch",
-                                row.id() + "|" + tradeDispatchAmountInput.get()
-                            )
-                        ).small().primary()
-                        : Ui.spacer().height(1),
-                    Ui.button("ОТМЕНИТЬ", () ->
-                        sendTrade("trade_order_cancel", String.valueOf(row.id()))
-                    ).small().outline()
-                        .enabled(canCancel)
-                ).gap(4)
-            ).gap(7).fillWidth()
-        ).padding(7).fillWidth();
-    }
-
-    private UIComponent tradeOpenOrderRow(TradeOrderOfferRow row) {
-        return Ui.card(
-            Ui.row(
-                Ui.icon(itemStack(row.itemId())).width(30).height(30),
-                Ui.column(
-                    Ui.text("#" + row.id() + "  " + row.itemId()).nowrap(),
-                    Ui.text(
-                        "Покупатель: " + row.buyer()
-                            + "  •  нужно " + format(row.remaining())
-                            + "  •  максимум $" + row.maxPrice() + "/шт"
-                    ).nowrap(),
-                    Ui.text("Заказ открыт для поставщиков.").nowrap()
-                ).gap(2).flex(),
-                Ui.button("ПРИНЯТЬ", () ->
-                    sendTrade(
-                        "trade_order_accept",
-                        row.id() + "|" + tradeAcceptPriceInput.get()
-                    )
-                ).small().success()
-            ).gap(7).fillWidth()
-        ).padding(7).fillWidth();
-    }
-
-    private UIComponent tradeShipmentRow(TradeShipmentRow row, String country) {
-        boolean canHaul = "WAITING_LOGISTICS".equals(row.status())
-            && !country.equals(row.seller())
-            && !country.equals(row.buyer());
-
-        String route = row.originChunk() + " → " + row.destinationChunk();
-        String status = tradeStatus(row.status()) + ("назначен".equals(row.courier()) ? " • логист назначен" : "");
-
-        return Ui.card(
-            Ui.row(
-                Ui.icon(itemStack(row.itemId())).width(30).height(30),
-                Ui.column(
-                    Ui.row(
-                        Ui.text("#" + row.id() + "  груз заказа #" + row.orderId()).nowrap().flex(),
-                        Ui.badge("×" + format(row.quantity()))
-                    ).fillWidth(),
-                    Ui.text(row.seller() + " → " + row.buyer()).nowrap(),
-                    Ui.text(row.itemId() + "  •  маршрут " + route).nowrap(),
-                    Ui.text("Статус: " + status).nowrap()
-                ).gap(2).flex(),
-                canHaul
-                    ? Ui.button("ВЗЯТЬ ГРУЗ", () ->
-                        sendTrade("trade_shipment_haul", String.valueOf(row.id()))
-                    ).small().primary()
-                    : Ui.spacer().width(1)
-            ).gap(7).fillWidth()
-        ).padding(7).fillWidth();
+    private void sellMarket(int index, int amount) {
+        EconomyNetwork.sendAction(
+            "market_sell",
+            amount + "|" + valueAt(snapshot.marketItemIds(), index)
+        );
     }
 
     private void sendTrade(String action, String value) {
         EconomyNetwork.sendAction(action, value);
-        Toast.show(
-            uiRuntime().overlays(),
-            Toast.info("Торговая операция отправлена", "Сервер проверит заказ, терминал и деньги.")
-        );
     }
 
-    private static TradeOrderRow parseTradeOrder(String raw) {
-        String[] p = raw.split("\\|", -1);
-        if (p.length != 8) return null;
+    private static ItemStack itemStack(String itemId) {
         try {
-            return new TradeOrderRow(
-                Integer.parseInt(p[0]), p[1], Integer.parseInt(p[2]), Integer.parseInt(p[3]),
-                Integer.parseInt(p[4]), p[5], p[6], Long.parseLong(p[7])
-            );
-        } catch (NumberFormatException e) {
-            return null;
+            ResourceLocation id = ResourceLocation.parse(itemId);
+            return BuiltInRegistries.ITEM.getOptional(id).map(ItemStack::new).orElse(ItemStack.EMPTY);
+        } catch (Exception ignored) {
+            return ItemStack.EMPTY;
         }
     }
 
-    private static TradeOrderOfferRow parseTradeOrderOffer(String raw) {
-        String[] p = raw.split("\\|", -1);
-        if (p.length != 7) return null;
-        try {
-            return new TradeOrderOfferRow(
-                Integer.parseInt(p[0]), p[1], p[2], Integer.parseInt(p[3]),
-                Integer.parseInt(p[4]), Integer.parseInt(p[5]), p[6]
-            );
-        } catch (NumberFormatException e) {
-            return null;
-        }
+    private String clip(String value, int maxChars) {
+        if (value == null) return "";
+        if (value.length() <= maxChars) return value;
+        return value.substring(0, Math.max(0, maxChars - 1)) + "…";
     }
 
-    private static TradeShipmentRow parseTradeShipment(String raw) {
-        String[] p = raw.split("\\|", -1);
-        if (p.length != 10) return null;
-        try {
-            return new TradeShipmentRow(
-                Integer.parseInt(p[0]), Integer.parseInt(p[1]), p[2], Integer.parseInt(p[3]),
-                p[4], p[5], p[6], p[7], p[8], p[9]
-            );
-        } catch (NumberFormatException e) {
-            return null;
-        }
+    private static int formatSafe(int value) {
+        return Math.max(0, value);
+    }
+
+    private static String format(int value) {
+        return String.format(Locale.ROOT, "%,d", value);
+    }
+
+    private static String formatLong(long value) {
+        return String.format(Locale.ROOT, "%,d", value);
+    }
+
+    private static String formatDouble(double value) {
+        return String.format(Locale.ROOT, "%,.2f", value);
+    }
+
+    private static String signed(double value) {
+        if (Math.abs(value) < 0.0001) return "0%";
+        return String.format(Locale.ROOT, "%+.0f%%", value);
+    }
+
+    private static int valueAt(int[] values, int index) {
+        return values != null && index >= 0 && index < values.length ? values[index] : 0;
+    }
+
+    private static double valueAt(double[] values, int index) {
+        return values != null && index >= 0 && index < values.length ? values[index] : 0;
+    }
+
+    private static boolean valueAt(boolean[] values, int index) {
+        return values != null && index >= 0 && index < values.length && values[index];
+    }
+
+    private static String valueAt(String[] values, int index) {
+        return values != null && index >= 0 && index < values.length && values[index] != null
+            ? values[index]
+            : "";
     }
 
     private static String tradeStatus(String status) {
@@ -967,295 +1054,58 @@ public final class EconomyScreen extends UiScreen {
         };
     }
 
-    private UIComponent workforceRow(WorkforceRow row) {
-        return Ui.card(
-            Ui.row(
-                Ui.icon(iconStack(row.sector().iconItemId()))
-                    .width(30)
-                    .height(30),
-                Ui.column(
-                    Ui.text(row.sector().displayName()).nowrap(),
-                    Ui.text(
-                        row.allocation() + "% распределено  •  "
-                            + format(row.workers()) + "/" + format(row.slots()) + " занято"
-                            + "  •  мест " + format(row.workplaceCount())
-                            + "  •  бонус " + signed(row.bonus())
-                    ).nowrap()
-                ).gap(2).flex(),
-                Ui.button("−", () -> changeWorkforce(row.sector(), -5))
-                    .small()
-                    .outline(),
-                Ui.button("+", () -> changeWorkforce(row.sector(), 5))
-                    .small()
-                    .success()
-            ).gap(7).fillWidth()
-        ).padding(6).fillWidth();
-    }
-
-    private UIComponent materialRow(MaterialRow row) {
-        String detail = String.format(
-            Locale.ROOT,
-            "%s  •  запас %d  •  расход %.2f / цикл",
-            row.name(),
-            row.stock(),
-            row.perCycle()
-        );
-
-        return Ui.card(
-            Ui.row(
-                Ui.icon(itemStack(row.itemId())).width(26).height(26),
-                Ui.column(
-                    Ui.text(detail).nowrap(),
-                    Ui.text(
-                        row.debt() > 0
-                            ? "Ресурсный долг: " + format(row.debt())
-                            : "Долга нет"
-                    ).nowrap()
-                ).gap(2).flex(),
-                Ui.badge(format(row.stock()))
-            ).gap(7).fillWidth()
-        ).padding(5).fillWidth();
-    }
-
-    private UIComponent metricLayout(UIComponent... cards) {
-        return Ui.responsive(size -> {
-            if (size.width() < 760) {
-                return Ui.column(cards).gap(7).fillWidth();
-            }
-            return Ui.row(cards).gap(7).fillWidth();
-        });
-    }
-
-    private UIComponent metric(
-        String title,
-        ReadableSignal<String> value,
-        String itemId
-    ) {
-        return Ui.card(
-            Ui.row(
-                Ui.icon(iconStack(itemId)).width(26).height(26),
-                Ui.column(
-                    Ui.text(title).nowrap(),
-                    Ui.text(value).nowrap()
-                ).gap(2)
-            ).gap(6).fillWidth()
-        ).padding(8).elevated(true).flex();
-    }
-
-    private UIComponent infoBlock(
-        String title,
-        ReadableSignal<String> value,
-        String iconId
-    ) {
-        return Ui.card(
-            Ui.row(
-                Ui.icon(iconStack(iconId)).width(22).height(22),
-                Ui.column(
-                    Ui.text(title).nowrap(),
-                    Ui.text(value).nowrap()
-                ).gap(2)
-            ).gap(5).fillWidth()
-        ).padding(7).fillWidth().flex();
-    }
-
-    private UIComponent miniMetric(
-        String title,
-        String value,
-        String itemId
-    ) {
-        return Ui.card(
-            Ui.row(
-                Ui.icon(iconStack(itemId)).width(18).height(18),
-                Ui.column(
-                    Ui.text(title).nowrap(),
-                    Ui.text(value).nowrap()
-                ).gap(1)
-            ).gap(4).fillWidth().flex()
-        ).padding(5).fillWidth().flex();
-    }
-
-    private ReadableSignal<List<EffectRow>> effectSignal(boolean positive) {
-        return Signals.computed(() -> {
-            EconomySnapshotPayload s = snapshotSignal.get();
-            List<EffectRow> result = new ArrayList<>();
-
-            for (int i = 0; i < s.modifierNames().length; i++) {
-                double value = valueAt(s.modifierValues(), i);
-                if ((positive && value > 0.0001D)
-                    || (!positive && value < -0.0001D)) {
-                    result.add(new EffectRow(s.modifierNames()[i], value));
-                }
-            }
-
-            return List.copyOf(result);
-        });
-    }
-
-    private <T> ReadableSignal<String> textSignal(
-        Function<EconomySnapshotPayload, T> mapper
-    ) {
-        return Signals.computed(() -> String.valueOf(mapper.apply(snapshotSignal.get())));
-    }
-
-    private void changeWorkforce(WorkforceSector sector, int delta) {
-        EconomyNetwork.sendAction(
-            "workforce",
-            sector.commandName() + ":" + delta
-        );
-
-        Toast.show(
-            uiRuntime().overlays(),
-            Toast.info("Изменение отправлено", sector.displayName() + " " + (delta > 0 ? "+5%" : "-5%"))
-        );
-    }
-
-    private void sellMarket(MarketRow row, int amount) {
-        EconomyNetwork.sendAction(
-            "market_sell",
-            amount + "|" + row.itemId()
-        );
-
-        Toast.show(
-            uiRuntime().overlays(),
-            Toast.info(
-                "Продажа отправлена",
-                row.name() + " ×" + amount
-            )
-        );
-    }
-
-    private static ItemStack iconStack(String itemId) {
+    private static TradeOrderRow parseTradeOrder(String raw) {
+        String[] p = raw.split("\\|", -1);
+        if (p.length != 8) return null;
         try {
-            ResourceLocation id = ResourceLocation.parse(itemId);
-            return BuiltInRegistries.ITEM.getOptional(id)
-                .map(ItemStack::new)
-                .orElse(ItemStack.EMPTY);
-        } catch (Exception ignored) {
-            return ItemStack.EMPTY;
+            return new TradeOrderRow(
+                Integer.parseInt(p[0]), p[1], Integer.parseInt(p[2]), Integer.parseInt(p[3]),
+                Integer.parseInt(p[4]), p[5], p[6], Long.parseLong(p[7]));
+        } catch (NumberFormatException ignored) {
+            return null;
         }
     }
 
-    private static ItemStack itemStack(String itemId) {
-        return iconStack(itemId);
-    }
-
-    private static int valueAt(int[] values, int index) {
-        return values != null && index >= 0 && index < values.length
-            ? values[index]
-            : 0;
-    }
-
-    private static double valueAt(double[] values, int index) {
-        return values != null && index >= 0 && index < values.length
-            ? values[index]
-            : 0.0D;
-    }
-
-    private static boolean valueAt(boolean[] values, int index) {
-        return values != null && index >= 0 && index < values.length && values[index];
-    }
-
-    private static String valueAt(String[] values, int index) {
-        return values != null && index >= 0 && index < values.length && values[index] != null
-            ? values[index]
-            : "";
-    }
-
-    private static String format(int value) {
-        return String.format(Locale.ROOT, "%,d", Math.max(0, value));
-    }
-
-    private static String formatLong(long value) {
-        return String.format(Locale.ROOT, "%,d", Math.max(0L, value));
-    }
-
-    private static String formatDouble(double value) {
-        return String.format(Locale.ROOT, "%,.2f", Math.max(0.0D, value));
-    }
-
-    private static String signed(double value) {
-        if (Math.abs(value) < 0.0001D) {
-            return "0%";
+    private static TradeOrderOfferRow parseTradeOrderOffer(String raw) {
+        String[] p = raw.split("\\|", -1);
+        if (p.length != 7) return null;
+        try {
+            return new TradeOrderOfferRow(
+                Integer.parseInt(p[0]), p[1], p[2], Integer.parseInt(p[3]),
+                Integer.parseInt(p[4]), Integer.parseInt(p[5]), p[6]);
+        } catch (NumberFormatException ignored) {
+            return null;
         }
-        return String.format(Locale.ROOT, "%+.0f%%", value);
     }
 
-    private record WorkforceRow(
-        WorkforceSector sector,
-        int allocation,
-        int workers,
-        int slots,
-        int workplaceCount,
-        double bonus
-    ) {}
+    private static TradeShipmentRow parseTradeShipment(String raw) {
+        String[] p = raw.split("\\|", -1);
+        if (p.length != 10) return null;
+        try {
+            return new TradeShipmentRow(
+                Integer.parseInt(p[0]), Integer.parseInt(p[1]), p[2], Integer.parseInt(p[3]),
+                p[4], p[5], p[6], p[7], p[8], p[9]);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
 
-    private record MaterialRow(
-        String itemId,
-        String name,
-        int stock,
-        int debt,
-        double perCycle
-    ) {}
-
-    private record EffectRow(
-        String name,
-        double value
-    ) {}
-
-    private record CityRow(
-        String name,
-        String country,
-        String mayor,
-        int treasury,
-        int income,
-        int infrastructure,
-        int population,
-        int taxBlocks,
-        boolean capital,
-        boolean mine
-    ) {}
-
-    private record MarketRow(
-        String itemId,
-        String name,
-        int baseDemand,
-        int remaining,
-        int sold,
-        int imported,
-        int price
-    ) {}
+    private record ClickTarget(int left, int top, int right, int bottom, Runnable action) {
+        boolean contains(double x, double y) {
+            return x >= left && x <= right && y >= top && y <= bottom;
+        }
+    }
 
     private record TradeOrderRow(
-        int id,
-        String itemId,
-        int remaining,
-        int quantity,
-        int maxPrice,
-        String seller,
-        String status,
-        long reserved
-    ) {}
+        int id, String itemId, int remaining, int quantity,
+        int maxPrice, String seller, String status, long reserved) {}
 
     private record TradeOrderOfferRow(
-        int id,
-        String itemId,
-        String buyer,
-        int remaining,
-        int maxPrice,
-        int agreedPrice,
-        String status
-    ) {}
+        int id, String itemId, String buyer, int remaining,
+        int maxPrice, int agreedPrice, String status) {}
 
     private record TradeShipmentRow(
-        int id,
-        int orderId,
-        String itemId,
-        int quantity,
-        String seller,
-        String buyer,
-        String status,
-        String courier,
-        String originChunk,
-        String destinationChunk
-    ) {}
+        int id, int orderId, String itemId, int quantity,
+        String seller, String buyer, String status, String courier,
+        String originChunk, String destinationChunk) {}
 }
