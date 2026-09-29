@@ -20,7 +20,6 @@ repositories {
     maven { name = 'CreateMaven'; url = 'https://maven.createmod.net' }
     maven { name = 'IThundXR'; url = 'https://maven.ithundxr.dev/snapshots' }
     maven { name = 'Modrinth'; url = 'https://api.modrinth.com/maven' }
-    maven { name = 'XaeroMaven'; url = 'https://chocolateminecraft.com/maven' }
 }
 
 neoForge {
