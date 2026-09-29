@@ -8,7 +8,7 @@ import net.minecraft.world.level.saveddata.SavedData;
 
 /** Persistent cycle marker for autonomous Millénaire trade. */
 public final class MillenaireTradeSavedData extends SavedData {
-    public static final String DATA_NAME = "politicseconomomy_millenaire_trade";
+    public static final String DATA_NAME = "politicseconomy_millenaire_trade";
     private static final String LAST_CYCLE = "lastCycle";
 
     private long lastProcessedCycle;
