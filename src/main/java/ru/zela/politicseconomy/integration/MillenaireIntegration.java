@@ -169,6 +169,17 @@ public final class MillenaireIntegration {
             List<VillageSnapshot> result = new ArrayList<>();
             for (Object village : villages(server.overworld())) {
                 try {
+                    /*
+                     * Millénaire also stores standalone/lone buildings as
+                     * Village objects. They are not settlements and must not
+                     * become autonomous economic states, occupy political-map
+                     * territory, generate population, or participate in trade.
+                     */
+                    Object loneBuilding = invoke(village, "isLoneBuilding");
+                    if (loneBuilding instanceof Boolean && (Boolean) loneBuilding) {
+                        continue;
+                    }
+
                     result.add(snapshot(server.overworld(), village));
                 } catch (Throwable ignored) {
                 }
