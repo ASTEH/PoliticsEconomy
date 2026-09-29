@@ -2,6 +2,7 @@ package ru.zela.politicseconomy.command;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import net.krona.politicsmod.politics.Country;
 import net.krona.politicsmod.politics.CountryRole;
 import net.minecraft.ChatFormatting;
@@ -24,6 +25,9 @@ import ru.zela.politicseconomy.country.CountryDirectionManager;
 import ru.zela.politicseconomy.country.CountryDirectionBonusService;
 import ru.zela.politicseconomy.country.CountryDirectionProfile;
 import ru.zela.politicseconomy.country.CountryDevelopmentService;
+import ru.zela.politicseconomy.country.CountryWorkforceService;
+import ru.zela.politicseconomy.country.CountryWorkplaceService;
+import ru.zela.politicseconomy.country.WorkforceSector;
 import ru.zela.politicseconomy.economy.ResourceExtractionCategory;
 import ru.zela.politicseconomy.economy.NationalMaterialConsumptionService;
 import ru.zela.politicseconomy.economy.NationalMaterialDemandService;
@@ -100,6 +104,21 @@ public final class PoliticsEconomyCommands {
                         .executes(context -> showCreateProduction(context.getSource())))
                     .then(Commands.literal("diesel")
                         .executes(context -> showDieselEfficiency(context.getSource())))
+                    .then(Commands.literal("workforce")
+                        .executes(context -> showWorkforce(context.getSource()))
+                        .then(Commands.argument("sector", StringArgumentType.word())
+                            .suggests((context, builder) -> {
+                                for (WorkforceSector sector : WorkforceSector.values()) {
+                                    builder.suggest(sector.commandName());
+                                }
+                                return builder.buildFuture();
+                            })
+                            .then(Commands.argument("delta", IntegerArgumentType.integer(-25, 25))
+                                .executes(context -> setWorkforce(
+                                    context.getSource(),
+                                    StringArgumentType.getString(context, "sector"),
+                                    IntegerArgumentType.getInteger(context, "delta")
+                                ))))
                     .then(Commands.literal("deposit")
                         .executes(context -> depositInventory(context.getSource(), null))
                         .then(Commands.literal("all")
@@ -198,6 +217,85 @@ public final class PoliticsEconomyCommands {
             false
         );
         return 1;
+    }
+
+    private static int showWorkforce(CommandSourceStack source) {
+        ServerPlayer player;
+        try {
+            player = source.getPlayerOrException();
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("Эта команда доступна только игроку."));
+            return 0;
+        }
+
+        Optional<Country> playerCountry = PoliticsModIntegration.playerCountry(player);
+        if (playerCountry.isEmpty()) {
+            source.sendFailure(Component.literal("Ты не состоишь ни в одной стране."));
+            return 0;
+        }
+
+        String country = playerCountry.get().getName();
+        int available = CountryWorkforceService.workingPopulation(player.getServer(), country);
+        int employed = CountryWorkforceService.employedPopulation(player.getServer(), country);
+        int unemployed = CountryWorkforceService.unemployedPopulation(player.getServer(), country);
+        int workplaces = CountryWorkforceService.workplaceCapacity(player.getServer(), country);
+        var allocation = CountryWorkforceService.allocation(player.getServer(), country);
+        var workplaceSnapshot = CountryWorkplaceService.snapshot(player.getServer(), country);
+
+        source.sendSuccess(() -> Component.literal(
+            "=== Рабочая сила: " + country + " ===").withStyle(ChatFormatting.GOLD), false);
+        source.sendSuccess(() -> Component.literal(
+            "Доступно: " + available + " | занято: " + employed
+                + " | без места: " + unemployed
+                + " | рабочих мест: " + workplaces
+        ).withStyle(unemployed > 0 ? ChatFormatting.YELLOW : ChatFormatting.GREEN), false);
+
+        for (WorkforceSector sector : WorkforceSector.values()) {
+            int share = allocation.getOrDefault(sector, 0);
+            int workers = CountryWorkforceService.sectorWorkers(player.getServer(), country, sector);
+            int slots = workplaceSnapshot.workplaceSlots().getOrDefault(sector, 0);
+            int blocks = workplaceSnapshot.workplaceCounts().getOrDefault(sector, 0);
+            double bonus = CountryWorkforceService.sectorBonusPercent(player.getServer(), country, sector);
+            source.sendSuccess(() -> Component.literal(
+                sector.displayName() + ": " + share + "% | " + workers + "/" + slots
+                    + " работников | блоков " + blocks + " | бонус "
+                    + CountryWorkforceService.formatBonus(bonus)
+            ).withStyle(bonus > 0 ? ChatFormatting.GREEN : ChatFormatting.GRAY), false);
+        }
+
+        return 1;
+    }
+
+    private static int setWorkforce(
+        CommandSourceStack source,
+        String sectorRaw,
+        int delta
+    ) {
+        ServerPlayer player;
+        try {
+            player = source.getPlayerOrException();
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("Эта команда доступна только игроку."));
+            return 0;
+        }
+
+        WorkforceSector sector = WorkforceSector.fromCommandName(sectorRaw);
+        if (sector == null) {
+            source.sendFailure(Component.literal("Неизвестный сектор рабочей силы."));
+            return 0;
+        }
+
+        CountryWorkforceService.Result result = CountryWorkforceService.apply(
+            player,
+            sector.commandName() + ":" + delta,
+            player.isCreative() && player.hasPermissions(2)
+        );
+        source.sendSuccess(
+            () -> Component.literal(result.message())
+                .withStyle(result.success() ? ChatFormatting.GREEN : ChatFormatting.RED),
+            true
+        );
+        return result.success() ? 1 : 0;
     }
 
     private static int showDieselEfficiency(CommandSourceStack source) {
