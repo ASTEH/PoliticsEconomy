@@ -83,17 +83,31 @@ public final class CountryResearchContentService {
         CountryResearch technology = requiredTechnology(contentId);
         if (technology == null) return;
 
-        var politics = ru.zela.politicseconomy.integration.PoliticsModIntegration.manager(level);
-        if (politics == null) return;
+        Country country = null;
+        ServerPlayer player = event.getEntity() instanceof ServerPlayer serverPlayer ? serverPlayer : null;
 
-        Country country = politics.getCountryAt(new ChunkPos(event.getPos()));
-        if (country == null) return;
-        if (country.getName().isBlank()) return;
+        // A player's technology belongs to their country, not to the chunk in
+        // which they happened to place the block. This also prevents bypassing
+        // the tech tree by stepping outside national territory.
+        if (player != null) {
+            if (creativeOperator(player)) return;
+            country = playerCountry(player);
+        }
+
+        // For automated placement without a player entity (e.g. Create), fall
+        // back to the country owning the destination chunk.
+        if (country == null) {
+            var politics = PoliticsModIntegration.manager(level);
+            if (politics == null) return;
+            country = politics.getCountryAt(new ChunkPos(event.getPos()));
+        }
+
+        if (country == null || country.getName().isBlank()) return;
 
         if (CountryResearchService.completed(level.getServer(), country.getName()).contains(technology.id())) return;
 
         event.setCanceled(true);
-        if (event.getEntity() instanceof ServerPlayer player && !creativeOperator(player)) {
+        if (player != null) {
             deny(player, contentId, technology);
         }
     }
@@ -107,10 +121,9 @@ public final class CountryResearchContentService {
 
         ResourceLocation contentId = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem());
 
-        var politics = PoliticsModIntegration.manager(player.serverLevel());
-        if (politics == null) return;
-
-        Country country = politics.getCountryAt(new ChunkPos(event.getPos()));
+        // The player's country determines which technologies they are allowed
+        // to use. Destination territory must not become a tech-tree bypass.
+        Country country = playerCountry(player);
         if (country == null) return;
 
         CountryResearch technology = requiredTechnology(contentId);
