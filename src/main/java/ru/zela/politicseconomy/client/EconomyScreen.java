@@ -1535,6 +1535,10 @@ public final class EconomyScreen extends Screen {
         return values != null && index >= 0 && index < values.length ? values[index] : 0;
     }
 
+    private static double valueAt(double[] values, int index) {
+        return values != null && index >= 0 && index < values.length ? values[index] : 0.0D;
+    }
+
     private static String stringAt(String[] values, int index) {
         return values != null && index >= 0 && index < values.length && values[index] != null
             ? values[index]
