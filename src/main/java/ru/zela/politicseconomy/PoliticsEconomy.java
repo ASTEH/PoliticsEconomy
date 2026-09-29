@@ -36,6 +36,7 @@ public final class PoliticsEconomy {
         NeoForge.EVENT_BUS.addListener(EconomyCycleEvents::onServerTick);
         NeoForge.EVENT_BUS.addListener(NationalMaterialConsumptionService::onServerTick);
         NeoForge.EVENT_BUS.addListener(ru.zela.politicseconomy.integration.MilitaryEconomyService::onServerTick);
+        NeoForge.EVENT_BUS.addListener(ru.zela.politicseconomy.integration.MilitaryAiService::onServerTick);
         NeoForge.EVENT_BUS.addListener(ru.zela.politicseconomy.integration.MillenaireProductionService::onServerTick);
         NeoForge.EVENT_BUS.addListener(ru.zela.politicseconomy.integration.MillenaireResearchService::onServerTick);
         NeoForge.EVENT_BUS.addListener(PopulationMarketService::onServerTick);
