@@ -117,6 +117,7 @@ public final class PoliticsEconomyCommands {
                                     StringArgumentType.getString(context, "item"),
                                     IntegerArgumentType.getInteger(context, "amount")
                                 )))))
+                )
                 .then(Commands.literal("infrastructure")
                     .executes(context -> showInfrastructure(context.getSource(), false))
                     .then(Commands.literal("country")
