@@ -12,6 +12,7 @@ import ru.zela.politicseconomy.country.CountryDirection;
 import ru.zela.politicseconomy.country.CountryDirectionManager;
 import ru.zela.politicseconomy.country.CountryDevelopmentService;
 import ru.zela.politicseconomy.country.CountryPolicyManager;
+import ru.zela.politicseconomy.country.CountryPolicyBonusService;
 import ru.zela.politicseconomy.country.GovernmentType;
 import ru.zela.politicseconomy.country.ReligionType;
 import ru.zela.politicseconomy.country.WorkforceSector;
@@ -346,13 +347,6 @@ public final class MillenaireIntegration {
             };
 
             double modifier;
-            CountryDirection direction =
-                CountryDirectionManager.getDirection(server, state.stateKey());
-            var policy =
-                CountryPolicyManager.getGovernment(server, state.stateKey());
-            var religion =
-                CountryPolicyManager.getReligion(server, state.stateKey());
-
             var profile =
                 CountryDirectionBonusService.profile(server, state.stateKey());
             var policyProfile =
