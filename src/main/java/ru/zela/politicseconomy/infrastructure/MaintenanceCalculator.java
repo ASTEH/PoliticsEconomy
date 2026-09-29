@@ -5,6 +5,7 @@ import ru.zela.politicseconomy.country.CountryDirectionBonusService;
 import ru.zela.politicseconomy.country.CountryDirectionProfile;
 import ru.zela.politicseconomy.country.CountryPolicyBonusService;
 import ru.zela.politicseconomy.country.CountryPolicyProfile;
+import ru.zela.politicseconomy.country.CountryWorkforceService;
 
 public final class MaintenanceCalculator {
     private MaintenanceCalculator() {}
