@@ -156,7 +156,7 @@ public final class EconomyScreen extends UiScreen {
     @Override
     protected void init() {
         super.init();
-        uiRuntime().theme(Theme.highContrast());
+        uiRuntime().theme(Theme.dark());
     }
 
     @Override
@@ -169,13 +169,12 @@ public final class EconomyScreen extends UiScreen {
                         header(),
                         Ui.divider(),
                         Ui.tabs(pageSignal)
-                            .tab(Page.OVERVIEW, "ОБЗОР")
-                            .tab(Page.COUNTRY, "ГОСУДАРСТВО")
-                            .tab(Page.EFFECTS, "ЭФФЕКТЫ")
-                            .tab(Page.CITIES, "ГОРОДА")
-                            .tab(Page.MARKET, "РЫНОК")
+                            .tab(Page.OVERVIEW, "Обзор")
+                            .tab(Page.COUNTRY, "Государство")
+                            .tab(Page.EFFECTS, "Эффекты")
+                            .tab(Page.CITIES, "Города")
+                            .tab(Page.MARKET, "Рынок")
                             .fillWidth(),
-                        Ui.divider(),
                         Ui.switcher(pageSignal)
                             .when(Page.OVERVIEW, this::overviewPage)
                             .when(Page.COUNTRY, this::countryPage)
@@ -209,14 +208,13 @@ public final class EconomyScreen extends UiScreen {
 
         return Ui.row(
             Ui.column(
-                Ui.text("ECONOMIC COMMAND").nowrap(),
+                Ui.title("POLITICS ECONOMY"),
                 Ui.text(countryTitle).nowrap(),
                 Ui.text(populationText).nowrap()
-            ).gap(2).flex(),
+            ).gap(2),
             Ui.column(
-                Ui.text("ДЕНЕЖНЫЙ ЦЕНТР").nowrap(),
-                Ui.text(walletText).nowrap(),
-                Ui.text("СЕРВЕРНЫЕ ДАННЫЕ").nowrap()
+                Ui.text("ГОСУДАРСТВЕННЫЙ КОШЕЛЁК").nowrap(),
+                Ui.text(walletText).nowrap()
             ).gap(1)
         ).gap(8).fillWidth();
     }
