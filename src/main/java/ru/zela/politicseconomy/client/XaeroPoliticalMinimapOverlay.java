@@ -352,6 +352,10 @@ public final class XaeroPoliticalMinimapOverlay {
             .setColor(color);
     }
 
+    private static long chunkKey(int x, int z) {
+        return ((long) x & 0xFFFFFFFFL) | (((long) z & 0xFFFFFFFFL) << 32);
+    }
+
     private static int countryColor(String country, int alpha) {
         int[] colors = {
             0x4A90E2,
