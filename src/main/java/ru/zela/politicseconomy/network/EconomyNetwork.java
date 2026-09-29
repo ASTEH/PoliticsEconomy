@@ -136,9 +136,15 @@ public final class EconomyNetwork {
                 .withStyle(result.success() ? net.minecraft.ChatFormatting.GREEN : net.minecraft.ChatFormatting.RED)
         );
 
-        var country = PoliticsModIntegration.playerCountry(player).orElse(null);
-        if (country != null) {
-            send(player, EconomyMenu.buildSnapshot(player, country));
+        refreshAllOnlinePlayers(player.getServer());
+    }
+
+    public static void refreshAllOnlinePlayers(net.minecraft.server.MinecraftServer server) {
+        for (ServerPlayer online : server.getPlayerList().getPlayers()) {
+            var country = PoliticsModIntegration.playerCountry(online).orElse(null);
+            if (country != null) {
+                send(online, EconomyMenu.buildSnapshot(online, country));
+            }
         }
     }
 
