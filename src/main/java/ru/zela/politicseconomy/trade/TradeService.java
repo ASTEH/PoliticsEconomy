@@ -231,6 +231,7 @@ public final class TradeService {
 
         refundBuyer(player.getServer(), order.buyerCountry(), order.reservedFunds());
         order.cancel();
+        data.setDirty();
 
         return TradeResult.ok("Заказ #" + orderId + " отменён. Зарезервированные деньги возвращены.");
     }
@@ -263,6 +264,7 @@ public final class TradeService {
         }
 
         order.accept(sellerCountry, unitPrice);
+        data.setDirty();
 
         return TradeResult.ok(
             "Заказ #" + orderId + " принят за $" + unitPrice + "/шт."
@@ -393,6 +395,7 @@ public final class TradeService {
         }
 
         shipment.assignCourier(player.getUUID());
+        data.setDirty();
         return TradeResult.ok(
             "Груз #" + shipmentId + " взят в перевозку. Деньги будут выплачены только после физической доставки."
         );
