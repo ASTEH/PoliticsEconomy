@@ -1476,13 +1476,17 @@ public final class PoliticsEconomyCommands {
             ChunkPos chunk = player.chunkPosition();
             String owner = politics.getCountryNameAt(chunk);
             String occupation = TerritoryService.occupationProgressText(player.getServer(), chunk);
+            int ownedChunks = TerritoryService.claimedChunkCount(player.getServer(), country);
             int nextPrice = TerritoryService.claimPrice(player.getServer(), country);
+            int upkeep = TerritoryService.territoryUpkeep(player.getServer(), country);
 
             source.sendSuccess(
                 () -> Component.literal(
                     "Чанк " + chunk.x + ", " + chunk.z
                         + " | владелец: " + (owner == null ? "свободен" : owner)
-                        + " | цена расширения: $" + nextPrice
+                        + " | территория: " + ownedChunks + " ч."
+                        + " | содержание: $" + upkeep + "/цикл"
+                        + " | следующий чанк: $" + nextPrice
                         + (occupation == null ? "" : " | " + occupation)
                 ).withStyle(ChatFormatting.GOLD),
                 false
