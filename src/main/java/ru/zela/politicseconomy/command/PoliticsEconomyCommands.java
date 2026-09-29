@@ -118,7 +118,7 @@ public final class PoliticsEconomyCommands {
                                     context.getSource(),
                                     StringArgumentType.getString(context, "sector"),
                                     IntegerArgumentType.getInteger(context, "delta")
-                                ))))
+                                )))))
                     .then(Commands.literal("deposit")
                         .executes(context -> depositInventory(context.getSource(), null))
                         .then(Commands.literal("all")
