@@ -189,6 +189,10 @@ public final class EconomyNetwork {
         PacketDistributor.sendToPlayer(player, payload);
     }
 
+    public static void send(ServerPlayer player, EconomyOpenPayload payload) {
+        PacketDistributor.sendToPlayer(player, payload);
+    }
+
     public static void send(ServerPlayer player, PoliticalClaimsPayload payload) {
         PacketDistributor.sendToPlayer(player, payload);
     }
