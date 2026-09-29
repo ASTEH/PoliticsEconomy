@@ -135,6 +135,7 @@ public final class PoliticsEconomyCommands {
                                         IntegerArgumentType.getInteger(context, "id"),
                                         StringArgumentType.getString(context, "reason")
                                     )))))
+                        )
                     .then(Commands.literal("orders")
                         .executes(context -> tradeOrders(context.getSource())))
                     .then(Commands.literal("shipment")
