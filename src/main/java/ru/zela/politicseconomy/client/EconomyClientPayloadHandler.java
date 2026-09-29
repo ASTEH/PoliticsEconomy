@@ -14,6 +14,11 @@ public final class EconomyClientPayloadHandler {
             if (minecraft.level == null) {
                 return;
             }
+
+            if (EconomyFragment.updateActive(payload)) {
+                return;
+            }
+
             minecraft.setScreen(
                 MuiModApi.get().createScreen(
                     new EconomyFragment(payload),
