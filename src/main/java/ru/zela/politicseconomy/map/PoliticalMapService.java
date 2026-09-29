@@ -26,10 +26,10 @@ import java.util.Set;
  * players travel around the world.
  */
 public final class PoliticalMapService {
-    private static final int SYNC_INTERVAL_TICKS = 100; // 5 seconds
-    private static final int SYNC_RADIUS_CHUNKS = 64;
+    private static final int SYNC_INTERVAL_TICKS = 20; // 1 second safety sync
 
     private static long lastSyncTick = Long.MIN_VALUE;
+    private static long lastMillenaireTerritoryFingerprint = Long.MIN_VALUE;
 
     private PoliticalMapService() {}
 
@@ -42,10 +42,19 @@ public final class PoliticalMapService {
         MinecraftServer server = event.getServer();
         long time = server.overworld().getGameTime();
 
-        if (time - lastSyncTick < SYNC_INTERVAL_TICKS) {
+        long millenaireFingerprint =
+            ru.zela.politicseconomy.integration.MillenaireIntegration
+                .territoryFingerprint(server);
+
+        boolean millenaireChanged =
+            millenaireFingerprint != lastMillenaireTerritoryFingerprint;
+
+        if (!millenaireChanged && time - lastSyncTick < SYNC_INTERVAL_TICKS) {
             return;
         }
+
         lastSyncTick = time;
+        lastMillenaireTerritoryFingerprint = millenaireFingerprint;
 
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             if (player.level().dimension() == Level.OVERWORLD) {
