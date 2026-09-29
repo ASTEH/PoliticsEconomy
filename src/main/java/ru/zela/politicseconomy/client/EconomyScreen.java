@@ -927,6 +927,11 @@ public final class EconomyScreen extends Screen {
             g.fill(left + 8, rowY, right - 8, rowY + rowH - 6, PANEL_2);
             ItemStack shipmentIcon = itemStack(row.itemId());
             if (!shipmentIcon.isEmpty()) g.renderItem(shipmentIcon, left + 12, rowY + 14);
+
+            boolean canHaul = "WAITING_LOGISTICS".equals(row.status()) &&
+                !snapshot.countryName().equals(row.seller()) &&
+                !snapshot.countryName().equals(row.buyer());
+
             int rowTextRight = canHaul ? right - 128 : right - 14;
             g.drawString(font,
                 clipToWidth(
@@ -946,10 +951,6 @@ public final class EconomyScreen extends Screen {
                     Math.max(120, rowTextRight - (left + 40))
                 ),
                 left + 40, rowY + 44, MUTED, false);
-
-            boolean canHaul = "WAITING_LOGISTICS".equals(row.status()) &&
-                !snapshot.countryName().equals(row.seller()) &&
-                !snapshot.countryName().equals(row.buyer());
 
             if (canHaul) {
                 drawButton(g, right - 116, rowY + 28, right - 14, rowY + 53,
