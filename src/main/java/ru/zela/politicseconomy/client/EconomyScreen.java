@@ -140,27 +140,47 @@ public final class EconomyScreen extends Screen {
 
     private void layoutTradeInputs() {
         // drawTrade() receives an already scroll-adjusted Y coordinate.
-        // Subtracting scroll here again caused the text fields to "fly" while scrolling.
         int orderTop = tradeOrderTop;
-        tradeItem.setX(contentLeft() + 14);
-        tradeItem.setY(orderTop + 39);
-        tradeItem.setWidth(260);
+        int contentWidth = width - contentLeft() - 16;
 
-        tradeAmount.setX(contentLeft() + 284);
-        tradeAmount.setY(orderTop + 39);
-        tradeAmount.setWidth(88);
+        if (contentWidth < 760) {
+            // Compact: one full-width item field, then quantity and price below it.
+            int fieldWidth = Math.max(120, contentWidth - 28);
+            tradeItem.setX(contentLeft() + 14);
+            tradeItem.setY(orderTop + 39);
+            tradeItem.setWidth(fieldWidth);
 
-        tradeMaxPrice.setX(contentLeft() + 382);
-        tradeMaxPrice.setY(orderTop + 39);
-        tradeMaxPrice.setWidth(98);
+            int secondRowY = orderTop + 75;
+            tradeAmount.setX(contentLeft() + 14);
+            tradeAmount.setY(secondRowY);
+            tradeAmount.setWidth(90);
 
+            tradeMaxPrice.setX(contentLeft() + 116);
+            tradeMaxPrice.setY(secondRowY);
+            tradeMaxPrice.setWidth(104);
+        } else {
+            tradeItem.setX(contentLeft() + 14);
+            tradeItem.setY(orderTop + 39);
+            tradeItem.setWidth(260);
+
+            tradeAmount.setX(contentLeft() + 284);
+            tradeAmount.setY(orderTop + 39);
+            tradeAmount.setWidth(88);
+
+            tradeMaxPrice.setX(contentLeft() + 382);
+            tradeMaxPrice.setY(orderTop + 39);
+            tradeMaxPrice.setWidth(98);
+        }
+
+        // These inputs belong to the "My orders" header row.
+        // Keep them below the panel title so they can never cover it.
         int ownTop = tradeOwnOrdersTop;
-        tradeAcceptPrice.setX(tradeOwnOrdersLeft + 108);
-        tradeAcceptPrice.setY(ownTop + 14);
+        tradeAcceptPrice.setX(tradeOwnOrdersLeft + 55);
+        tradeAcceptPrice.setY(ownTop + 24);
         tradeAcceptPrice.setWidth(70);
 
-        tradeDispatchAmount.setX(tradeOwnOrdersLeft + 265);
-        tradeDispatchAmount.setY(ownTop + 14);
+        tradeDispatchAmount.setX(tradeOwnOrdersLeft + 185);
+        tradeDispatchAmount.setY(ownTop + 24);
         tradeDispatchAmount.setWidth(70);
     }
 
@@ -758,21 +778,28 @@ public final class EconomyScreen extends Screen {
         y += 110;
 
         tradeOrderTop = y;
-        int orderBottom = y + 108;
+        boolean compactTrade = contentWidth(right, left) < 760;
+        int orderBottom = y + (compactTrade ? 152 : 108);
         panel(g, left, y, right, orderBottom);
 
         g.drawString(font, "СОЗДАТЬ ЗАКУПКУ", left + 14, y + 11, TEXT, true);
 
         g.drawString(font, "Предмет", left + 14, y + 28, MUTED, false);
-        g.drawString(font, "Количество", left + 284, y + 28, MUTED, false);
-        g.drawString(font, "Макс. цена / шт.", left + 382, y + 28, MUTED, false);
+        if (compactTrade) {
+            g.drawString(font, "Количество", left + 14, y + 68, MUTED, false);
+            g.drawString(font, "Макс. цена / шт.", left + 116, y + 68, MUTED, false);
+        } else {
+            g.drawString(font, "Количество", left + 284, y + 28, MUTED, false);
+            g.drawString(font, "Макс. цена / шт.", left + 382, y + 28, MUTED, false);
+        }
 
         g.drawString(font,
             "Поиск по русскому названию или item ID.",
-            left + 14, y + 69, MUTED, false);
+            left + 14, compactTrade ? y + 108 : y + 69, MUTED, false);
 
         boolean selectedItemValid = resolveSelectedTradeItemId() != null;
-        drawButton(g, right - 148, y + 68, right - 10, y + 95,
+        int createButtonTop = compactTrade ? y + 110 : y + 68;
+        drawButton(g, right - 148, createButtonTop, right - 10, createButtonTop + 27,
             "СОЗДАТЬ ЗАКАЗ",
             selectedItemValid ? ACCENT_DARK : PANEL_3,
             selectedItemValid ? ACCENT : MUTED,
@@ -783,18 +810,33 @@ public final class EconomyScreen extends Screen {
                 : null);
 
         g.drawString(font, "Деньги резервируются из казны страны.",
-            left + 14, y + 88, MUTED, false);
+            left + 14, compactTrade ? y + 132 : y + 88, MUTED, false);
 
         y = orderBottom + 10;
 
         int gap = 10;
         int half = (right - left - gap) / 2;
-        tradeOwnOrdersTop = y;
-        tradeOwnOrdersLeft = left;
-        tradeOwnOrdersRight = left + half;
-        int ownEnd = drawTradeOwnOrders(g, y, left, left + half, mouseX, mouseY);
-        int openEnd = drawTradeOpenOrders(g, y, left + half + gap, right, mouseX, mouseY);
-        y = Math.max(ownEnd, openEnd) + 10;
+
+        if (contentWidth(right, left) < 760) {
+            tradeOwnOrdersTop = y;
+            tradeOwnOrdersLeft = left;
+            tradeOwnOrdersRight = right;
+            int ownEnd = drawTradeOwnOrders(g, y, left, right, mouseX, mouseY);
+            y = ownEnd + 10;
+
+            tradeOwnOrdersTop = y;
+            tradeOwnOrdersLeft = left;
+            tradeOwnOrdersRight = right;
+            int openEnd = drawTradeOpenOrders(g, y, left, right, mouseX, mouseY);
+            y = openEnd + 10;
+        } else {
+            tradeOwnOrdersTop = y;
+            tradeOwnOrdersLeft = left;
+            tradeOwnOrdersRight = left + half;
+            int ownEnd = drawTradeOwnOrders(g, y, left, left + half, mouseX, mouseY);
+            int openEnd = drawTradeOpenOrders(g, y, left + half + gap, right, mouseX, mouseY);
+            y = Math.max(ownEnd, openEnd) + 10;
+        }
 
         return drawTradeShipments(g, y, left, right, mouseX, mouseY);
     }
@@ -802,12 +844,12 @@ public final class EconomyScreen extends Screen {
     private int drawTradeOwnOrders(GuiGraphics g, int y, int left, int right, int mouseX, int mouseY) {
         int rowH = 84;
         int count = Math.max(1, snapshot.tradeOwnOrders().length);
-        int bottom = y + 52 + count * rowH;
+        int bottom = y + 56 + count * rowH;
         panel(g, left, y, right, bottom);
         g.drawString(font, "МОИ ЗАКАЗЫ", left + 14, y + 12, TEXT, true);
-        g.drawString(font, "Цена принятия", left + 14, y + 31, MUTED, false);
-        g.drawString(font, "Партия", left + 150, y + 31, MUTED, false);
-        int rowY = y + 48;
+        g.drawString(font, "Цена:", left + 14, y + 31, MUTED, false);
+        g.drawString(font, "Партия:", left + 145, y + 31, MUTED, false);
+        int rowY = y + 56;
 
         if (snapshot.tradeOwnOrders().length == 0) {
             g.drawString(font, "Заказов нет.", left + 14, rowY + 10, MUTED, false);
@@ -866,7 +908,7 @@ public final class EconomyScreen extends Screen {
         panel(g, left, y, right, bottom);
         g.drawString(font, "ДОСТУПНЫЕ ЗАКУПКИ", left + 14, y + 12, TEXT, true);
         g.drawString(font, "Можно стать поставщиком.", left + 14, y + 31, MUTED, false);
-        int rowY = y + 48;
+        int rowY = y + 56;
 
         if (snapshot.tradeOpenOrders().length == 0) {
             g.drawString(font, "Открытых заказов нет.", left + 14, rowY + 10, MUTED, false);
@@ -1220,7 +1262,7 @@ public final class EconomyScreen extends Screen {
                 Math.max(1, Math.max(effectCount(true), effectCount(false))) * 30 + 22;
             case CITIES -> end = y + 40 + Math.max(1, snapshot.cityNames().length) * 102 + 10;
             case MARKET -> end = y + 40 + 88 + Math.max(1, snapshot.marketItemIds().length) * 77 + 10;
-            case TRADE -> end = y + 40 + 110 + 118 +
+            case TRADE -> end = y + 40 + 110 + 152 +
                 Math.max(1, Math.max(snapshot.tradeOwnOrders().length, snapshot.tradeOpenOrders().length)) * 84 +
                 10 + 52 + Math.max(1, snapshot.tradeShipments().length) * 84 + 10;
             default -> end = y;
@@ -1230,6 +1272,10 @@ public final class EconomyScreen extends Screen {
 
     private int contentLeft() {
         return 176;
+    }
+
+    private static int contentWidth(int right, int left) {
+        return right - left;
     }
 
     private int contentTop() {
