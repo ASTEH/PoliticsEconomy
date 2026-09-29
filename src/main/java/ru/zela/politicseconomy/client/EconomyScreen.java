@@ -242,13 +242,13 @@ public final class EconomyScreen extends Screen {
 
         panel(g, left, 12, right, 64);
         g.drawString(font, "POLITICS ECONOMY", 28, 22, TEXT, true);
-        g.drawString(font, snapshot.countryName().toUpperCase(Locale.ROOT), 28, 39, MUTED, false);
+        g.drawString(font, clipToWidth(snapshot.countryName().toUpperCase(Locale.ROOT), 250), 28, 39, MUTED, false);
 
         g.drawString(font, "КАЗНА", right - 183, 19, MUTED, true);
         g.drawString(font, "$" + formatDouble(snapshot.treasury()), right - 183, 34, GOLD, true);
         g.drawString(font, format(snapshot.population()) + " населения", right - 183, 49, TEXT, false);
 
-        drawPill(g, snapshot.direction(), right - 360, 27, ACCENT_DARK, ACCENT);
+        drawPill(g, snapshot.direction(), right - 360, 27, ACCENT_DARK, ACCENT, 155);
 
         boolean hover = inside(mouseX, mouseY, right - 31, 20, right - 10, 41);
         g.fill(right - 31, 20, right - 10, 41, hover ? NEGATIVE_DARK : PANEL_2);
@@ -332,7 +332,8 @@ public final class EconomyScreen extends Screen {
                 ? "Максимальный уровень"
                 : format(snapshot.developmentPoints()) + " / " + format(snapshot.developmentNextThreshold()) + " очков",
             left + 14, y + 31, MUTED, false);
-        g.drawString(font, clip(snapshot.developmentPerk(), 60), right - 260, y + 12, GOLD, false);
+        String perk = clipToWidth(snapshot.developmentPerk(), Math.max(100, right - left - 290));
+        g.drawString(font, perk, right - 14 - font.width(perk), y + 12, GOLD, false);
         double dev = snapshot.developmentNextThreshold() <= 0 ? 1 :
             snapshot.developmentPoints() / (double) snapshot.developmentNextThreshold();
         progress(g, left + 14, y + 54, right - 14, y + 62, dev, ACCENT);
@@ -355,11 +356,13 @@ public final class EconomyScreen extends Screen {
         int wy = y + 52;
         WorkforceSector[] sectors = WorkforceSector.values();
         for (int i = 0; i < sectors.length; i++) {
-            String line = clip(sectors[i].displayName(), 15) + "  " +
+            String line = sectors[i].displayName() + "  " +
                 valueAt(snapshot.sectorAllocation(), i) + "%  " +
                 format(valueAt(snapshot.sectorWorkers(), i)) + "/" +
                 format(valueAt(snapshot.workplaceSlots(), i)) + "  " +
                 signed(valueAt(snapshot.sectorBonuses(), i));
+            int textRight = left + half - 92;
+            line = clipToWidth(line, Math.max(80, textRight - (left + 34)));
 
             ItemStack sectorIcon = itemStack(sectors[i].iconItemId());
             if (!sectorIcon.isEmpty()) g.renderItem(sectorIcon, left + 12, wy - 7);
@@ -452,11 +455,11 @@ public final class EconomyScreen extends Screen {
                 g.fill(left + 8, rowY, right - 8, rowY + 36, PANEL_3);
             }
 
-            g.drawString(font, display, left + 18, rowY + 6, selected ? TEXT : MUTED, selected);
-            g.drawString(font, reformCost(action), left + 18, rowY + 22,
-                selected ? POSITIVE : MUTED, false);
-
             int bx = right - 98;
+            int textWidth = Math.max(80, bx - (left + 18) - 12);
+            g.drawString(font, clipToWidth(display, textWidth), left + 18, rowY + 6, selected ? TEXT : MUTED, selected);
+            g.drawString(font, clipToWidth(reformCost(action), textWidth), left + 18, rowY + 22,
+                selected ? POSITIVE : MUTED, false);
             drawButton(g, bx, rowY + 7, right - 16, rowY + 29,
                 selected ? "ВЫБРАНО" : "ВЫБРАТЬ",
                 selected ? POSITIVE_DARK : ACCENT_DARK,
@@ -515,8 +518,11 @@ public final class EconomyScreen extends Screen {
 
             ItemStack effectIcon = itemStack(positive ? "minecraft:emerald" : "minecraft:redstone");
             if (!effectIcon.isEmpty()) g.renderItem(effectIcon, x, y + row * 30 - 7);
-            g.drawString(font, clip(snapshot.modifierNames()[i], 31), x + 22, y + row * 30, TEXT, false);
             String valueText = signed(value);
+            int nameRight = right - font.width(valueText) - 10;
+            g.drawString(font,
+                clipToWidth(snapshot.modifierNames()[i], Math.max(60, nameRight - (x + 22))),
+                x + 22, y + row * 30, TEXT, false);
             g.drawString(font, valueText, right - font.width(valueText),
                 y + row * 30, positive ? POSITIVE : NEGATIVE, true);
             row++;
@@ -540,10 +546,14 @@ public final class EconomyScreen extends Screen {
 
             ItemStack cityIcon = itemStack(valueAt(snapshot.cityMine(), i) ? "minecraft:gold_block" : "minecraft:bricks");
             if (!cityIcon.isEmpty()) g.renderItem(cityIcon, left + 10, y + 8);
-            g.drawString(font, clip(name, 47), left + 34, y + 12, TEXT, true);
-            g.drawString(font, "Государство: " + clip(valueAt(snapshot.cityCountries(), i), 27),
+            int cityTextRight = sx - 12;
+            g.drawString(font, clipToWidth(name, Math.max(120, cityTextRight - (left + 34))),
+                left + 34, y + 12, TEXT, true);
+            g.drawString(font,
+                "Государство: " + clipToWidth(valueAt(snapshot.cityCountries(), i), Math.max(100, cityTextRight - (left + 34))),
                 left + 34, y + 31, MUTED, false);
-            g.drawString(font, "Мэр: " + clip(valueAt(snapshot.cityMayors(), i), 27),
+            g.drawString(font,
+                "Мэр: " + clipToWidth(valueAt(snapshot.cityMayors(), i), Math.max(100, cityTextRight - (left + 34))),
                 left + 34, y + 50, MUTED, false);
 
             int sx = right - 300;
@@ -583,14 +593,17 @@ public final class EconomyScreen extends Screen {
             ItemStack stack = itemStack(valueAt(snapshot.marketItemIds(), i));
             if (!stack.isEmpty()) g.renderItem(stack, left + 12, y + 13);
 
-            g.drawString(font, clip(valueAt(snapshot.marketItemNames(), i), 27),
+            g.drawString(font,
+                clipToWidth(valueAt(snapshot.marketItemNames(), i), Math.max(100, right - left - 275)),
                 left + 48, y + 12, TEXT, true);
 
-            g.drawString(font,
+            String marketInfo =
                 "Спрос " + format(valueAt(snapshot.marketBaseDemand(), i)) +
                     " • осталось " + format(valueAt(snapshot.marketRemaining(), i)) +
                     " • продано " + format(valueAt(snapshot.marketSold(), i)) +
-                    " • импорт " + format(valueAt(snapshot.marketImported(), i)),
+                    " • импорт " + format(valueAt(snapshot.marketImported(), i));
+            g.drawString(font,
+                clipToWidth(marketInfo, Math.max(120, right - left - 275)),
                 left + 48, y + 31, MUTED, false);
 
             double fulfilled = valueAt(snapshot.marketBaseDemand(), i) <= 0 ? 1 :
@@ -808,13 +821,21 @@ public final class EconomyScreen extends Screen {
             g.fill(left + 8, rowY, right - 8, rowY + rowH - 6, PANEL_2);
             ItemStack orderIcon = itemStack(row.itemId());
             if (!orderIcon.isEmpty()) g.renderItem(orderIcon, left + 12, rowY + 14);
-            g.drawString(font, "#" + row.id() + " • " + clip(tradeItemName(row.itemId()), 18),
+            int rowTextRight = right - 110;
+            g.drawString(font,
+                "#" + row.id() + " • " +
+                    clipToWidth(tradeItemName(row.itemId()), Math.max(90, rowTextRight - (left + 40))),
                 left + 40, rowY + 8, TEXT, true);
             g.drawString(font,
-                format(row.remaining()) + "/" + format(row.quantity()) +
-                    " • max $" + row.maxPrice(),
+                clipToWidth(
+                    format(row.remaining()) + "/" + format(row.quantity()) +
+                        " • max $" + row.maxPrice(),
+                    Math.max(90, rowTextRight - (left + 40))
+                ),
                 left + 40, rowY + 26, MUTED, false);
-            g.drawString(font, "Статус: " + tradeStatus(row.status()),
+            g.drawString(font,
+                clipToWidth("Статус: " + tradeStatus(row.status()),
+                    Math.max(90, rowTextRight - (left + 40))),
                 left + 40, rowY + 44, MUTED, false);
 
             boolean seller = snapshot.countryName().equals(row.seller());
@@ -859,12 +880,20 @@ public final class EconomyScreen extends Screen {
             g.fill(left + 8, rowY, right - 8, rowY + rowH - 6, PANEL_2);
             ItemStack orderIcon = itemStack(row.itemId());
             if (!orderIcon.isEmpty()) g.renderItem(orderIcon, left + 12, rowY + 14);
-            g.drawString(font, "#" + row.id() + " • " + clip(tradeItemName(row.itemId()), 16),
+            int rowTextRight = right - 108;
+            g.drawString(font,
+                "#" + row.id() + " • " +
+                    clipToWidth(tradeItemName(row.itemId()), Math.max(90, rowTextRight - (left + 40))),
                 left + 40, rowY + 8, TEXT, true);
-            g.drawString(font, "Покупатель: " + clip(row.buyer(), 17),
+            g.drawString(font,
+                "Покупатель: " +
+                    clipToWidth(row.buyer(), Math.max(90, rowTextRight - (left + 40))),
                 left + 40, rowY + 26, MUTED, false);
             g.drawString(font,
-                "Нужно " + format(row.remaining()) + " • максимум $" + row.maxPrice() + "/шт",
+                clipToWidth(
+                    "Нужно " + format(row.remaining()) + " • максимум $" + row.maxPrice() + "/шт",
+                    Math.max(90, rowTextRight - (left + 40))
+                ),
                 left + 40, rowY + 44, MUTED, false);
 
             drawButton(g, right - 96, rowY + 30, right - 14, rowY + 53,
@@ -898,14 +927,24 @@ public final class EconomyScreen extends Screen {
             g.fill(left + 8, rowY, right - 8, rowY + rowH - 6, PANEL_2);
             ItemStack shipmentIcon = itemStack(row.itemId());
             if (!shipmentIcon.isEmpty()) g.renderItem(shipmentIcon, left + 12, rowY + 14);
+            int rowTextRight = canHaul ? right - 128 : right - 14;
             g.drawString(font,
-                "#" + row.id() + " • заказ #" + row.orderId() + " • " + clip(tradeItemName(row.itemId()), 20),
+                clipToWidth(
+                    "#" + row.id() + " • заказ #" + row.orderId() + " • " + tradeItemName(row.itemId()),
+                    Math.max(120, rowTextRight - (left + 40))
+                ),
                 left + 40, rowY + 8, TEXT, true);
             g.drawString(font,
-                row.seller() + " → " + row.buyer() + " • ×" + format(row.quantity()),
+                clipToWidth(
+                    row.seller() + " → " + row.buyer() + " • ×" + format(row.quantity()),
+                    Math.max(120, rowTextRight - (left + 40))
+                ),
                 left + 40, rowY + 26, MUTED, false);
             g.drawString(font,
-                tradeStatus(row.status()) + " • " + row.originChunk() + " → " + row.destinationChunk(),
+                clipToWidth(
+                    tradeStatus(row.status()) + " • " + row.originChunk() + " → " + row.destinationChunk(),
+                    Math.max(120, rowTextRight - (left + 40))
+                ),
                 left + 40, rowY + 44, MUTED, false);
 
             boolean canHaul = "WAITING_LOGISTICS".equals(row.status()) &&
@@ -986,8 +1025,8 @@ public final class EconomyScreen extends Screen {
     }
 
     private int title(GuiGraphics g, int left, int y, String heading, String subtitle) {
-        g.drawString(font, heading, left, y + 1, TEXT, true);
-        g.drawString(font, subtitle, left, y + 18, MUTED, false);
+        g.drawString(font, clipToWidth(heading, 320), left, y + 1, TEXT, true);
+        g.drawString(font, clipToWidth(subtitle, Math.max(180, width - left - 190)), left, y + 18, MUTED, false);
         return y + 40;
     }
 
@@ -998,7 +1037,7 @@ public final class EconomyScreen extends Screen {
         if (!icon.isEmpty()) g.renderItem(icon, x + 9, y + 11);
         g.drawString(font, title, x + 34, y + 10, MUTED, true);
         g.drawString(font, value, x + 34, y + 28, TEXT, true);
-        g.drawString(font, clip(subtitle, 19), x + 34, y + 49, MUTED, false);
+        g.drawString(font, clipToWidth(subtitle, Math.max(60, w - 46)), x + 34, y + 49, MUTED, false);
     }
 
     private void info(GuiGraphics g, int x, int y, int right, String name, String value, String iconId) {
@@ -1006,7 +1045,7 @@ public final class EconomyScreen extends Screen {
         if (!icon.isEmpty()) g.renderItem(icon, x, y - 3);
         int textX = x + 24;
         g.drawString(font, name, textX, y, MUTED, false);
-        String v = clip(value, 30);
+        String v = clipToWidth(value, Math.max(80, right - textX - 12));
         g.drawString(font, v, right - font.width(v), y, TEXT, true);
     }
 
@@ -1049,12 +1088,13 @@ public final class EconomyScreen extends Screen {
         if (enabled) target(left, top, right, bottom, action);
     }
 
-    private void drawPill(GuiGraphics g, String text, int x, int y, int fill, int accent) {
+    private void drawPill(GuiGraphics g, String text, int x, int y, int fill, int accent, int maxWidth) {
         if (text == null || text.isBlank() || "Не выбрано".equals(text)) return;
-        int w = font.width(clip(text, 21)) + 14;
+        String value = clipToWidth(text, Math.max(40, maxWidth - 14));
+        int w = Math.min(maxWidth, font.width(value) + 14);
         g.fill(x, y, x + w, y + 17, fill);
         outline(g, x, y, x + w, y + 17, accent);
-        g.drawString(font, clip(text, 21), x + 7, y + 4, accent, true);
+        g.drawString(font, value, x + 7, y + 4, accent, true);
     }
 
     private void progress(GuiGraphics g, int left, int top, int right, int bottom, double value, int color) {
@@ -1252,6 +1292,22 @@ public final class EconomyScreen extends Screen {
         if (value == null) return "";
         if (value.length() <= maxChars) return value;
         return value.substring(0, Math.max(0, maxChars - 1)) + "…";
+    }
+
+    private String clipToWidth(String value, int maxPixels) {
+        if (value == null) return "";
+        if (maxPixels <= 0) return "";
+        if (font.width(value) <= maxPixels) return value;
+
+        String ellipsis = "…";
+        int limit = maxPixels - font.width(ellipsis);
+        if (limit <= 0) return ellipsis;
+
+        int end = value.length();
+        while (end > 0 && font.width(value.substring(0, end)) > limit) {
+            end--;
+        }
+        return end <= 0 ? ellipsis : value.substring(0, end) + ellipsis;
     }
 
     private static int formatSafe(int value) {
