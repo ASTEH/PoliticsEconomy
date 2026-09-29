@@ -34,6 +34,12 @@ public final class CountryWorkforceCycleService {
         PoliticsManager politics = PoliticsManager.get(server.overworld());
         if (politics == null) return;
 
+        CountryWorkforceSavedData workforceData = CountryWorkforceService.get(server);
+        if (cycle <= workforceData.lastProcessedCycle()) {
+            return;
+        }
+        workforceData.setLastProcessedCycle(cycle);
+
         NationalMaterialLedgerSavedData ledger =
             NationalMaterialConsumptionService.getLedger(server);
 
