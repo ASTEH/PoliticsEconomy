@@ -235,7 +235,7 @@ public final class CreateProductionService {
         }
 
         CountryPolicyProfile policy = CountryPolicyBonusService.profile(server, countryKey);
-        double modifier = profile.industrialProduction() + policy.industrialProduction()
+        double modifier = profile.industrialProduction() + policy.industrialProduction();
         var itemKey = BuiltInRegistries.ITEM.getKey(output.getItem());
         if (itemKey != null && "createbigcannons".equals(itemKey.getNamespace())) {
             modifier += profile.militaryProduction() + policy.militaryProduction()
