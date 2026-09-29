@@ -43,6 +43,8 @@ import ru.zela.politicseconomy.infrastructure.MaintenanceLedgerSavedData;
 import ru.zela.politicseconomy.infrastructure.MaintenanceService;
 import ru.zela.politicseconomy.recipe.RecipeAnalysis;
 import ru.zela.politicseconomy.recipe.RecipeAnalyzer;
+import ru.zela.politicseconomy.trade.TradeSavedData;
+import ru.zela.politicseconomy.trade.TradeService;
 
 import java.util.Optional;
 import java.util.Map;
@@ -204,6 +206,172 @@ public final class PoliticsEconomyCommands {
     }
 
 
+
+    
+    private static int showTrade(CommandSourceStack source) {
+        try {
+            ServerPlayer player = source.getPlayerOrException();
+            return sendTrade(source, TradeService.listPlayerTrade(player));
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("Эта команда доступна только игроку."));
+            return 0;
+        }
+    }
+
+    private static int tradeTerminalSet(CommandSourceStack source) {
+        try {
+            ServerPlayer player = source.getPlayerOrException();
+            return sendTrade(source, TradeService.setTerminal(player));
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("Эта команда доступна только игроку."));
+            return 0;
+        }
+    }
+
+    private static int tradeTerminalShow(CommandSourceStack source) {
+        try {
+            ServerPlayer player = source.getPlayerOrException();
+            String country = PoliticsModIntegration.playerCountry(player).map(Country::getName).orElse(null);
+            if (country == null) {
+                source.sendFailure(Component.literal("Ты не состоишь ни в одной стране."));
+                return 0;
+            }
+            TradeSavedData.Terminal terminal = TradeService.terminal(player.getServer(), country);
+            if (terminal == null) {
+                source.sendFailure(Component.literal("Торговый терминал ещё не назначен."));
+                return 0;
+            }
+            source.sendSuccess(
+                () -> Component.literal("Торговый терминал: " + ChunkPos.of(terminal.pos())),
+                false
+            );
+            return 1;
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("Не удалось получить терминал."));
+            return 0;
+        }
+    }
+
+    private static int tradeOrderCreate(CommandSourceStack source, String item, int amount, int maxPrice) {
+        try {
+            return sendTrade(source, TradeService.createOrder(
+                source.getPlayerOrException(), item, amount, maxPrice
+            ));
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("Эта команда доступна только игроку."));
+            return 0;
+        }
+    }
+
+    private static int tradeOrderAccept(CommandSourceStack source, int id, int unitPrice) {
+        try {
+            return sendTrade(source, TradeService.acceptOrder(
+                source.getPlayerOrException(), id, unitPrice
+            ));
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("Эта команда доступна только игроку."));
+            return 0;
+        }
+    }
+
+    private static int tradeOrderCancel(CommandSourceStack source, int id) {
+        try {
+            return sendTrade(source, TradeService.cancelOrder(
+                source.getPlayerOrException(), id
+            ));
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("Эта команда доступна только игроку."));
+            return 0;
+        }
+    }
+
+    private static int tradeOrders(CommandSourceStack source) {
+        try {
+            ServerPlayer player = source.getPlayerOrException();
+            String country = PoliticsModIntegration.playerCountry(player).map(Country::getName).orElse(null);
+            if (country == null) {
+                source.sendFailure(Component.literal("Ты не состоишь ни в одной стране."));
+                return 0;
+            }
+
+            source.sendSuccess(() -> Component.literal("=== Заказы государства " + country + " ===")
+                .withStyle(ChatFormatting.GOLD), false);
+
+            for (TradeSavedData.Order order : TradeService.countryOrders(
+                player.getServer(), country
+            )) {
+                source.sendSuccess(() -> Component.literal(
+                    "#" + order.id()
+                        + " | " + order.itemId()
+                        + " | " + order.remaining() + "/" + order.quantity()
+                        + " | $" + order.maxUnitPrice() + "/шт"
+                        + " | продавец: " + (order.sellerCountry() == null ? "не найден" : order.sellerCountry())
+                        + " | статус: " + order.status()
+                        + " | резерв $" + order.reservedFunds()
+                ).withStyle(ChatFormatting.AQUA), false);
+            }
+
+            return 1;
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("Не удалось получить заказы."));
+            return 0;
+        }
+    }
+
+    private static int tradeShipmentDispatch(CommandSourceStack source, int orderId, int amount) {
+        try {
+            return sendTrade(source, TradeService.dispatchShipment(
+                source.getPlayerOrException(), orderId, amount
+            ));
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("Эта команда доступна только игроку."));
+            return 0;
+        }
+    }
+
+    private static int tradeShipmentHaul(CommandSourceStack source, int shipmentId) {
+        try {
+            return sendTrade(source, TradeService.acceptLogistics(
+                source.getPlayerOrException(), shipmentId
+            ));
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("Эта команда доступна только игроку."));
+            return 0;
+        }
+    }
+
+    private static int tradeShipments(CommandSourceStack source) {
+        try {
+            ServerPlayer player = source.getPlayerOrException();
+            source.sendSuccess(() -> Component.literal("=== Доступные грузы ===")
+                .withStyle(ChatFormatting.GOLD), false);
+
+            for (TradeSavedData.Shipment shipment : TradeService.waitingShipments(player.getServer())) {
+                source.sendSuccess(() -> Component.literal(
+                    "#" + shipment.id()
+                        + " | заказ #" + shipment.orderId()
+                        + " | " + shipment.quantity() + " " + shipment.itemId()
+                        + " | " + shipment.sellerCountry()
+                        + " -> " + shipment.buyerCountry()
+                ).withStyle(ChatFormatting.YELLOW), false);
+            }
+
+            return 1;
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("Не удалось получить грузы."));
+            return 0;
+        }
+    }
+
+    private static int sendTrade(CommandSourceStack source, TradeService.TradeResult result) {
+        source.sendSuccess(
+            () -> Component.literal(result.message()).withStyle(
+                result.success() ? ChatFormatting.GREEN : ChatFormatting.RED
+            ),
+            false
+        );
+        return result.success() ? 1 : 0;
+    }
 
     private static int showPopulationMarket(CommandSourceStack source) {
         ServerPlayer player;
