@@ -12,21 +12,7 @@ public final class PoliticalClaimsClientState {
     private PoliticalClaimsClientState() {}
 
     public static synchronized void apply(PoliticalClaimsPayload payload) {
-        int centerX = payload.centerChunkX();
-        int centerZ = payload.centerChunkZ();
-        int radius = Math.max(0, payload.radius());
-
-        int minX = centerX - radius;
-        int maxX = centerX + radius;
-        int minZ = centerZ - radius;
-        int maxZ = centerZ + radius;
-
-        CLAIMS.entrySet().removeIf(entry -> {
-            long packed = entry.getKey();
-            int x = (int) packed;
-            int z = (int) (packed >> 32);
-            return x >= minX && x <= maxX && z >= minZ && z <= maxZ;
-        });
+        CLAIMS.clear();
 
         String[] countries = payload.countries();
         long[] chunks = payload.chunks();
