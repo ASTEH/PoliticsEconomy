@@ -1,7 +1,5 @@
 package ru.zela.politicseconomy.client;
 
-import com.mojang.blaze3d.systems.RenderSystem;
-import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
@@ -19,7 +17,6 @@ import ru.zela.politicseconomy.network.EconomyNetwork;
 import ru.zela.politicseconomy.network.EconomySnapshotPayload;
 
 import java.util.Locale;
-import java.util.Map;
 
 /**
  * Native Minecraft economy dashboard.
@@ -44,13 +41,11 @@ public final class EconomyScreen extends Screen {
     private static final int SUCCESS = 0xFF67A184;
     private static final int WARNING = 0xFFC89C4E;
     private static final int DANGER = 0xFFC85D5D;
-    private static final int PURPLE = 0xFF9485B0;
 
     private static final int PANEL_W = 1000;
     private static final int PANEL_H = 700;
     private static final int NAV_W = 155;
     private static final int HEADER_H = 66;
-    private static final int CONTENT_PAD = 18;
 
     private EconomySnapshotPayload snapshot;
     private int activePage = 0;
@@ -58,7 +53,6 @@ public final class EconomyScreen extends Screen {
     private double maxScroll = 0.0D;
 
     private long openedAt;
-    private long updatePulseAt;
     private long statusUntil;
     private String statusText = "";
     private int statusColor = TEXT;
@@ -83,10 +77,10 @@ public final class EconomyScreen extends Screen {
 
     public void applySnapshot(EconomySnapshotPayload payload) {
         this.snapshot = payload;
-        this.updatePulseAt = System.currentTimeMillis();
+        long updatedAt = System.currentTimeMillis();
         this.statusText = "Данные обновлены";
         this.statusColor = SUCCESS;
-        this.statusUntil = this.updatePulseAt + 1400L;
+        this.statusUntil = updatedAt + 1400L;
     }
 
     @Override
@@ -143,9 +137,6 @@ public final class EconomyScreen extends Screen {
 
         drawStatus(graphics, alpha);
 
-        if (progress < 1.0F) {
-            Minecraft.getInstance().getWindow(); // keep render lifecycle attached to the client
-        }
     }
 
     private void updateLayout() {
