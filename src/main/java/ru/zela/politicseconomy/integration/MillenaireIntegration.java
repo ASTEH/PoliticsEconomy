@@ -452,7 +452,7 @@ public final class MillenaireIntegration {
         String text = (type + " " + role).toLowerCase(Locale.ROOT);
         if (containsAny(text, "merchant", "trader", "seller", "shop")) return WorkforceSector.TRADE_LOGISTICS;
         if (containsAny(text, "soldier", "guard", "warrior", "general", "army")) return WorkforceSector.MILITARY;
-        if (containsAny(text, "miner", "lumberman", "woodcutter", "hunter", "quarry", "shepherd")) return WorkforceSector.EXTRACTION;
+        if (containsAny(text, "miner", "lumberman", "woodcutter", "hunter", "quarry")) return WorkforceSector.EXTRACTION;
         if (containsAny(text, "smith", "smelter", "toolsmith", "craft", "weaver", "seamster", "dressmaker", "sculptor", "painter")) return WorkforceSector.INDUSTRY;
         if (containsAny(text, "farmer", "farm", "peasant", "fisherman", "fisher", "shepherd", "pastor")) return WorkforceSector.AGRICULTURE;
         if (containsAny(text, "mason", "architect", "worker", "builder", "host", "teacher", "school")) return WorkforceSector.CONSTRUCTION_SERVICES;
