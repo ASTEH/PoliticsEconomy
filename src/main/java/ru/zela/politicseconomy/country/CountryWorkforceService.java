@@ -3,7 +3,7 @@ package ru.zela.politicseconomy.country;
 import net.krona.politicsmod.politics.Country;
 import net.krona.politicsmod.politics.CountryRole;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.ServerPlayer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.saveddata.SavedData;
 import ru.zela.politicseconomy.integration.PoliticsModIntegration;
@@ -15,9 +15,11 @@ public final class CountryWorkforceService {
     private static final double BASE_WORKFORCE_SHARE = 0.50D;
     private static final double MIN_WORKFORCE_SHARE = 0.20D;
     private static final double MAX_WORKFORCE_SHARE = 0.75D;
-    private static final double MAX_SECTOR_BONUS = 50.0D;
-    private static final double MAX_TRADE_BONUS = 40.0D;
-    private static final double MAX_MARKET_EFFICIENCY_BONUS = 75.0D;
+
+    private static final double MAX_SECTOR_BONUS = 35.0D;
+    private static final double MAX_TRADE_BONUS = 25.0D;
+    private static final double MAX_MARKET_EFFICIENCY_BONUS = 30.0D;
+    private static final double MAX_CONSTRUCTION_EFFICIENCY_BONUS = 15.0D;
 
     private CountryWorkforceService() {}
 
@@ -85,7 +87,7 @@ public final class CountryWorkforceService {
         return Math.max(0, (int) Math.floor(population * share));
     }
 
-    public static int sectorWorkers(
+    public static int allocatedSectorWorkers(
         MinecraftServer server,
         String countryName,
         WorkforceSector sector
@@ -93,20 +95,43 @@ public final class CountryWorkforceService {
         int workers = workingPopulation(server, countryName);
         if (workers <= 0) return 0;
 
-        EnumMap<WorkforceSector, Integer> allocation = allocation(server, countryName);
-        int assigned = 0;
-        WorkforceSector[] sectors = WorkforceSector.values();
-        for (int i = 0; i < sectors.length; i++) {
-            WorkforceSector current = sectors[i];
-            if (current == sector) {
-                if (i == sectors.length - 1) {
-                    return Math.max(0, workers - assigned);
-                }
-                return (int) Math.floor(workers * allocation.getOrDefault(current, 0) / 100.0D);
-            }
-            assigned += (int) Math.floor(workers * allocation.getOrDefault(current, 0) / 100.0D);
+        int share = allocation(server, countryName).getOrDefault(sector, 0);
+        return (int) Math.floor(workers * share / 100.0D);
+    }
+
+    public static int sectorWorkers(
+        MinecraftServer server,
+        String countryName,
+        WorkforceSector sector
+    ) {
+        int requested = allocatedSectorWorkers(server, countryName, sector);
+        int capacity = CountryWorkplaceService.snapshot(server, countryName)
+            .workplaceSlots()
+            .getOrDefault(sector, 0);
+        return Math.min(requested, capacity);
+    }
+
+    public static int employedPopulation(MinecraftServer server, String countryName) {
+        int total = 0;
+        for (WorkforceSector sector : WorkforceSector.values()) {
+            total += sectorWorkers(server, countryName, sector);
         }
-        return 0;
+        return total;
+    }
+
+    public static int unemployedPopulation(MinecraftServer server, String countryName) {
+        return Math.max(0, workingPopulation(server, countryName)
+            - employedPopulation(server, countryName));
+    }
+
+    public static int workplaceCapacity(MinecraftServer server, String countryName) {
+        return CountryWorkplaceService.snapshot(server, countryName).totalSlots();
+    }
+
+    public static double employmentRatePercent(MinecraftServer server, String countryName) {
+        int workforce = workingPopulation(server, countryName);
+        if (workforce <= 0) return 0.0D;
+        return employedPopulation(server, countryName) * 100.0D / workforce;
     }
 
     public static double sectorBonusPercent(
@@ -133,7 +158,7 @@ public final class CountryWorkforceService {
         String countryName
     ) {
         double value = sectorWorkers(server, countryName, WorkforceSector.TRADE_LOGISTICS)
-            / 100.0D * 1.25D;
+            / 100.0D * 0.90D;
         return Math.min(MAX_MARKET_EFFICIENCY_BONUS, Math.max(0.0D, value));
     }
 
@@ -142,8 +167,8 @@ public final class CountryWorkforceService {
         String countryName
     ) {
         double value = sectorWorkers(server, countryName, WorkforceSector.CONSTRUCTION_SERVICES)
-            / 100.0D * 0.35D;
-        return Math.min(25.0D, Math.max(0.0D, value));
+            / 100.0D * 0.30D;
+        return Math.min(MAX_CONSTRUCTION_EFFICIENCY_BONUS, Math.max(0.0D, value));
     }
 
     public static Result apply(ServerPlayer player, String rawValue, boolean operator) {
@@ -157,7 +182,7 @@ public final class CountryWorkforceService {
 
         String[] split = rawValue == null ? new String[0] : rawValue.split(":", 2);
         if (split.length != 2) {
-            return new Result(false, "Формат: workforce sector:delta.");
+            return new Result(false, "Формат: sector:delta.");
         }
 
         WorkforceSector sector = WorkforceSector.fromCommandName(split[0]);
