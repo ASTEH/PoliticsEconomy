@@ -27,7 +27,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * Internal population market.
@@ -279,7 +278,8 @@ public final class PopulationMarketService {
             return;
         }
 
-        Country country = PoliticsManager.get(server.overworld()).getCountry(countryName);
+        PoliticsManager politics = PoliticsManager.get(server.overworld());
+        Country country = politics == null ? null : politics.getCountry(countryName);
         if (country != null) {
             data.setCycleDemand(
                 countryName,
