@@ -59,7 +59,7 @@ side="CLIENT"
 [[dependencies.${mod_id}]]
 modId="xaeroworldmap"
 type="optional"
-versionRange="[1.40.2,)"
+versionRange="[1.44.2,)
 ordering="AFTER"
 side="CLIENT"
 
