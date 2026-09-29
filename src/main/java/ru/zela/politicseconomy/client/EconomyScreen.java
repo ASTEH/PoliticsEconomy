@@ -310,31 +310,63 @@ public final class EconomyScreen extends Screen {
             y += 29;
         }
 
-        int infoY = bottom - 62;
-        g.drawString(font, "РАЗВИТИЕ", left + 13, infoY, MUTED, true);
-        g.drawString(font, "Уровень " + snapshot.developmentLevel(), left + 13, infoY + 14, TEXT, false);
-        double progress = snapshot.developmentNextThreshold() <= 0 ? 1 :
-            snapshot.developmentPoints() / (double) snapshot.developmentNextThreshold();
-        progress(g, left + 13, infoY + 31, right - 13, infoY + 37, progress, ACCENT);
-        g.drawString(font,
-            format(snapshot.developmentPoints()) + " / " + format(snapshot.developmentNextThreshold()),
-            left + 13, infoY + 44, MUTED, false);
+        if (height >= 420) {
+            int infoY = bottom - 62;
+            g.drawString(font, "РАЗВИТИЕ", left + 13, infoY, MUTED, true);
+            g.drawString(font, "Уровень " + snapshot.developmentLevel(), left + 13, infoY + 14, TEXT, false);
+            double progress = snapshot.developmentNextThreshold() <= 0 ? 1 :
+                snapshot.developmentPoints() / (double) snapshot.developmentNextThreshold();
+            progress(g, left + 13, infoY + 31, right - 13, infoY + 37, progress, ACCENT);
+            g.drawString(font,
+                format(snapshot.developmentPoints()) + " / " + format(snapshot.developmentNextThreshold()),
+                left + 13, infoY + 44, MUTED, false);
+        }
     }
 
     private int drawOverview(GuiGraphics g, int y, int left, int right, int mouseX, int mouseY) {
         y = title(g, left, y, "ОБЩАЯ КАРТИНА", "Ключевые показатели государства");
 
         int gap = 8;
-        int w = (right - left - gap * 3) / 4;
-        metric(g, left, y, w, "КАЗНА", "$" + formatDouble(snapshot.treasury()), "Государственные деньги", "minecraft:emerald", GOLD);
-        metric(g, left + w + gap, y, w, "СОДЕРЖАНИЕ",
-            "-$" + formatDouble(snapshot.infrastructureCost()), "Инфраструктура / цикл", "minecraft:anvil", NEGATIVE);
-        metric(g, left + 2 * (w + gap), y, w, "НАСЕЛЕНИЕ",
-            format(snapshot.population()), "Жители страны", "minecraft:player_head", ACCENT);
-        metric(g, left + 3 * (w + gap), y, w, "ДОЛГ",
-            "$" + formatDouble(snapshot.moneyDebt()), "Денежная задолженность", "minecraft:redstone",
-            snapshot.moneyDebt() > 0 ? NEGATIVE : POSITIVE);
-        y += 86;
+        int overviewWidth = right - left;
+
+        if (overviewWidth < 760) {
+            int w = (overviewWidth - gap) / 2;
+
+            metric(g, left, y, w, "КАЗНА",
+                "$" + formatDouble(snapshot.treasury()),
+                "Государственные деньги", "minecraft:emerald", GOLD);
+
+            metric(g, left + w + gap, y, w, "СОДЕРЖАНИЕ",
+                "-$" + formatDouble(snapshot.infrastructureCost()),
+                "Инфраструктура / цикл", "minecraft:anvil", NEGATIVE);
+
+            metric(g, left, y + 84, w, "НАСЕЛЕНИЕ",
+                format(snapshot.population()),
+                "Жители страны", "minecraft:player_head", ACCENT);
+
+            metric(g, left + w + gap, y + 84, w, "ДОЛГ",
+                "$" + formatDouble(snapshot.moneyDebt()),
+                "Денежная задолженность", "minecraft:redstone",
+                snapshot.moneyDebt() > 0 ? NEGATIVE : POSITIVE);
+
+            y += 170;
+        } else {
+            int w = (overviewWidth - gap * 3) / 4;
+            metric(g, left, y, w, "КАЗНА",
+                "$" + formatDouble(snapshot.treasury()),
+                "Государственные деньги", "minecraft:emerald", GOLD);
+            metric(g, left + w + gap, y, w, "СОДЕРЖАНИЕ",
+                "-$" + formatDouble(snapshot.infrastructureCost()),
+                "Инфраструктура / цикл", "minecraft:anvil", NEGATIVE);
+            metric(g, left + 2 * (w + gap), y, w, "НАСЕЛЕНИЕ",
+                format(snapshot.population()),
+                "Жители страны", "minecraft:player_head", ACCENT);
+            metric(g, left + 3 * (w + gap), y, w, "ДОЛГ",
+                "$" + formatDouble(snapshot.moneyDebt()),
+                "Денежная задолженность", "minecraft:redstone",
+                snapshot.moneyDebt() > 0 ? NEGATIVE : POSITIVE);
+            y += 86;
+        }
 
         panel(g, left, y, right, y + 104);
         g.drawString(font, "ПОЛИТИЧЕСКИЙ ПРОФИЛЬ", left + 14, y + 12, TEXT, true);
@@ -351,7 +383,7 @@ public final class EconomyScreen extends Screen {
             snapshot.developmentLevel() >= 5
                 ? "Максимальный уровень"
                 : format(snapshot.developmentPoints()) + " / " + format(snapshot.developmentNextThreshold()) + " очков",
-            left + 14, y + 31, MUTED, false);
+            left + 38, y + 31, MUTED, false);
         String perk = clipToWidth(snapshot.developmentPerk(), Math.max(100, right - left - 290));
         g.drawString(font, perk, right - 14 - font.width(perk), y + 12, GOLD, false);
         double dev = snapshot.developmentNextThreshold() <= 0 ? 1 :
@@ -761,13 +793,16 @@ public final class EconomyScreen extends Screen {
         ItemStack terminalIcon = itemStack("minecraft:chest");
         if (!terminalIcon.isEmpty()) g.renderItem(terminalIcon, left + 10, y + 10);
         g.drawString(font, "ТОРГОВЫЙ ТЕРМИНАЛ", left + 38, y + 13, TEXT, true);
+        String terminalStatus = snapshot.tradeTerminalSet()
+            ? "Назначен • " + snapshot.tradeTerminalPosition()
+            : "Не назначен";
         g.drawString(font,
-            snapshot.tradeTerminalSet()
-                ? "Назначен • " + snapshot.tradeTerminalPosition()
-                : "Не назначен",
+            clipToWidth(terminalStatus, Math.max(120, right - 190 - (left + 38))),
             left + 38, y + 32,
             snapshot.tradeTerminalSet() ? POSITIVE : NEGATIVE, false);
-        g.drawString(font, "Используется для физического входа и выхода грузов.",
+        g.drawString(font,
+            clipToWidth("Используется для физического входа и выхода грузов.",
+                Math.max(120, right - 190 - (left + 38))),
             left + 38, y + 54, MUTED, false);
 
         drawButton(g, right - 160, y + 21, right - 14, y + 48,
