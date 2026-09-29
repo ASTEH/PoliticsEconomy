@@ -15,6 +15,8 @@ import ru.zela.politicseconomy.country.CountryPolicyProfile;
 import ru.zela.politicseconomy.country.CountryPopulationService;
 import ru.zela.politicseconomy.country.CountryPoliticalService;
 import ru.zela.politicseconomy.country.CountryPoliticalSavedData;
+import ru.zela.politicseconomy.country.CountryWorkforceService;
+import ru.zela.politicseconomy.country.WorkforceSector;
 import ru.zela.politicseconomy.economy.NationalMaterialDemandService;
 import ru.zela.politicseconomy.economy.NationalMaterialConsumptionService;
 import ru.zela.politicseconomy.economy.NationalMaterialLedgerSavedData;
@@ -81,6 +83,33 @@ public final class EconomyMenu {
         var religion = CountryPolicyManager.getReligion(player.getServer(), countryName);
         int population = CountryPopulationService.population(player.getServer(), countryName);
         double workforce = CountryPolicyBonusService.workforcePercent(player.getServer(), countryName);
+        int workingPopulation = CountryWorkforceService.workingPopulation(player.getServer(), countryName);
+        int employedPopulation = CountryWorkforceService.employedPopulation(player.getServer(), countryName);
+        int unemployedPopulation = CountryWorkforceService.unemployedPopulation(player.getServer(), countryName);
+        int workplaceCapacity = CountryWorkforceService.workplaceCapacity(player.getServer(), countryName);
+
+        int[] workplaceCounts = new int[WorkforceSector.values().length];
+        int[] workplaceSlots = new int[WorkforceSector.values().length];
+        int[] sectorWorkers = new int[WorkforceSector.values().length];
+        int[] sectorAllocation = new int[WorkforceSector.values().length];
+        double[] sectorBonuses = new double[WorkforceSector.values().length];
+
+        var workplaceSnapshot = ru.zela.politicseconomy.country.CountryWorkplaceService.snapshot(
+            player.getServer(), countryName
+        );
+        var allocation = CountryWorkforceService.allocation(player.getServer(), countryName);
+        for (int i = 0; i < WorkforceSector.values().length; i++) {
+            WorkforceSector sector = WorkforceSector.values()[i];
+            workplaceCounts[i] = workplaceSnapshot.workplaceCounts().getOrDefault(sector, 0);
+            workplaceSlots[i] = workplaceSnapshot.workplaceSlots().getOrDefault(sector, 0);
+            sectorWorkers[i] = CountryWorkforceService.sectorWorkers(
+                player.getServer(), countryName, sector
+            );
+            sectorAllocation[i] = allocation.getOrDefault(sector, 0);
+            sectorBonuses[i] = CountryWorkforceService.sectorBonusPercent(
+                player.getServer(), countryName, sector
+            );
+        }
         String policySummary = CountryPolicyBonusService.summary(player.getServer(), countryName);
         CountryPolicyProfile policy = CountryPolicyBonusService.profile(player.getServer(), countryName);
         CountryPoliticalService.initialize(player.getServer(), countryName);
@@ -112,7 +141,18 @@ public final class EconomyMenu {
         addModifier(modifierNames, modifierValues, "Рост населения", profile == null ? 0 : profile.populationGrowth());
         addModifier(modifierNames, modifierValues, "Стоимость сложной промышленности", profile == null ? 0 : profile.advancedIndustryCost());
         addModifier(modifierNames, modifierValues, "Рабочая сила", workforce);
-        return new EconomySnapshotPayload(countryName, selectedDirection == null ? "Не выбрано" : selectedDirection.displayName(), government == null ? "Не выбрано" : government.displayName(), religion == null ? "Не выбрано" : religion.displayName(), population, workforce, policySummary, unrest, demand, supportSummary, country.balance, infrastructureCost, moneyDebt, dieselModifier, totalMaterialPerCycle, materialIds, materialNames, materialStockpile, materialDebt, materialPerCycle, modifierNames.toArray(String[]::new), modifierValues.stream().mapToDouble(Double::doubleValue).toArray(), cityNames, cityCountries, cityMayors, cityTreasuries, cityIncome, cityInfrastructure, cityPopulation, cityTaxBlocks, cityCapitals, cityMine, developmentLevel, developmentPoints, developmentNextThreshold, developmentPerk, developmentNextPerk);
+        addModifier(modifierNames, modifierValues, "Рабочие места заняты", employedPopulation <= 0
+            ? 0.0D
+            : employedPopulation * 100.0D / Math.max(1, workingPopulation));
+        addModifier(modifierNames, modifierValues, "Промышленность от рабочих",
+            CountryWorkforceService.sectorBonusPercent(player.getServer(), countryName, WorkforceSector.INDUSTRY));
+        addModifier(modifierNames, modifierValues, "Добыча от рабочих",
+            CountryWorkforceService.sectorBonusPercent(player.getServer(), countryName, WorkforceSector.EXTRACTION));
+        addModifier(modifierNames, modifierValues, "Сельское хозяйство от рабочих",
+            CountryWorkforceService.sectorBonusPercent(player.getServer(), countryName, WorkforceSector.AGRICULTURE));
+        addModifier(modifierNames, modifierValues, "Военная промышленность от рабочих",
+            CountryWorkforceService.sectorBonusPercent(player.getServer(), countryName, WorkforceSector.MILITARY));
+        return new EconomySnapshotPayload(countryName, selectedDirection == null ? "Не выбрано" : selectedDirection.displayName(), government == null ? "Не выбрано" : government.displayName(), religion == null ? "Не выбрано" : religion.displayName(), population, workforce, workingPopulation, employedPopulation, unemployedPopulation, workplaceCapacity, workplaceCounts, workplaceSlots, sectorWorkers, sectorAllocation, sectorBonuses, policySummary, unrest, demand, supportSummary, country.balance, infrastructureCost, moneyDebt, dieselModifier, totalMaterialPerCycle, materialIds, materialNames, materialStockpile, materialDebt, materialPerCycle, modifierNames.toArray(String[]::new), modifierValues.stream().mapToDouble(Double::doubleValue).toArray(), cityNames, cityCountries, cityMayors, cityTreasuries, cityIncome, cityInfrastructure, cityPopulation, cityTaxBlocks, cityCapitals, cityMine, developmentLevel, developmentPoints, developmentNextThreshold, developmentPerk, developmentNextPerk);
     }
 
     private static void addModifier(java.util.List<String> names, java.util.List<Double> values, String name, double value) { names.add(name); values.add(value); }
