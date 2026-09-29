@@ -423,14 +423,12 @@ public final class EconomyFragment extends Fragment {
 
     private String reformCostText(String action, boolean firstChoice) {
         if (firstChoice) return "ПЕРВЫЙ ВЫБОР • БЕСПЛАТНО";
-        return CountryReformCostTable
-            .cost(
-                action,
-                false,
-                snapshot.population(),
-                snapshot.developmentLevel()
-            )
-            .summary();
+        return CountryReformCostTable.summary(
+            action,
+            false,
+            snapshot.population(),
+            snapshot.developmentLevel()
+        );
     }
 
     private void showConfirmation(
