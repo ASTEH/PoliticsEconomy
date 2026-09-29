@@ -23,6 +23,8 @@ public final class MillenaireMilitaryDebugCommands {
                 .then(Commands.literal("millenaire")
                     .then(Commands.literal("debug")
                         .requires(source -> source.hasPermission(2))
+                        .then(Commands.literal("id")
+                            .executes(context -> showId(context.getSource())))
                         .then(Commands.literal("neighbors")
                             .executes(context -> showNeighbors(context.getSource())))
                         .then(Commands.literal("link")
@@ -36,6 +38,38 @@ public final class MillenaireMilitaryDebugCommands {
                     )
                 )
         );
+    }
+
+    private static int showId(CommandSourceStack source) {
+        try {
+            ServerPlayer player = source.getPlayerOrException();
+            MillenaireIntegration.VillageSnapshot current = currentVillage(player);
+            if (current == null) {
+                source.sendFailure(Component.literal(
+                    "Ты должен находиться на территории поселения Millénaire."
+                ));
+                return 0;
+            }
+
+            String id = current.villageId().toString();
+            Component copy = Component.literal("§e[СКОПИРОВАТЬ ID]")
+                .withStyle(style -> style.withClickEvent(
+                    new net.minecraft.network.chat.ClickEvent(
+                        net.minecraft.network.chat.ClickEvent.Action.COPY_TO_CLIPBOARD,
+                        id
+                    )
+                ));
+            source.sendSuccess(() -> Component.literal(
+                "§6Поселение: §f" + current.name()
+            ), false);
+            source.sendSuccess(() -> Component.literal(
+                "§7Village ID: §f" + id + " §8→ "
+            ).append(copy), false);
+            return 1;
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("Команда доступна только игроку."));
+            return 0;
+        }
     }
 
     private static int showNeighbors(CommandSourceStack source) {
