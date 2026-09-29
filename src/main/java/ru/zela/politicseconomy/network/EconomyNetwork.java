@@ -12,6 +12,7 @@ import ru.zela.politicseconomy.country.CountryWorkforceService;
 import ru.zela.politicseconomy.economyui.EconomyMenu;
 import ru.zela.politicseconomy.integration.PoliticsModIntegration;
 import ru.zela.politicseconomy.trade.TradeService;
+import ru.zela.politicseconomy.network.PoliticalClaimsPayload;
 
 public final class EconomyNetwork {
     private EconomyNetwork() {}
@@ -23,6 +24,11 @@ public final class EconomyNetwork {
     private static void registerPayloads(RegisterPayloadHandlersEvent event) {
         PayloadRegistrar registrar = event.registrar("1");
         registrar.playToClient(EconomySnapshotPayload.TYPE, EconomySnapshotPayload.STREAM_CODEC, EconomyNetwork::handleClient);
+        registrar.playToClient(
+            PoliticalClaimsPayload.TYPE,
+            PoliticalClaimsPayload.STREAM_CODEC,
+            (payload, context) -> context.enqueueWork(() -> handlePoliticalClaimsClient(payload))
+        );
         registrar.playToServer(CountrySettingsActionPayload.TYPE, CountrySettingsActionPayload.STREAM_CODEC,
             (payload, context) -> context.enqueueWork(() -> {
                 if (!(context.player() instanceof ServerPlayer player)) return;
@@ -145,6 +151,18 @@ public final class EconomyNetwork {
             if (country != null) {
                 send(online, EconomyMenu.buildSnapshot(online, country));
             }
+        }
+    }
+
+    private static void handlePoliticalClaimsClient(PoliticalClaimsPayload payload) {
+        if (FMLEnvironment.dist != Dist.CLIENT) return;
+        try {
+            Class<?> stateClass = Class.forName(
+                "ru.zela.politicseconomy.client.PoliticalClaimsClientState"
+            );
+            stateClass.getMethod("apply", PoliticalClaimsPayload.class).invoke(null, payload);
+        } catch (ReflectiveOperationException exception) {
+            throw new RuntimeException("Failed to apply Politics Economy map claims", exception);
         }
     }
 
