@@ -824,9 +824,8 @@ public final class EconomyScreen extends Screen {
             int ownEnd = drawTradeOwnOrders(g, y, left, right, mouseX, mouseY);
             y = ownEnd + 10;
 
-            tradeOwnOrdersTop = y;
-            tradeOwnOrdersLeft = left;
-            tradeOwnOrdersRight = right;
+            // Open orders are a separate panel. Do not overwrite the anchor
+            // used by the "Price / Batch" inputs in My Orders.
             int openEnd = drawTradeOpenOrders(g, y, left, right, mouseX, mouseY);
             y = openEnd + 10;
         } else {
@@ -904,7 +903,7 @@ public final class EconomyScreen extends Screen {
     private int drawTradeOpenOrders(GuiGraphics g, int y, int left, int right, int mouseX, int mouseY) {
         int rowH = 84;
         int count = Math.max(1, snapshot.tradeOpenOrders().length);
-        int bottom = y + 52 + count * rowH;
+        int bottom = y + 56 + count * rowH;
         panel(g, left, y, right, bottom);
         g.drawString(font, "ДОСТУПНЫЕ ЗАКУПКИ", left + 14, y + 12, TEXT, true);
         g.drawString(font, "Можно стать поставщиком.", left + 14, y + 31, MUTED, false);
@@ -950,12 +949,12 @@ public final class EconomyScreen extends Screen {
     private int drawTradeShipments(GuiGraphics g, int y, int left, int right, int mouseX, int mouseY) {
         int rowH = 84;
         int count = Math.max(1, snapshot.tradeShipments().length);
-        int bottom = y + 52 + count * rowH;
+        int bottom = y + 56 + count * rowH;
         panel(g, left, y, right, bottom);
         g.drawString(font, "ЛОГИСТИКА", left + 14, y + 12, TEXT, true);
         g.drawString(font, "Логист получает оплату после физической доставки.",
             left + 14, y + 31, MUTED, false);
-        int rowY = y + 48;
+        int rowY = y + 56;
 
         if (snapshot.tradeShipments().length == 0) {
             g.drawString(font, "Активных грузов нет.", left + 14, rowY + 10, MUTED, false);
