@@ -195,7 +195,7 @@ public final class MillenaireMilitaryDebugCommands {
     ) {
         for (MillenaireIntegration.VillageSnapshot state :
             MillenaireIntegration.snapshots(player.server)) {
-            if (state.villageId().equalsIgnoreCase(id)
+            if (state.villageId().toString().equalsIgnoreCase(id)
                 || state.stateKey().equalsIgnoreCase(id)
                 || state.name().equalsIgnoreCase(id)) {
                 return state;
