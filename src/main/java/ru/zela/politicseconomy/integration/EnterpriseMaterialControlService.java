@@ -1,6 +1,5 @@
 package ru.zela.politicseconomy.integration;
 
-import net.krona.politicsmod.PoliticsManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -131,13 +130,7 @@ public final class EnterpriseMaterialControlService {
     }
 
     private static String countryName(ServerLevel level, BlockPos machinePos) {
-        PoliticsManager politics = PoliticsManager.get(level);
-        if (politics == null) {
-            return null;
-        }
-
-        var owner = CountryContext.machineCountry(level, machinePos);
-        return owner == null ? null : owner.getName();
+        return CountryContext.machineStateName(level, machinePos);
     }
 
     private static EnterpriseMaterialLedgerSavedData ledger(MinecraftServer server) {
