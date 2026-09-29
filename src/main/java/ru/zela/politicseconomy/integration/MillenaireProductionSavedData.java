@@ -48,4 +48,13 @@ public final class MillenaireProductionSavedData extends SavedData {
             setDirty();
         }
     }
+
+    @Override
+    public CompoundTag save(
+        CompoundTag tag,
+        HolderLookup.Provider registries
+    ) {
+        tag.putLong(LAST_CYCLE, lastCycle);
+        return tag;
+    }
 }
