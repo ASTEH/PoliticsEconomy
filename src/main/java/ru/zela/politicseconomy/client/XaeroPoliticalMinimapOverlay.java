@@ -58,7 +58,8 @@ public final class XaeroPoliticalMinimapOverlay {
             player.chunkPosition().x,
             player.chunkPosition().z,
             currentOwner,
-            layout.pixelsPerBlock
+            layout.pixelsPerBlock,
+            layout.size / 2
         );
 
         graphics.pose().popPose();
@@ -70,9 +71,10 @@ public final class XaeroPoliticalMinimapOverlay {
         int centerChunkX,
         int centerChunkZ,
         String currentOwner,
-        double pixelsPerBlock
+        double pixelsPerBlock,
+        int minimapHalfSize
     ) {
-        int minimapHalfSize = DEFAULT_SIZE / 2;
+        minimapHalfSize = Math.max(32, minimapHalfSize);
         int cell = Math.max(2, (int) Math.round(16.0D * pixelsPerBlock));
         int radius = Math.max(2, (int) Math.ceil(minimapHalfSize / (double) cell) + 1);
         radius = Math.min(radius, 8);
