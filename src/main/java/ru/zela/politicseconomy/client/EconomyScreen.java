@@ -156,7 +156,7 @@ public final class EconomyScreen extends UiScreen {
     @Override
     protected void init() {
         super.init();
-        uiRuntime().theme(Theme.dark());
+        uiRuntime().theme(Theme.highContrast());
     }
 
     @Override
