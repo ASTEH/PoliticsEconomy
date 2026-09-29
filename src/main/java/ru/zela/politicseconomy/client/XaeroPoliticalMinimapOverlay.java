@@ -222,8 +222,8 @@ public final class XaeroPoliticalMinimapOverlay {
             worldX2, worldZ2, renderX, renderZ, ps, pc, zoom
         );
 
-        double radiusX = Math.max(1.0D, specW);
-        double radiusZ = Math.max(1.0D, specH);
+        double radiusX = Math.max(1.0D, halfW);
+        double radiusZ = Math.max(1.0D, halfH);
 
         if (circle) {
             double radius = Math.min(radiusX, radiusZ);
