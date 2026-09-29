@@ -28,7 +28,9 @@ public final class EconomyScreen extends Screen {
         EFFECTS("Эффекты", "minecraft:redstone"),
         CITIES("Города", "minecraft:bricks"),
         MARKET("Рынок", "minecraft:emerald"),
-        TRADE("Торговля", "minecraft:chest");
+        TRADE("Торговля", "minecraft:chest"),
+        TRADE_HISTORY("История заказов", "minecraft:written_book"),
+        DEBTS("Долги", "minecraft:iron_block");
 
         final String title;
         final String iconId;
@@ -53,6 +55,9 @@ public final class EconomyScreen extends Screen {
     private EditBox tradeMaxPrice;
     private EditBox tradeAcceptPrice;
     private EditBox tradeDispatchAmount;
+    private EditBox tradeHistorySearch;
+    private EditBox tradeCancelReason;
+    private Integer cancelOrderId;
     private String selectedTradeItemId = "minecraft:iron_ingot";
     private List<TradeItemOption> tradeItemOptions = List.of();
 
@@ -61,6 +66,7 @@ public final class EconomyScreen extends Screen {
     private int tradeOwnOrdersTop;
     private int tradeOwnOrdersLeft;
     private int tradeOwnOrdersRight;
+    private int tradeHistoryTop;
 
     private static final int BG = 0xFF0D1117;
     private static final int PANEL = 0xFF151B23;
@@ -95,6 +101,8 @@ public final class EconomyScreen extends Screen {
         tradeMaxPrice = new EditBox(font, 0, 0, 88, 20, Component.literal("Цена"));
         tradeAcceptPrice = new EditBox(font, 0, 0, 72, 20, Component.literal("Цена"));
         tradeDispatchAmount = new EditBox(font, 0, 0, 72, 20, Component.literal("Партия"));
+        tradeHistorySearch = new EditBox(font, 0, 0, 220, 20, Component.literal("Поиск"));
+        tradeCancelReason = new EditBox(font, 0, 0, 440, 20, Component.literal("Причина отмены"));
 
         buildTradeItemOptions();
         tradeItem.setValue(tradeItemDisplayName(selectedTradeItemId));
@@ -102,9 +110,12 @@ public final class EconomyScreen extends Screen {
         tradeMaxPrice.setValue("20");
         tradeAcceptPrice.setValue("15");
         tradeDispatchAmount.setValue("64");
+        tradeHistorySearch.setValue("");
+        tradeCancelReason.setValue("");
 
         for (EditBox box : List.of(
-            tradeItem, tradeAmount, tradeMaxPrice, tradeAcceptPrice, tradeDispatchAmount
+            tradeItem, tradeAmount, tradeMaxPrice, tradeAcceptPrice, tradeDispatchAmount,
+            tradeHistorySearch, tradeCancelReason
         )) {
             box.setTextColor(TEXT);
             box.setTextColorUneditable(MUTED);
@@ -124,6 +135,8 @@ public final class EconomyScreen extends Screen {
         String max = tradeMaxPrice == null ? "20" : tradeMaxPrice.getValue();
         String accept = tradeAcceptPrice == null ? "15" : tradeAcceptPrice.getValue();
         String dispatch = tradeDispatchAmount == null ? "64" : tradeDispatchAmount.getValue();
+        String historySearch = tradeHistorySearch == null ? "" : tradeHistorySearch.getValue();
+        String cancelReason = tradeCancelReason == null ? "" : tradeCancelReason.getValue();
 
         super.resize(minecraft, width, height);
 
@@ -133,6 +146,8 @@ public final class EconomyScreen extends Screen {
             tradeMaxPrice.setValue(max);
             tradeAcceptPrice.setValue(accept);
             tradeDispatchAmount.setValue(dispatch);
+            tradeHistorySearch.setValue(historySearch);
+            tradeCancelReason.setValue(cancelReason);
             layoutTradeInputs();
             updateTradeInputVisibility();
         }
@@ -185,19 +200,22 @@ public final class EconomyScreen extends Screen {
     }
 
     private void updateTradeInputVisibility() {
-        boolean visible = page == Page.TRADE && modalAction == null;
         if (tradeItem == null) return;
 
-        // Keep widgets disabled outside the content viewport so their vanilla
-        // hitboxes cannot remain active when their visual rows are scrolled away.
         int top = contentTop();
         int bottom = height - 12;
+        boolean tradeVisible = page == Page.TRADE && modalAction == null;
+        boolean historyVisible = page == Page.TRADE_HISTORY && modalAction == null;
+        boolean cancelVisible = "trade_cancel".equals(modalAction);
 
-        tradeItem.visible = visible && inViewport(tradeItem.getY(), tradeItem.getHeight(), top, bottom);
-        tradeAmount.visible = visible && inViewport(tradeAmount.getY(), tradeAmount.getHeight(), top, bottom);
-        tradeMaxPrice.visible = visible && inViewport(tradeMaxPrice.getY(), tradeMaxPrice.getHeight(), top, bottom);
-        tradeAcceptPrice.visible = visible && inViewport(tradeAcceptPrice.getY(), tradeAcceptPrice.getHeight(), top, bottom);
-        tradeDispatchAmount.visible = visible && inViewport(tradeDispatchAmount.getY(), tradeDispatchAmount.getHeight(), top, bottom);
+        tradeItem.visible = tradeVisible && inViewport(tradeItem.getY(), tradeItem.getHeight(), top, bottom);
+        tradeAmount.visible = tradeVisible && inViewport(tradeAmount.getY(), tradeAmount.getHeight(), top, bottom);
+        tradeMaxPrice.visible = tradeVisible && inViewport(tradeMaxPrice.getY(), tradeMaxPrice.getHeight(), top, bottom);
+        tradeAcceptPrice.visible = tradeVisible && inViewport(tradeAcceptPrice.getY(), tradeAcceptPrice.getHeight(), top, bottom);
+        tradeDispatchAmount.visible = tradeVisible && inViewport(tradeDispatchAmount.getY(), tradeDispatchAmount.getHeight(), top, bottom);
+
+        tradeHistorySearch.visible = historyVisible && inViewport(tradeHistorySearch.getY(), tradeHistorySearch.getHeight(), top, bottom);
+        tradeCancelReason.visible = cancelVisible;
     }
 
     private static boolean inViewport(int y, int h, int top, int bottom) {
@@ -230,6 +248,8 @@ public final class EconomyScreen extends Screen {
             case CITIES -> end = drawCities(graphics, end, left, right);
             case MARKET -> end = drawMarket(graphics, end, left, right, mouseX, mouseY);
             case TRADE -> end = drawTrade(graphics, end, left, right, mouseX, mouseY);
+            case TRADE_HISTORY -> end = drawTradeHistory(graphics, end, left, right, mouseX, mouseY);
+            case DEBTS -> end = drawDebts(graphics, end, left, right, mouseX, mouseY);
         }
         if (page == Page.TRADE && modalAction == null) {
             layoutTradeInputs();
@@ -240,6 +260,11 @@ public final class EconomyScreen extends Screen {
             tradeAcceptPrice.render(graphics, mouseX, mouseY, partialTick);
             tradeDispatchAmount.render(graphics, mouseX, mouseY, partialTick);
             drawTradeItemDropdown(graphics, mouseX, mouseY);
+        }
+
+        if (page == Page.TRADE_HISTORY && modalAction == null) {
+            layoutHistorySearch();
+            tradeHistorySearch.render(graphics, mouseX, mouseY, partialTick);
         }
 
         graphics.disableScissor();
@@ -253,6 +278,9 @@ public final class EconomyScreen extends Screen {
 
         if (modalAction != null) {
             drawModal(graphics, mouseX, mouseY);
+            if ("trade_cancel".equals(modalAction)) {
+                tradeCancelReason.render(graphics, mouseX, mouseY, partialTick);
+            }
         }
     }
 
@@ -391,12 +419,28 @@ public final class EconomyScreen extends Screen {
         progress(g, left + 14, y + 54, right - 14, y + 62, dev, ACCENT);
         y += 98;
 
-        int half = (right - left - gap) / 2;
-        int workBottom = y + 52 + WorkforceSector.values().length * 38 + 12;
-        int matBottom = y + 52 + materialCount() * 38 + 12;
+        int overviewWidth = right - left;
 
-        panel(g, left, y, left + half, workBottom);
-        panel(g, left + half + gap, y, right, matBottom);
+        if (overviewWidth < 760) {
+            int fullBottom = drawWorkforcePanel(g, y, left, right, mouseX, mouseY);
+            y = fullBottom + 10;
+            int warehouseBottom = drawWarehousePanel(g, y, left, right, mouseX, mouseY);
+            return warehouseBottom + 10;
+        }
+
+        int half = (right - left - gap) / 2;
+        int workBottom = drawWorkforcePanel(g, y, left, left + half, mouseX, mouseY);
+        int matBottom = drawWarehousePanel(g, y, left + half + gap, right, mouseX, mouseY);
+        return Math.max(workBottom, matBottom) + 10;
+    }
+
+    private int drawWorkforcePanel(GuiGraphics g, int y, int left, int right, int mouseX, int mouseY) {
+        WorkforceSector[] sectors = WorkforceSector.values();
+        int headerH = 62;
+        int rowH = 34;
+        int bottom = y + headerH + sectors.length * rowH + 8;
+
+        panel(g, left, y, right, bottom);
 
         g.drawString(font, "РАБОЧАЯ СИЛА", left + 14, y + 12, TEXT, true);
         g.drawString(font,
@@ -405,52 +449,97 @@ public final class EconomyScreen extends Screen {
                 format(snapshot.unemployedPopulation()) + " без места",
             left + 14, y + 31, MUTED, false);
 
-        int wy = y + 52;
-        WorkforceSector[] sectors = WorkforceSector.values();
-        for (int i = 0; i < sectors.length; i++) {
-            String line = sectors[i].displayName() + "  " +
-                valueAt(snapshot.sectorAllocation(), i) + "%  " +
-                format(valueAt(snapshot.sectorWorkers(), i)) + "/" +
-                format(valueAt(snapshot.workplaceSlots(), i)) + "  " +
-                signed(valueAt(snapshot.sectorBonuses(), i));
-            int textRight = left + half - 92;
-            line = clipToWidth(line, Math.max(80, textRight - (left + 34)));
+        int iconX = left + 12;
+        int nameX = left + 34;
+        int workersRight = right - 126;
+        int percentRight = right - 83;
+        int bonusRight = right - 58;
 
-            ItemStack sectorIcon = itemStack(sectors[i].iconItemId());
-            if (!sectorIcon.isEmpty()) g.renderItem(sectorIcon, left + 12, wy - 7);
-            g.drawString(font, line, left + 34, wy, TEXT, false);
-            final WorkforceSector sector = sectors[i];
-            miniButton(g, left + half - 61, wy - 5, "-", mouseX, mouseY, () -> changeWorkforce(sector, -5));
-            miniButton(g, left + half - 33, wy - 5, "+", mouseX, mouseY, () -> changeWorkforce(sector, 5));
-            wy += 38;
+        g.drawString(font, "РАБОТНИКИ", Math.max(nameX + 54, workersRight - 58), y + 49, MUTED, false);
+        g.drawString(font, "ДОЛЯ", workersRight + 1, y + 49, MUTED, false);
+        g.drawString(font, "БОНУС", percentRight + 1, y + 49, MUTED, false);
+
+        int rowY = y + headerH;
+        for (int i = 0; i < sectors.length; i++) {
+            WorkforceSector sector = sectors[i];
+            ItemStack icon = itemStack(sector.iconItemId());
+            if (!icon.isEmpty()) g.renderItem(icon, iconX, rowY + 7);
+
+            g.drawString(font,
+                clipToWidth(sector.displayName(), Math.max(60, workersRight - nameX - 4)),
+                nameX, rowY + 10, TEXT, false);
+
+            String workers = format(valueAt(snapshot.sectorWorkers(), i));
+            g.drawString(font, workers,
+                workersRight - font.width(workers), rowY + 10, TEXT, true);
+
+            String share = valueAt(snapshot.sectorAllocation(), i) + "%";
+            g.drawString(font, share,
+                right - 86 - font.width(share), rowY + 10, ACCENT, true);
+
+            String bonus = signed(valueAt(snapshot.sectorBonuses(), i));
+            g.drawString(font, bonus,
+                right - 61 - font.width(bonus), rowY + 10,
+                valueAt(snapshot.sectorBonuses(), i) >= 0 ? POSITIVE : NEGATIVE, true);
+
+            final WorkforceSector targetSector = sector;
+            miniButton(g, right - 36, rowY + 6, "-", mouseX, mouseY,
+                () -> changeWorkforce(targetSector, -5));
+            miniButton(g, right - 10, rowY + 6, "+", mouseX, mouseY,
+                () -> changeWorkforce(targetSector, 5));
+
+            rowY += rowH;
         }
 
-        g.drawString(font, "ГОСУДАРСТВЕННЫЙ СКЛАД", left + half + gap + 14, y + 12, TEXT, true);
-        g.drawString(font, "Запасы и ресурсные обязательства",
-            left + half + gap + 14, y + 31, MUTED, false);
+        return bottom;
+    }
 
-        int sy = y + 52;
+    private int drawWarehousePanel(GuiGraphics g, int y, int left, int right, int mouseX, int mouseY) {
+        int rows = Math.max(1, materialCount());
+        int rowH = 38;
+        int bottom = y + 66 + rows * rowH + 8;
+
+        panel(g, left, y, right, bottom);
+
+        ItemStack warehouseIcon = itemStack("minecraft:chest");
+        if (!warehouseIcon.isEmpty()) g.renderItem(warehouseIcon, left + 10, y + 9);
+        g.drawString(font, "ГОСУДАРСТВЕННЫЙ СКЛАД", left + 38, y + 12, TEXT, true);
+        g.drawString(font, "Запасы и ресурсные обязательства", left + 14, y + 31, MUTED, false);
+
+        drawButton(g, right - 130, y + 10, right - 14, y + 35,
+            "ПОПОЛНИТЬ ИЗ ИНВ.",
+            ACCENT_DARK, ACCENT, mouseX, mouseY,
+            () -> EconomyNetwork.sendAction("warehouse_deposit_all", ""));
+
+        int rowY = y + 60;
         for (int i = 0; i < materialCount(); i++) {
-            int baseX = left + half + gap + 14;
-            String name = clip(valueAt(snapshot.materialNames(), i), 18);
+            int baseX = left + 14;
+            String name = clipToWidth(
+                valueAt(snapshot.materialNames(), i),
+                Math.max(70, right - baseX - 190)
+            );
+            int stock = valueAt(snapshot.materialStockpile(), i);
             int debt = valueAt(snapshot.materialDebt(), i);
-            ItemStack materialIcon = materialIconStack(valueAt(snapshot.materialIds(), i));
-            if (!materialIcon.isEmpty()) g.renderItem(materialIcon, baseX, sy - 8);
+            ItemStack icon = materialIconStack(valueAt(snapshot.materialIds(), i));
+            if (!icon.isEmpty()) g.renderItem(icon, baseX, rowY - 7);
 
-            g.drawString(font, name, baseX + 24, sy, TEXT, false);
-            g.drawString(font,
-                valueAt(snapshot.materialStockpile(), i) + "  •  " +
-                    String.format(Locale.ROOT, "%.2f/c", valueAt(snapshot.materialPerCycle(), i)) +
-                    (debt > 0 ? "  • долг " + debt : ""),
-                baseX + 24, sy + 14, debt > 0 ? NEGATIVE : MUTED, false);
-            sy += 38;
+            g.drawString(font, name, baseX + 24, rowY, TEXT, false);
+
+            String status = stock + " шт. • " +
+                String.format(Locale.ROOT, "%.2f/c", valueAt(snapshot.materialPerCycle(), i)) +
+                (debt > 0 ? " • долг " + debt : "");
+            status = clipToWidth(status, Math.max(80, right - baseX - 150));
+            g.drawString(font, status, baseX + 24, rowY + 14,
+                debt > 0 ? NEGATIVE : MUTED, false);
+
+            rowY += rowH;
         }
 
         if (materialCount() == 0) {
-            g.drawString(font, "Склад пока пуст.", left + half + gap + 14, sy, MUTED, false);
+            g.drawString(font, "Склад пока пуст.", left + 14, rowY, MUTED, false);
         }
 
-        return Math.max(workBottom, matBottom) + 10;
+        return bottom;
     }
 
     private int drawCountry(GuiGraphics g, int y, int left, int right, int mouseX, int mouseY) {
@@ -539,6 +628,16 @@ public final class EconomyScreen extends Screen {
         modalCommand = command;
         modalTitle = title;
         updateTradeInputVisibility();
+    }
+
+    private void openCancelDialog(int orderId) {
+        cancelOrderId = orderId;
+        modalAction = "trade_cancel";
+        modalCommand = null;
+        modalTitle = "Отменить заказ #" + orderId;
+        tradeCancelReason.setValue("");
+        updateTradeInputVisibility();
+        tradeCancelReason.setFocused(true);
     }
 
     private int drawEffects(GuiGraphics g, int y, int left, int right) {
@@ -927,7 +1026,7 @@ public final class EconomyScreen extends Screen {
             drawButton(g, right - 100, rowY + 36, right - 14, rowY + 59,
                 "ОТМЕНИТЬ", canCancel ? NEGATIVE_DARK : PANEL_3,
                 canCancel ? NEGATIVE : MUTED, mouseX, mouseY,
-                canCancel ? () -> sendTrade("trade_order_cancel", String.valueOf(row.id())) : null);
+                canCancel ? () -> openCancelDialog(row.id()) : null);
 
             rowY += rowH;
         }
@@ -1039,55 +1138,217 @@ public final class EconomyScreen extends Screen {
         return bottom;
     }
 
+    private int drawTradeHistory(GuiGraphics g, int y, int left, int right, int mouseX, int mouseY) {
+        y = title(g, left, y, "ИСТОРИЯ ЗАКАЗОВ", "Завершённые и отменённые контракты государства");
+
+        tradeHistoryTop = y;
+        layoutHistorySearch();
+        g.drawString(font, "Поиск по ID, предмету, стране или продавцу", left + 238, y + 6, MUTED, false);
+        y += 38;
+
+        String query = tradeHistorySearch.getValue().trim().toLowerCase(Locale.ROOT);
+        int shown = 0;
+
+        for (String raw : snapshot.tradeHistory()) {
+            TradeHistoryRow row = parseTradeHistory(raw);
+            if (row == null) continue;
+
+            String haystack = (row.id() + " " + row.itemId() + " " + row.itemName() + " " +
+                row.buyer() + " " + row.seller() + " " + row.reason()).toLowerCase(Locale.ROOT);
+            if (!query.isEmpty() && !haystack.contains(query)) continue;
+
+            int bottom = y + 110;
+            panel(g, left, y, right, bottom);
+
+            ItemStack icon = itemStack(row.itemId());
+            if (!icon.isEmpty()) g.renderItem(icon, left + 12, y + 13);
+
+            g.drawString(font,
+                "#" + row.id() + " • " + clipToWidth(row.itemName(), 220),
+                left + 40, y + 11, TEXT, true);
+
+            int infoLeft = left + 40;
+            g.drawString(font,
+                "Заказал: " + clipToWidth(row.buyer(), 190),
+                infoLeft, y + 31, MUTED, false);
+            g.drawString(font,
+                "Выполнял: " + clipToWidth(row.seller(), 190),
+                infoLeft, y + 49, MUTED, false);
+            g.drawString(font,
+                "Количество: " + format(row.quantity()) + " • максимум $" + row.maxPrice() + "/шт",
+                infoLeft, y + 67, MUTED, false);
+
+            int statusColor = "CANCELLED".equals(row.status()) ? NEGATIVE : POSITIVE;
+            String status = tradeStatus(row.status());
+            g.drawString(font, "Статус: " + status,
+                right - 190, y + 12, statusColor, true);
+
+            if ("CANCELLED".equals(row.status())) {
+                g.drawString(font, "Причина:",
+                    right - 190, y + 34, MUTED, false);
+                g.drawString(font,
+                    clipToWidth(row.reason().isBlank() ? "не указана" : row.reason(), 176),
+                    right - 190, y + 49, NEGATIVE, false);
+            } else {
+                g.drawString(font, "Причина отмены:", right - 190, y + 34, MUTED, false);
+                g.drawString(font, "— заказ выполнен", right - 190, y + 49, POSITIVE, false);
+            }
+
+            y = bottom + 8;
+            shown++;
+        }
+
+        if (shown == 0) {
+            panel(g, left, y, right, y + 64);
+            g.drawString(font,
+                query.isBlank() ? "История заказов пока пуста." : "По этому запросу ничего не найдено.",
+                left + 14, y + 24, MUTED, false);
+            y += 72;
+        }
+
+        return y + 4;
+    }
+
+    private int drawDebts(GuiGraphics g, int y, int left, int right, int mouseX, int mouseY) {
+        y = title(g, left, y, "ДОЛГИ", "Обязательства государства перед экономической системой");
+
+        int moneyBottom = y + 92;
+        panel(g, left, y, right, moneyBottom);
+        ItemStack moneyIcon = itemStack("minecraft:emerald");
+        if (!moneyIcon.isEmpty()) g.renderItem(moneyIcon, left + 12, y + 11);
+        g.drawString(font, "ДЕНЕЖНЫЙ ДОЛГ", left + 40, y + 12, TEXT, true);
+        g.drawString(font, "$" + formatDouble(snapshot.moneyDebt()),
+            left + 40, y + 34,
+            snapshot.moneyDebt() > 0 ? NEGATIVE : POSITIVE, true);
+        g.drawString(font,
+            snapshot.moneyDebt() > 0
+                ? "Денежная задолженность требует покрытия."
+                : "Денежных долгов нет.",
+            left + 40, y + 54, MUTED, false);
+        y = moneyBottom + 10;
+
+        int debtRows = Math.max(1, materialDebtCount());
+        int bottom = y + 60 + debtRows * 48 + 8;
+        panel(g, left, y, right, bottom);
+        ItemStack debtIcon = itemStack("minecraft:iron_ingot");
+        if (!debtIcon.isEmpty()) g.renderItem(debtIcon, left + 12, y + 11);
+        g.drawString(font, "МАТЕРИАЛЬНЫЕ ДОЛГИ", left + 40, y + 12, TEXT, true);
+        g.drawString(font, "Эти предметы нужны для содержания инфраструктуры.",
+            left + 14, y + 31, MUTED, false);
+
+        int rowY = y + 58;
+        int found = 0;
+        for (int i = 0; i < materialCount(); i++) {
+            int debt = valueAt(snapshot.materialDebt(), i);
+            if (debt <= 0) continue;
+
+            ItemStack icon = materialIconStack(valueAt(snapshot.materialIds(), i));
+            if (!icon.isEmpty()) g.renderItem(icon, left + 12, rowY - 7);
+
+            g.drawString(font,
+                clipToWidth(valueAt(snapshot.materialNames(), i), Math.max(100, right - left - 150)),
+                left + 36, rowY, TEXT, false);
+            g.drawString(font, "Должно: " + debt,
+                right - 110, rowY, NEGATIVE, true);
+            rowY += 48;
+            found++;
+        }
+
+        if (found == 0) {
+            g.drawString(font, "Материальных долгов нет.", left + 14, rowY, POSITIVE, false);
+        }
+
+        return bottom + 10;
+    }
+
+    private void layoutHistorySearch() {
+        if (tradeHistorySearch == null) return;
+        tradeHistorySearch.setX(contentLeft());
+        tradeHistorySearch.setY(tradeHistoryTop);
+        tradeHistorySearch.setWidth(Math.min(220, Math.max(160, width - contentLeft() - 300)));
+    }
+
+    private int materialDebtCount() {
+        int count = 0;
+        for (int i = 0; i < materialCount(); i++) {
+            if (valueAt(snapshot.materialDebt(), i) > 0) count++;
+        }
+        return count;
+    }
+
     private void drawModal(GuiGraphics g, int mouseX, int mouseY) {
-        // The modal is a true top layer: background panels and text must not remain readable.
+        boolean cancelDialog = "trade_cancel".equals(modalAction);
         g.fill(0, 0, width, height, 0xFF000000);
 
-        int w = Math.min(520, width - 32);
-        int h = 172;
+        int w = Math.min(cancelDialog ? 600 : 520, width - 32);
+        int h = cancelDialog ? 238 : 172;
         int left = (width - w) / 2;
         int top = (height - h) / 2;
 
         panel(g, left, top, left + w, top + h);
-        ItemStack reformIcon = itemStack(
-            "direction".equals(modalAction) ? "minecraft:compass"
-                : "government".equals(modalAction) ? "minecraft:iron_sword"
-                : "minecraft:book"
-        );
-        if (!reformIcon.isEmpty()) g.renderItem(reformIcon, left + 14, top + 13);
-        g.drawString(font, "ПОДТВЕРЖДЕНИЕ РЕФОРМЫ", left + 44, top + 17, MUTED, true);
-        g.drawString(font, clip(modalTitle, 49), left + 44, top + 39, TEXT, true);
 
-        boolean first = switch (modalAction) {
-            case "direction" -> "Не выбрано".equals(snapshot.direction());
-            case "government" -> "Не выбрано".equals(snapshot.government());
-            default -> "Не выбрано".equals(snapshot.religion());
-        };
+        String iconId = cancelDialog ? "minecraft:barrier"
+            : "direction".equals(modalAction) ? "minecraft:compass"
+            : "government".equals(modalAction) ? "minecraft:iron_sword"
+            : "minecraft:book";
+
+        ItemStack dialogIcon = itemStack(iconId);
+        if (!dialogIcon.isEmpty()) g.renderItem(dialogIcon, left + 14, top + 13);
 
         g.drawString(font,
-            first
-                ? "Первый выбор данного параметра бесплатен."
-                : "Это полноценная реформа. Сервер проверит деньги и материалы.",
-            left + 18, top + 66, MUTED, false);
+            cancelDialog ? "ПОДТВЕРЖДЕНИЕ ОТМЕНЫ" : "ПОДТВЕРЖДЕНИЕ РЕФОРМЫ",
+            left + 44, top + 17, MUTED, true);
+        g.drawString(font, clip(modalTitle, cancelDialog ? 58 : 49),
+            left + 44, top + 39, TEXT, true);
 
-        String cost = first
-            ? "БЕСПЛАТНО"
-            : CountryReformCostTable.summary(
-                modalAction, false, snapshot.population(), snapshot.developmentLevel());
+        if (cancelDialog) {
+            g.drawString(font, "Игрок должен указать причину отмены заказа.",
+                left + 18, top + 68, MUTED, false);
+            g.drawString(font, "Причина", left + 18, top + 91, TEXT, true);
+            tradeCancelReason.setX(left + 18);
+            tradeCancelReason.setY(top + 108);
+            tradeCancelReason.setWidth(w - 36);
+            tradeCancelReason.visible = true;
+        } else {
+            boolean first = switch (modalAction) {
+                case "direction" -> "Не выбрано".equals(snapshot.direction());
+                case "government" -> "Не выбрано".equals(snapshot.government());
+                default -> "Не выбрано".equals(snapshot.religion());
+            };
 
-        g.drawString(font, "Стоимость: " + clip(cost, 55),
-            left + 18, top + 88, first ? POSITIVE : GOLD, true);
+            g.drawString(font,
+                first
+                    ? "Первый выбор данного параметра бесплатен."
+                    : "Это полноценная реформа. Сервер проверит деньги и материалы.",
+                left + 18, top + 66, MUTED, false);
 
-        drawButtonVisual(g, left + w - 196, top + h - 42, left + w - 104, top + h - 15,
+            String cost = first
+                ? "БЕСПЛАТНО"
+                : CountryReformCostTable.summary(
+                    modalAction, false, snapshot.population(), snapshot.developmentLevel());
+
+            g.drawString(font, "Стоимость: " + clip(cost, 55),
+                left + 18, top + 88, first ? POSITIVE : GOLD, true);
+        }
+
+        int buttonY = top + h - 42;
+        drawButtonVisual(g, left + w - 196, buttonY, left + w - 104, buttonY + 27,
             "ОТМЕНА", PANEL_3, TEXT, mouseX, mouseY);
-        drawButtonVisual(g, left + w - 95, top + h - 42, left + w - 18, top + h - 15,
-            "ПОДТВЕРДИТЬ", ACCENT_DARK, ACCENT, mouseX, mouseY);
+        drawButtonVisual(g, left + w - 95, buttonY, left + w - 18, buttonY + 27,
+            cancelDialog ? "ОТМЕНИТЬ" : "ПОДТВЕРДИТЬ",
+            cancelDialog ? NEGATIVE_DARK : ACCENT_DARK,
+            cancelDialog ? NEGATIVE : ACCENT, mouseX, mouseY);
     }
 
     private void closeModal() {
         modalAction = null;
         modalCommand = null;
         modalTitle = null;
+        cancelOrderId = null;
+        if (tradeCancelReason != null) {
+            tradeCancelReason.setValue("");
+            tradeCancelReason.setFocused(false);
+        }
         updateTradeInputVisibility();
     }
 
@@ -1220,23 +1481,44 @@ public final class EconomyScreen extends Screen {
         if (button != 0) return super.mouseClicked(mouseX, mouseY, button);
 
         if (modalAction != null) {
-            int w = Math.min(520, width - 32);
-            int h = 172;
+            boolean cancelDialog = "trade_cancel".equals(modalAction);
+            int w = Math.min(cancelDialog ? 600 : 520, width - 32);
+            int h = cancelDialog ? 238 : 172;
             int left = (width - w) / 2;
             int top = (height - h) / 2;
+            int buttonY = top + h - 42;
 
-            if (inside(mouseX, mouseY, left + w - 196, top + h - 42, left + w - 104, top + h - 15)) {
+            if (cancelDialog && tradeCancelReason != null &&
+                inside(mouseX, mouseY, left + 18, top + 108, left + w - 18, top + 140)) {
+                tradeCancelReason.mouseClicked(mouseX, mouseY, button);
+                return true;
+            }
+
+            if (inside(mouseX, mouseY, left + w - 196, buttonY, left + w - 104, buttonY + 27)) {
                 closeModal();
                 return true;
             }
 
-            if (inside(mouseX, mouseY, left + w - 95, top + h - 42, left + w - 18, top + h - 15)) {
-                EconomyNetwork.sendAction(modalAction, modalCommand);
-                closeModal();
+            if (inside(mouseX, mouseY, left + w - 95, buttonY, left + w - 18, buttonY + 27)) {
+                if (cancelDialog) {
+                    String reason = tradeCancelReason.getValue().trim();
+                    if (cancelOrderId != null && !reason.isBlank()) {
+                        EconomyNetwork.sendAction(
+                            "trade_order_cancel",
+                            cancelOrderId + "|" + reason
+                        );
+                        closeModal();
+                    }
+                } else {
+                    EconomyNetwork.sendAction(modalAction, modalCommand);
+                    closeModal();
+                }
                 return true;
             }
 
-            // Modal owns the complete input layer. Nothing behind it can receive a click.
+            if (cancelDialog && tradeCancelReason != null) {
+                tradeCancelReason.setFocused(true);
+            }
             return true;
         }
 
@@ -1278,6 +1560,9 @@ public final class EconomyScreen extends Screen {
             closeModal();
             return true;
         }
+        if ("trade_cancel".equals(modalAction) && tradeCancelReason != null) {
+            return tradeCancelReason.keyPressed(keyCode, scanCode, modifiers);
+        }
         return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
@@ -1285,8 +1570,9 @@ public final class EconomyScreen extends Screen {
         int y = contentTop();
         int end;
         switch (page) {
-            case OVERVIEW -> end = y + 40 + 86 + 114 + 98 +
-                52 + Math.max(WorkforceSector.values().length, materialCount()) * 38 + 20;
+            case OVERVIEW -> end = y + 40 + 170 + 114 + 98 +
+                Math.max(160, 70 + WorkforceSector.values().length * 34) +
+                10 + 66 + Math.max(1, materialCount()) * 38 + 20;
             case COUNTRY -> end = y + 40 +
                 33 + CountryDirection.values().length * 42 +
                 10 + 33 + GovernmentType.values().length * 42 +
@@ -1295,6 +1581,8 @@ public final class EconomyScreen extends Screen {
                 Math.max(1, Math.max(effectCount(true), effectCount(false))) * 30 + 22;
             case CITIES -> end = y + 40 + Math.max(1, snapshot.cityNames().length) * 102 + 10;
             case MARKET -> end = y + 40 + 88 + Math.max(1, snapshot.marketItemIds().length) * 77 + 10;
+            case TRADE_HISTORY -> end = y + 40 + 38 + Math.max(1, snapshot.tradeHistory().length) * 118 + 10;
+            case DEBTS -> end = y + 40 + 102 + 70 + Math.max(1, materialDebtCount()) * 48 + 20;
             case TRADE -> {
                 int tradeWidth = width - contentLeft() - 16;
                 int ownHeight = 56 + Math.max(1, snapshot.tradeOwnOrders().length) * 84;
@@ -1493,7 +1781,30 @@ public final class EconomyScreen extends Screen {
         }
     }
 
+    private static TradeHistoryRow parseTradeHistory(String raw) {
+        String[] p = raw.split("\\|", -1);
+        if (p.length != 10) return null;
+        try {
+            return new TradeHistoryRow(
+                Integer.parseInt(p[0]), p[1], Integer.parseInt(p[2]), Integer.parseInt(p[3]),
+                p[4], p[5], p[6], p[7], Long.parseLong(p[8]), Integer.parseInt(p[9])
+            );
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
     private record TradeItemOption(String id, String name) {}
+
+    private record TradeHistoryRow(
+        int id, String itemId, int quantity, int maxPrice,
+        String buyer, String seller, String status, String reason,
+        long createdAt, int agreedPrice
+    ) {
+        String itemName() {
+            return tradeItemName(itemId);
+        }
+    }
 
     private record ClickTarget(int left, int top, int right, int bottom, Runnable action) {
         boolean contains(double x, double y) {
