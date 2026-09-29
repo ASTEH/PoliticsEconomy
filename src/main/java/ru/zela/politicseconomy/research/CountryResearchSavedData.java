@@ -38,7 +38,7 @@ public final class CountryResearchSavedData extends SavedData {
         tag.put("countries",countries);return tag;
     }
     public int getPoints(String country){return Math.max(0,points.getOrDefault(country,0));}
-    public void addPoints(String country,int amount){if(amount>0){points.put(country,getPoints(country)+amount);setDirty();}}
+    public void addPoints(String country,int amount){if(amount==0)return;points.put(country,Math.max(0,getPoints(country)+amount));setDirty();}
     public boolean has(String country,String id){return completed.getOrDefault(country,Set.of()).contains(id);}
     public Set<String> getCompleted(String country){return Set.copyOf(completed.getOrDefault(country,Set.of()));}
     public void complete(String country,String id){completed.computeIfAbsent(country,k->new HashSet<>()).add(id);setDirty();}
