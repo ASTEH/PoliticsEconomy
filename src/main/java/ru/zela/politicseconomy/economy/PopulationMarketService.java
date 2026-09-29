@@ -16,6 +16,7 @@ import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import ru.zela.politicseconomy.country.CountryDirection;
 import ru.zela.politicseconomy.country.CountryDirectionBonusService;
 import ru.zela.politicseconomy.country.CountryDirectionManager;
+import ru.zela.politicseconomy.country.CountryDevelopmentService;
 import ru.zela.politicseconomy.country.CountryPopulationService;
 import ru.zela.politicseconomy.country.CountryPolicyManager;
 import ru.zela.politicseconomy.country.GovernmentType;
@@ -108,6 +109,12 @@ public final class PopulationMarketService {
                 state.stateKey()
             );
             data.setCycleDemand(state.stateKey(), demand);
+            settleMillenaireDemandFromWarehouse(
+                server,
+                data,
+                state.stateKey(),
+                demand
+            );
         }
 
         data.setLastCycle(cycle);
@@ -143,6 +150,51 @@ public final class PopulationMarketService {
             }
         }
         return result;
+    }
+
+    private static void settleMillenaireDemandFromWarehouse(
+        MinecraftServer server,
+        PopulationMarketSavedData data,
+        String stateKey,
+        Map<String, Integer> demand
+    ) {
+        if (demand.isEmpty()) {
+            return;
+        }
+
+        int totalConsumed = 0;
+        for (Map.Entry<String, Integer> entry : demand.entrySet()) {
+            int wanted = Math.max(0, entry.getValue());
+            if (wanted <= 0) {
+                continue;
+            }
+
+            int consumed =
+                ru.zela.politicseconomy.integration.MillenaireIntegration
+                    .consumeFromWarehouse(
+                        server,
+                        stateKey,
+                        List.of(entry.getKey()),
+                        wanted
+                    );
+
+            if (consumed > 0) {
+                data.setRemainingDemand(
+                    stateKey,
+                    entry.getKey(),
+                    wanted - consumed
+                );
+                totalConsumed += consumed;
+            }
+        }
+
+        if (totalConsumed > 0) {
+            CountryDevelopmentService.addActivity(
+                server,
+                stateKey,
+                Math.min(8, 1 + totalConsumed / 16)
+            );
+        }
     }
 
     public static SellResult sellToPopulation(
