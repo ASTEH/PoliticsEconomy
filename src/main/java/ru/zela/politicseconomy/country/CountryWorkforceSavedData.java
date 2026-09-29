@@ -15,9 +15,11 @@ public final class CountryWorkforceSavedData extends SavedData {
     public static final String DATA_NAME = "politicseconomy_country_workforce";
     private static final String COUNTRIES = "countries";
     private static final String REMAINDERS = "dividend_remainders";
+    private static final String LAST_CYCLE = "last_cycle";
 
     private final Map<String, EnumMap<WorkforceSector, Integer>> allocations = new HashMap<>();
     private final Map<String, Map<String, Double>> dividendRemainders = new HashMap<>();
+    private long lastProcessedCycle;
 
     public static CountryWorkforceSavedData create() {
         return new CountryWorkforceSavedData();
@@ -25,6 +27,7 @@ public final class CountryWorkforceSavedData extends SavedData {
 
     public static CountryWorkforceSavedData load(CompoundTag tag, HolderLookup.Provider registries) {
         CountryWorkforceSavedData data = create();
+        data.lastProcessedCycle = tag.getLong(LAST_CYCLE);
 
         if (tag.contains(COUNTRIES, Tag.TAG_COMPOUND)) {
             CompoundTag countries = tag.getCompound(COUNTRIES);
@@ -78,8 +81,20 @@ public final class CountryWorkforceSavedData extends SavedData {
             }
         }
         tag.put(REMAINDERS, allRemainders);
+        tag.putLong(LAST_CYCLE, lastProcessedCycle);
 
         return tag;
+    }
+
+    public long lastProcessedCycle() {
+        return lastProcessedCycle;
+    }
+
+    public void setLastProcessedCycle(long cycle) {
+        if (lastProcessedCycle != cycle) {
+            lastProcessedCycle = cycle;
+            setDirty();
+        }
     }
 
     public EnumMap<WorkforceSector, Integer> getOrCreate(
