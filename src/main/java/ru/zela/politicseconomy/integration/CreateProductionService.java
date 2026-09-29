@@ -12,6 +12,8 @@ import ru.zela.politicseconomy.country.CountryDirectionBonusService;
 import ru.zela.politicseconomy.country.CountryDirectionProfile;
 import ru.zela.politicseconomy.country.CountryPolicyBonusService;
 import ru.zela.politicseconomy.country.CountryPolicyProfile;
+import ru.zela.politicseconomy.country.CountryWorkforceService;
+import ru.zela.politicseconomy.country.WorkforceSector;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -39,7 +41,10 @@ public final class CreateProductionService {
         }
 
         CountryPolicyProfile policy = CountryPolicyBonusService.profile(server, country.getName());
-        double modifier = profile.industrialProduction() + policy.industrialProduction();
+        double modifier = profile.industrialProduction() + policy.industrialProduction()
+            + CountryWorkforceService.sectorBonusPercent(
+                server, country.getName(), WorkforceSector.INDUSTRY
+            );
         return Math.max(0.0D, 1.0D + modifier / 100.0D)
             * CountryPolicyBonusService.workforceMultiplier(server, country.getName());
     }
@@ -236,7 +241,10 @@ public final class CreateProductionService {
         double modifier = profile.industrialProduction() + policy.industrialProduction();
         var itemKey = BuiltInRegistries.ITEM.getKey(output.getItem());
         if (itemKey != null && "createbigcannons".equals(itemKey.getNamespace())) {
-            modifier += profile.militaryProduction() + policy.militaryProduction();
+            modifier += profile.militaryProduction() + policy.militaryProduction()
+                + CountryWorkforceService.sectorBonusPercent(
+                    server, country.getName(), WorkforceSector.MILITARY
+                );
         }
 
         return Math.max(0.0D, 1.0D + modifier / 100.0D)
