@@ -5,6 +5,8 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
 import ru.zela.politicseconomy.infrastructure.InfrastructureManager;
 import ru.zela.politicseconomy.recipe.BlockResourceContentService;
+import ru.zela.politicseconomy.country.WorkforceSector;
+import ru.zela.politicseconomy.integration.MillenaireIntegration;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -21,6 +23,10 @@ public final class NationalMaterialDemandService {
     private NationalMaterialDemandService() {}
 
     public static CountryDemand calculate(ServerLevel level, String countryName) {
+        if (MillenaireIntegration.isStateKey(countryName)) {
+            return calculateMillenaire(level, countryName);
+        }
+
         var stats = InfrastructureManager.getCountryStats(level.getServer(), countryName);
         Map<String, AggregateDemand> aggregated = new LinkedHashMap<>();
 
@@ -58,6 +64,94 @@ public final class NationalMaterialDemandService {
         demands.sort(Comparator.comparingDouble(MaterialDemand::perCycleConsumption).reversed());
 
         return new CountryDemand(stats.totalBlocks(), List.copyOf(demands));
+    }
+
+    private static CountryDemand calculateMillenaire(
+        ServerLevel level,
+        String stateKey
+    ) {
+        MillenaireIntegration.VillageSnapshot state =
+            MillenaireIntegration.snapshotForStateKey(level.getServer(), stateKey);
+        if (state == null) {
+            return new CountryDemand(0, List.of());
+        }
+
+        Map<String, AggregateDemand> aggregated = new LinkedHashMap<>();
+        var slots = state.workplaceSnapshot().workplaceSlots();
+
+        addMillenaireDemand(
+            aggregated, "minecraft:wheat",
+            WorkforceSector.AGRICULTURE, slots,
+            0.010D
+        );
+        addMillenaireDemand(
+            aggregated, "minecraft:coal",
+            WorkforceSector.EXTRACTION, slots,
+            0.008D
+        );
+        addMillenaireDemand(
+            aggregated, "minecraft:iron_ingot",
+            WorkforceSector.INDUSTRY, slots,
+            0.008D
+        );
+        addMillenaireDemand(
+            aggregated, "minecraft:gunpowder",
+            WorkforceSector.MILITARY, slots,
+            0.006D
+        );
+        addMillenaireDemand(
+            aggregated, "minecraft:paper",
+            WorkforceSector.TRADE_LOGISTICS, slots,
+            0.006D
+        );
+        addMillenaireDemand(
+            aggregated, "minecraft:stone",
+            WorkforceSector.CONSTRUCTION_SERVICES, slots,
+            0.004D
+        );
+
+        List<MaterialDemand> demands = new ArrayList<>();
+        for (AggregateDemand aggregate : aggregated.values()) {
+            double perCycle = aggregate.content;
+            demands.add(new MaterialDemand(
+                aggregate.acceptedItemIds,
+                aggregate.content,
+                perCycle,
+                aggregate.blocksContributing
+            ));
+        }
+
+        demands.sort(
+            Comparator.comparingDouble(MaterialDemand::perCycleConsumption).reversed()
+        );
+
+        return new CountryDemand(
+            state.workplaceSnapshot().workplaceCounts().values().stream()
+                .mapToInt(Integer::intValue)
+                .sum(),
+            List.copyOf(demands)
+        );
+    }
+
+    private static void addMillenaireDemand(
+        Map<String, AggregateDemand> aggregated,
+        String itemId,
+        WorkforceSector sector,
+        Map<WorkforceSector, Integer> slots,
+        double ratePerSlot
+    ) {
+        int capacity = Math.max(0, slots.getOrDefault(sector, 0));
+        if (capacity <= 0) {
+            return;
+        }
+
+        AggregateDemand aggregate =
+            aggregated.computeIfAbsent(
+                itemId,
+                ignored -> new AggregateDemand(List.of(itemId))
+            );
+        aggregate.content += capacity * ratePerSlot;
+        aggregate.blocksContributing += capacity;
     }
 
     public static List<MaterialDemand> dashboard(ServerLevel level, String countryName) {
