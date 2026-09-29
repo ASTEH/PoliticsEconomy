@@ -169,7 +169,6 @@ public final class TerritoryBorderVisualService {
                 player,
                 particle,
                 false,
-                false,
                 x,
                 Math.max(level.getMinBuildHeight() + 1, y) + 0.08D,
                 z,
