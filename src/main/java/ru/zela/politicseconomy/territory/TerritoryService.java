@@ -142,52 +142,62 @@ public final class TerritoryService {
         PoliticalMapService.syncAll(player.getServer());
     }
 
-    public static void handleCreateCountry(ServerPlayer player, BlockPos payloadCenter, String countryName) {
+    public static boolean canCreateCountry(ServerPlayer player, BlockPos payloadCenter) {
+        if (player == null || payloadCenter == null) return false;
         PoliticsManager politics = PoliticsManager.get(player.serverLevel());
-        if (politics == null) return;
+        if (politics == null) return false;
+
         if (!player.chunkPosition().equals(new ChunkPos(payloadCenter))) {
-            fail(player, "Столицу можно основать только в текущем чанке.");
-            return;
+            return fail(player, "Столицу можно основать только в текущем чанке.");
         }
 
         ChunkPos center = new ChunkPos(payloadCenter);
         for (int x = -2; x <= 2; x++) {
             for (int z = -2; z <= 2; z++) {
                 if (politics.getCountryNameAt(new ChunkPos(center.x + x, center.z + z)) != null) {
-                    fail(player, "Нельзя основать государство поверх чужой территории.");
-                    return;
+                    return fail(player, "Нельзя основать государство поверх чужой территории.");
                 }
             }
         }
-
-        PoliticsManager.createCountry(player.serverLevel(), payloadCenter, player, countryName);
-        PoliticalMapService.syncAll(player.getServer());
+        return true;
     }
 
-    public static void handleFoundCity(ServerPlayer player, BlockPos payloadCenter, String cityName) {
+    public static boolean canFoundCity(ServerPlayer player, BlockPos payloadCenter, String cityName) {
+        if (player == null || payloadCenter == null) return false;
         PoliticsManager politics = PoliticsManager.get(player.serverLevel());
-        if (politics == null) return;
+        if (politics == null) return false;
 
         String countryName = politics.getCountryByOwner(player.getUUID());
         if (countryName == null) {
-            fail(player, "Город может основать только лидер государства.");
-            return;
+            return fail(player, "Город может основать только лидер государства.");
         }
         if (!player.chunkPosition().equals(new ChunkPos(payloadCenter))) {
-            fail(player, "Город можно основать только в текущем чанке.");
-            return;
+            return fail(player, "Город можно основать только в текущем чанке.");
         }
 
         ChunkPos center = new ChunkPos(payloadCenter);
         for (int x = -1; x <= 1; x++) {
             for (int z = -1; z <= 1; z++) {
-                if (!countryName.equals(politics.getCountryNameAt(new ChunkPos(center.x + x, center.z + z)))) {
-                    fail(player, "Все 3x3 чанка будущего города должны уже принадлежать твоему государству.");
-                    return;
+                if (!countryName.equals(
+                    politics.getCountryNameAt(new ChunkPos(center.x + x, center.z + z))
+                )) {
+                    return fail(player, "Все 3x3 чанка будущего города должны уже принадлежать твоему государству.");
                 }
             }
         }
+        return true;
+    }
 
+    public static void handleCreateCountry(ServerPlayer player, BlockPos payloadCenter, String countryName) {
+        if (!canCreateCountry(player, payloadCenter)) return;
+        PoliticsManager.createCountry(player.serverLevel(), payloadCenter, player, countryName);
+        PoliticalMapService.syncAll(player.getServer());
+    }
+
+    public static void handleFoundCity(ServerPlayer player, BlockPos payloadCenter, String cityName) {
+        if (!canFoundCity(player, payloadCenter, cityName)) return;
+        PoliticsManager politics = PoliticsManager.get(player.serverLevel());
+        if (politics == null) return;
         politics.foundNewCity(payloadCenter, player, cityName);
         PoliticalMapService.syncAll(player.getServer());
     }
