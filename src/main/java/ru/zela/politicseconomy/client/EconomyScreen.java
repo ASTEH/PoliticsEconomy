@@ -212,7 +212,7 @@ public final class EconomyScreen extends Screen {
         g.drawString(font, snapshot.countryName().toUpperCase(Locale.ROOT), 28, 39, MUTED, false);
 
         g.drawString(font, "КАЗНА", right - 183, 19, MUTED, true);
-        g.drawString(font, "$" + formatDouble(snapshot.balance()), right - 183, 34, GOLD, true);
+        g.drawString(font, "$" + formatDouble(snapshot.treasury()), right - 183, 34, GOLD, true);
         g.drawString(font, format(snapshot.population()) + " населения", right - 183, 49, TEXT, false);
 
         drawPill(g, snapshot.direction(), right - 360, 27, ACCENT_DARK, ACCENT);
@@ -271,7 +271,7 @@ public final class EconomyScreen extends Screen {
 
         int gap = 8;
         int w = (right - left - gap * 3) / 4;
-        metric(g, left, y, w, "КАЗНА", "$" + formatDouble(snapshot.balance()), "Государственные деньги", GOLD);
+        metric(g, left, y, w, "КАЗНА", "$" + formatDouble(snapshot.treasury()), "Государственные деньги", GOLD);
         metric(g, left + w + gap, y, w, "СОДЕРЖАНИЕ",
             "-$" + formatDouble(snapshot.infrastructureCost()), "Инфраструктура / цикл", NEGATIVE);
         metric(g, left + 2 * (w + gap), y, w, "НАСЕЛЕНИЕ",
