@@ -25,6 +25,11 @@ public final class EconomyClientPayloadHandler {
                 return;
             }
 
+            if (minecraft.screen instanceof CountryTechnologyScreen screen) {
+                screen.applySnapshot(payload);
+                return;
+            }
+
             if (openRequested) {
                 openRequested = false;
                 minecraft.setScreen(new EconomyScreen(payload));
