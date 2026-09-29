@@ -34,42 +34,14 @@ public final class XaeroPoliticalMinimapOverlay {
         PoseStack poseStack,
         double renderX,
         double renderZ,
-        double zoom,
-        int mapX,
-        int mapY,
-        int specW,
-        int specH,
-        boolean circle,
-        float xaeroScale
-    ) {
-        var player = Minecraft.getInstance().player;
-        if (player == null) return;
-
-        double radians = Math.toRadians(player.getYRot());
-        double ps = Math.sin(radians);
-        double pc = Math.cos(radians);
-
-        poseStack.pushPose();
-        poseStack.translate(mapX + specW * 0.5D, mapY + specH * 0.5D, -980.0D);
-        renderBorderGeometry(
-            poseStack, renderX, renderZ, ps, pc, zoom,
-            specW * 0.5D, specH * 0.5D, circle
-        );
-        poseStack.popPose();
-    }
-
-    private static void renderBorderGeometry(
-        PoseStack poseStack,
-        double renderX,
-        double renderZ,
         double ps,
         double pc,
         double zoom,
-        double halfW,
-        double halfH,
+        int specW,
+        int specH,
         boolean circle
     ) {
-        if (halfW <= 0.0D || halfH <= 0.0D || zoom <= 0.0D) {
+        if (specW <= 0 || specH <= 0 || zoom <= 0.0D) {
             return;
         }
 
@@ -77,6 +49,9 @@ public final class XaeroPoliticalMinimapOverlay {
         if (claims.isEmpty()) {
             return;
         }
+
+        double halfW = specW * 0.5D;
+        double halfH = specH * 0.5D;
 
         int radiusChunks = calculateChunkRadius(zoom, specW, specH);
         int centerChunkX = Mth.floor(renderX) >> 4;
@@ -91,10 +66,7 @@ public final class XaeroPoliticalMinimapOverlay {
             DefaultVertexFormat.POSITION_COLOR
         );
 
-        poseStack.pushPose();
-        poseStack.translate(0.0D, 0.0D, -980.0D);
         Matrix4f matrix = poseStack.last().pose();
-
         boolean drew = false;
 
         int minX = centerChunkX - radiusChunks;
@@ -102,7 +74,6 @@ public final class XaeroPoliticalMinimapOverlay {
         int minZ = centerChunkZ - radiusChunks;
         int maxZ = centerChunkZ + radiusChunks;
 
-        // Vertical chunk edges. Each edge is processed exactly once.
         for (int chunkX = minX; chunkX <= maxX; chunkX++) {
             for (int chunkZ = minZ; chunkZ <= maxZ; chunkZ++) {
                 String leftOwner = claims.get(chunkKey(chunkX, chunkZ));
@@ -136,7 +107,6 @@ public final class XaeroPoliticalMinimapOverlay {
             }
         }
 
-        // Horizontal chunk edges.
         for (int chunkX = minX; chunkX <= maxX; chunkX++) {
             for (int chunkZ = minZ; chunkZ <= maxZ; chunkZ++) {
                 String topOwner = claims.get(chunkKey(chunkX, chunkZ));
@@ -169,8 +139,6 @@ public final class XaeroPoliticalMinimapOverlay {
                 }
             }
         }
-
-        poseStack.popPose();
 
         if (!drew) {
             return;
@@ -227,11 +195,7 @@ public final class XaeroPoliticalMinimapOverlay {
 
         if (circle) {
             double radius = Math.min(radiusX, radiusZ);
-            Segment clipped = clipToCircle(a, b, radius);
-            if (clipped == null) {
-                return null;
-            }
-            return clipped;
+            return clipToCircle(a, b, radius);
         }
 
         return clipToRectangle(a, b, -radiusX, radiusX, -radiusZ, radiusZ);
@@ -249,8 +213,8 @@ public final class XaeroPoliticalMinimapOverlay {
         double offX = worldX - renderX;
         double offZ = worldZ - renderZ;
 
-        double y = (pc * offX + ps * offZ) * zoom;
         double x = (ps * offX - pc * offZ) * zoom;
+        double y = (pc * offX + ps * offZ) * zoom;
 
         return new Point(x, y);
     }
@@ -313,11 +277,7 @@ public final class XaeroPoliticalMinimapOverlay {
         double t0 = 0.0D;
         double t1 = 1.0D;
 
-        if (discriminant < 0.0D) {
-            if (distanceSquared(a) > radius * radius || distanceSquared(b) > radius * radius) {
-                return null;
-            }
-        } else {
+        if (discriminant >= 0.0D) {
             double root = Math.sqrt(discriminant);
             double r0 = (-bb - root) / (2.0D * aa);
             double r1 = (-bb + root) / (2.0D * aa);
@@ -328,8 +288,8 @@ public final class XaeroPoliticalMinimapOverlay {
                 r1 = tmp;
             }
 
-            if (r0 > t0) t0 = r0;
-            if (r1 < t1) t1 = r1;
+            t0 = Math.max(t0, r0);
+            t1 = Math.min(t1, r1);
         }
 
         if (t1 < 0.0D || t0 > 1.0D) {
@@ -390,10 +350,6 @@ public final class XaeroPoliticalMinimapOverlay {
             .setColor(color);
         builder.addVertex(matrix, (float) (segment.b.x + nx), (float) (segment.b.y + ny), 0.0F)
             .setColor(color);
-    }
-
-    private static long chunkKey(int x, int z) {
-        return ((long) x & 0xFFFFFFFFL) | (((long) z & 0xFFFFFFFFL) << 32);
     }
 
     private static int countryColor(String country, int alpha) {
