@@ -2,6 +2,7 @@
   "required": true,
   "minVersion": "0.8",
   "package": "ru.zela.politicseconomy.mixin",
+  "plugin": "ru.zela.politicseconomy.mixin.OptionalIntegrationMixinPlugin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
     "MarketServiceMixin",
@@ -24,7 +25,8 @@
     "SmartBlockEntityMixin",
     "DieselEngineBlockEntityMixin",
     "ModularDieselEngineBlockEntityMixin",
-    "HugeDieselEngineBlockEntityMixin"
+    "HugeDieselEngineBlockEntityMixin",
+    "MtsMillenaireCombatMixin"
   ],
   "injectors": {
     "defaultRequire": 1
