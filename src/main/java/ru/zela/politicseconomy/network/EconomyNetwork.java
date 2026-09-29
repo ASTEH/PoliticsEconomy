@@ -10,6 +10,8 @@ import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 import ru.zela.politicseconomy.country.CountrySettingsService;
 import ru.zela.politicseconomy.country.CountryWorkforceService;
 import ru.zela.politicseconomy.economyui.EconomyMenu;
+import ru.zela.politicseconomy.integration.PoliticsModIntegration;
+import ru.zela.politicseconomy.trade.TradeService;
 
 public final class EconomyNetwork {
     private EconomyNetwork() {}
@@ -32,6 +34,11 @@ public final class EconomyNetwork {
                         .withStyle(result.success() ? net.minecraft.ChatFormatting.GREEN : net.minecraft.ChatFormatting.RED));
                     var country = ru.zela.politicseconomy.integration.PoliticsModIntegration.playerCountry(player).orElse(null);
                     if (country != null) send(player, EconomyMenu.buildSnapshot(player, country));
+                    return;
+                }
+
+                if (payload.action().startsWith("trade_")) {
+                    handleTradeAction(player, payload.action(), payload.value());
                     return;
                 }
 
@@ -66,6 +73,73 @@ public final class EconomyNetwork {
                 var country = ru.zela.politicseconomy.integration.PoliticsModIntegration.playerCountry(player).orElse(null);
                 if (country != null) send(player, EconomyMenu.buildSnapshot(player, country));
             }));
+    }
+
+    private static void handleTradeAction(ServerPlayer player, String action, String value) {
+        TradeService.TradeResult result;
+
+        try {
+            switch (action) {
+                case "trade_terminal_set" -> result = TradeService.setTerminal(player);
+                case "trade_order_create" -> {
+                    String[] parts = value.split("\\|", -1);
+                    if (parts.length != 3) {
+                        result = TradeService.TradeResult.fail("Некорректные параметры заказа.");
+                    } else {
+                        result = TradeService.createOrder(
+                            player,
+                            parts[0],
+                            Integer.parseInt(parts[1]),
+                            Integer.parseInt(parts[2])
+                        );
+                    }
+                }
+                case "trade_order_accept" -> {
+                    String[] parts = value.split("\\|", -1);
+                    if (parts.length != 2) {
+                        result = TradeService.TradeResult.fail("Некорректные параметры принятия заказа.");
+                    } else {
+                        result = TradeService.acceptOrder(
+                            player,
+                            Integer.parseInt(parts[0]),
+                            Integer.parseInt(parts[1])
+                        );
+                    }
+                }
+                case "trade_order_cancel" ->
+                    result = TradeService.cancelOrder(player, Integer.parseInt(value));
+                case "trade_shipment_dispatch" -> {
+                    String[] parts = value.split("\\|", -1);
+                    if (parts.length != 2) {
+                        result = TradeService.TradeResult.fail("Некорректные параметры отправки груза.");
+                    } else {
+                        result = TradeService.dispatchShipment(
+                            player,
+                            Integer.parseInt(parts[0]),
+                            Integer.parseInt(parts[1])
+                        );
+                    }
+                }
+                case "trade_shipment_haul" ->
+                    result = TradeService.acceptLogistics(player, Integer.parseInt(value));
+                default ->
+                    result = TradeService.TradeResult.fail("Неизвестное торговое действие.");
+            }
+        } catch (NumberFormatException exception) {
+            result = TradeService.TradeResult.fail("Некорректное число в торговой операции.");
+        } catch (Exception exception) {
+            result = TradeService.TradeResult.fail("Торговая операция не выполнена.");
+        }
+
+        player.sendSystemMessage(
+            net.minecraft.network.chat.Component.literal(result.message())
+                .withStyle(result.success() ? net.minecraft.ChatFormatting.GREEN : net.minecraft.ChatFormatting.RED)
+        );
+
+        var country = PoliticsModIntegration.playerCountry(player).orElse(null);
+        if (country != null) {
+            send(player, EconomyMenu.buildSnapshot(player, country));
+        }
     }
 
     private static void handleClient(EconomySnapshotPayload payload, net.neoforged.neoforge.network.handling.IPayloadContext context) {
