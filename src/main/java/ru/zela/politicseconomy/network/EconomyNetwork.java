@@ -60,16 +60,6 @@ public final class EconomyNetwork {
                     return;
                 }
 
-                if ("workforce".equals(payload.action())) {
-                    CountryWorkforceService.Result result =
-                        CountryWorkforceService.apply(player, payload.value(), player.isCreative() && player.hasPermissions(2));
-                    player.sendSystemMessage(net.minecraft.network.chat.Component.literal(result.message())
-                        .withStyle(result.success() ? net.minecraft.ChatFormatting.GREEN : net.minecraft.ChatFormatting.RED));
-                    var country = ru.zela.politicseconomy.integration.PoliticsModIntegration.playerCountry(player).orElse(null);
-                    if (country != null) send(player, EconomyMenu.buildSnapshot(player, country));
-                    return;
-                }
-
                 CountrySettingsService.Result result = CountrySettingsService.apply(player, payload.action(), payload.value());
                 player.sendSystemMessage(net.minecraft.network.chat.Component.literal(result.message())
                     .withStyle(result.success() ? net.minecraft.ChatFormatting.GREEN : net.minecraft.ChatFormatting.RED));
