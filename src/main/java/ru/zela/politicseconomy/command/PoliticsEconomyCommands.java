@@ -242,7 +242,7 @@ public final class PoliticsEconomyCommands {
                 return 0;
             }
             source.sendSuccess(
-                () -> Component.literal("Торговый терминал: " + ChunkPos.of(terminal.pos())),
+                () -> Component.literal("Торговый терминал: " + new ChunkPos(terminal.pos())),
                 false
             );
             return 1;
