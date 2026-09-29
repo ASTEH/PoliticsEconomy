@@ -212,9 +212,19 @@ public final class MillenaireIntegration {
         String stateKey
     ) {
         VillageSnapshot snapshot = snapshotForStateKey(server, stateKey);
-        return snapshot == null
-            ? emptySectors()
-            : new EnumMap<>(snapshot.workersBySector());
+        if (snapshot == null) {
+            return emptySectors();
+        }
+
+        EnumMap<WorkforceSector, Integer> result = emptySectors();
+        for (WorkforceSector sector : WorkforceSector.values()) {
+            int workers = Math.max(0, snapshot.workersBySector()
+                .getOrDefault(sector, 0));
+            int capacity = Math.max(0, snapshot.workplaceSnapshot()
+                .workplaceSlots().getOrDefault(sector, 0));
+            result.put(sector, Math.min(workers, capacity));
+        }
+        return result;
     }
 
     public static CountryWorkplaceService.Snapshot workplaceSnapshot(
