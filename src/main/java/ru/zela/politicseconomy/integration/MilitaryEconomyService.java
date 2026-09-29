@@ -10,7 +10,7 @@ import net.minecraft.world.level.ChunkPos;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import ru.zela.politicseconomy.country.CountryDirectionBonusService;
 import ru.zela.politicseconomy.country.CountryPolicyBonusService;
-import ru.zela.politicseconomy.country.CountryResearchService;
+import ru.zela.politicseconomy.research.CountryResearchService;
 import ru.zela.politicseconomy.country.CountryWorkforceService;
 import ru.zela.politicseconomy.country.WorkforceSector;
 import ru.zela.politicseconomy.economy.NationalMaterialConsumptionService;
@@ -210,7 +210,7 @@ public final class MilitaryEconomyService {
             stateKey,
             WorkforceSector.MILITARY
         );
-        int capacity = CountryWorkforceService.workplaceSnapshot(
+        int capacity = ru.zela.politicseconomy.country.CountryWorkplaceService.snapshot(
             server,
             stateKey
         ).workplaceSlots().getOrDefault(
