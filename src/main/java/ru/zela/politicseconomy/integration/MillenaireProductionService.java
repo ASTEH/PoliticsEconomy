@@ -59,13 +59,16 @@ public final class MillenaireProductionService {
                 continue;
             }
 
-            double multiplier = productionMultiplier(server, key);
             int produced = 0;
 
-            produced += produceAgriculture(server, key, workers, multiplier);
-            produced += produceExtraction(server, key, workers, multiplier);
-            produced += produceIndustry(server, key, workers, multiplier);
-            produced += produceConstruction(server, key, workers, multiplier);
+            produced += produceAgriculture(server, key, workers,
+                productionMultiplier(server, key, WorkforceSector.AGRICULTURE));
+            produced += produceExtraction(server, key, workers,
+                productionMultiplier(server, key, WorkforceSector.EXTRACTION));
+            produced += produceIndustry(server, key, workers,
+                productionMultiplier(server, key, WorkforceSector.INDUSTRY));
+            produced += produceConstruction(server, key, workers,
+                productionMultiplier(server, key, WorkforceSector.CONSTRUCTION_SERVICES));
 
             if (produced > 0) {
                 CountryDevelopmentService.addActivity(
@@ -299,16 +302,21 @@ public final class MillenaireProductionService {
 
     private static double productionMultiplier(
         MinecraftServer server,
-        String key
+        String key,
+        WorkforceSector sector
     ) {
         var profile = CountryDirectionBonusService.profile(server, key);
         if (profile == null) return 1.0D;
 
-        CountryDevelopmentService.level(server, key);
-        return switch (profile.direction()) {
-            case INDUSTRIAL -> 1.0D + profile.industrialProduction() / 100.0D;
-            case RESOURCE -> 1.0D + profile.resourceProduction() / 100.0D;
-            case TRADE -> 1.0D + profile.tradeIncome() / 200.0D;
+        double bonus = switch (sector) {
+            case AGRICULTURE -> profile.agriculturalProduction();
+            case EXTRACTION -> profile.resourceProduction();
+            case INDUSTRY -> profile.industrialProduction();
+            case MILITARY -> profile.militaryProduction();
+            case TRADE_LOGISTICS -> profile.tradeIncome() / 2.0D;
+            case CONSTRUCTION_SERVICES -> profile.resourceProduction() / 2.0D;
         };
+
+        return Math.max(0.20D, 1.0D + bonus / 100.0D);
     }
 }
