@@ -40,6 +40,27 @@ public final class CountryContext {
     }
 
     /**
+     * Resolves the economic state in which a player currently acts.
+     * Player countries use their PoliticsMod name; otherwise a player standing
+     * inside Millénaire territory acts within that autonomous village state.
+     */
+    public static String playerStateName(ServerPlayer player) {
+        if (player == null) return null;
+
+        Country country = playerCountry(player);
+        if (country != null) {
+            return country.getName();
+        }
+
+        ru.zela.politicseconomy.integration.MillenaireIntegration.VillageSnapshot village =
+            ru.zela.politicseconomy.integration.MillenaireIntegration.snapshotAtChunk(
+                player.getServer(),
+                player.chunkPosition()
+            );
+        return village == null ? null : village.stateKey();
+    }
+
+    /**
      * Returns the economic state key owning a machine position. Player countries
      * keep their PoliticsMod name; autonomous Millénaire villages use a stable
      * millenaire:<uuid> key.
