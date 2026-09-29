@@ -29,9 +29,12 @@ public final class CountryDirectionBonusService {
         double base = PoliticsConfig.get().marketFeePercent;
         double directionModifier = modifier(server, countryName, CountryDirectionProfile::tradeFee);
         double policyModifier = CountryPolicyBonusService.profile(server, countryName).tradeFee();
-        return Math.max(0, (int) Math.round(
-            base * (1.0D + (directionModifier + policyModifier) / 100.0D)
-        ));
+        double feeMultiplier = 1.0D + (directionModifier + policyModifier) / 100.0D;
+        double workforceEfficiency = CountryWorkforceService.marketEfficiencyBonusPercent(
+            server, countryName
+        );
+        feeMultiplier *= Math.max(0.70D, 1.0D - workforceEfficiency / 100.0D);
+        return Math.max(0, (int) Math.round(base * feeMultiplier));
     }
 
     public static double modifier(
