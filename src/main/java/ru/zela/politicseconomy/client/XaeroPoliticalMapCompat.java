@@ -18,7 +18,7 @@ public final class XaeroPoliticalMapCompat {
 
     public static boolean tryRegister() {
         if (registered) return true;
-        if (!ModList.get().isLoaded("xaeroworldmap")) return false;
+        if (!ModList.get().isLoaded("xaeroworldmap") || !ModList.get().isLoaded("xaerominimap")) return false;
         if (WorldMap.mapElementRenderHandler == null || HudMod.INSTANCE == null) return false;
 
         if (renderer == null) {
