@@ -18,7 +18,6 @@ import ru.zela.politicseconomy.country.CountryReformCostTable;
 import ru.zela.politicseconomy.country.GovernmentType;
 import ru.zela.politicseconomy.country.ReligionType;
 import ru.zela.politicseconomy.country.WorkforceSector;
-import ru.zela.politicseconomy.economy.NationalMaterialLedgerSavedData;
 import ru.zela.politicseconomy.network.EconomyNetwork;
 import ru.zela.politicseconomy.network.EconomySnapshotPayload;
 
@@ -169,11 +168,11 @@ public final class EconomyScreen extends UiScreen {
                     Ui.column(
                         header(),
                         Ui.tabs(pageSignal)
-                            .tab("Обзор", Page.OVERVIEW)
-                            .tab("Страна", Page.COUNTRY)
-                            .tab("Эффекты", Page.EFFECTS)
-                            .tab("Города", Page.CITIES)
-                            .tab("Рынок", Page.MARKET),
+                            .tab(Page.OVERVIEW, "Обзор")
+                            .tab(Page.COUNTRY, "Страна")
+                            .tab(Page.EFFECTS, "Эффекты")
+                            .tab(Page.CITIES, "Города")
+                            .tab(Page.MARKET, "Рынок"),
                         Ui.switcher(pageSignal)
                             .when(Page.OVERVIEW, this::overviewPage)
                             .when(Page.COUNTRY, this::countryPage)
@@ -212,7 +211,7 @@ public final class EconomyScreen extends UiScreen {
                 Ui.text(populationText).nowrap()
             ).gap(2),
             Ui.spacer(),
-            Ui.badge(Component.literal("◆  ВНУТРЕННИЙ РЫНОК")),
+            Ui.badge("◆  ВНУТРЕННИЙ РЫНОК"),
             Ui.text(walletText).nowrap()
         ).gap(8).fillWidth();
     }
@@ -525,7 +524,7 @@ public final class EconomyScreen extends UiScreen {
         return Ui.card(
             Ui.row(
                 Ui.text(row.name()).nowrap().flex(),
-                Ui.badge(Component.literal(signed(row.value())))
+                Ui.badge(signed(row.value()))
             ).gap(8).fillWidth()
         ).padding(6).fillWidth();
     }
@@ -558,7 +557,7 @@ public final class EconomyScreen extends UiScreen {
             Ui.column(
                 Ui.row(
                     Ui.text(title).nowrap().flex(),
-                    Ui.badge(Component.literal("$" + format(row.treasury())))
+                    Ui.badge("$" + format(row.treasury()))
                 ).gap(8).fillWidth(),
                 Ui.text(row.country()).nowrap(),
                 Ui.row(
@@ -694,7 +693,7 @@ public final class EconomyScreen extends UiScreen {
                             : "Долга нет"
                     ).nowrap()
                 ).gap(2).flex(),
-                Ui.badge(Component.literal(format(row.stock())))
+                Ui.badge(format(row.stock()))
             ).gap(7).fillWidth()
         ).padding(5).fillWidth();
     }
@@ -752,18 +751,8 @@ public final class EconomyScreen extends UiScreen {
                     Ui.text(title).nowrap(),
                     Ui.text(value).nowrap()
                 ).gap(1)
-            ).gap(4).fillWidth()
+            ).gap(4).fillWidth().flex();
         ).padding(5).fillWidth().flex();
-    }
-
-    private UIComponent adminPage() {
-        return Ui.card(
-            Ui.column(
-                Ui.title("АДМИНИСТРАТОРСКИЙ РЕЖИМ"),
-                Ui.text("Creative-панель сохраняет серверную проверку прав."),
-                Ui.badge(Component.literal("Обычная стоимость реформ не отменяется клиентом."))
-            ).gap(8)
-        ).padding(12).elevated(true).fillWidth();
     }
 
     private ReadableSignal<List<EffectRow>> effectSignal(boolean positive) {
