@@ -8,7 +8,11 @@ import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 
 public record EconomySnapshotPayload(
     String countryName, String direction, String government, String religion,
-    int population, double populationWorkforceModifier, String policySummary,
+    int population, double populationWorkforceModifier,
+    int workingPopulation, int employedPopulation, int unemployedPopulation, int workplaceCapacity,
+    int[] workplaceCounts, int[] workplaceSlots, int[] sectorWorkers, int[] sectorAllocation,
+    double[] sectorBonuses,
+    String policySummary,
     int politicalUnrest, String politicalDemand, String politicalSupportSummary,
     int treasury, double infrastructureCost, double moneyDebt, double dieselModifier,
     double totalMaterialPerCycle, String[] materialIds, String[] materialNames,
@@ -21,12 +25,17 @@ public record EconomySnapshotPayload(
     String developmentPerk, String developmentNextPerk
 ) implements CustomPacketPayload {
     public static final Type<EconomySnapshotPayload> TYPE = new Type<>(ResourceLocation.fromNamespaceAndPath("politicseconomy", "economy_snapshot"));
-    private static final int MAX_MATERIALS = 32, MAX_MODIFIERS = 32;
+    private static final int MAX_MATERIALS = 32, MAX_MODIFIERS = 32, MAX_WORKFORCE = 8;
 
     public static final StreamCodec<RegistryFriendlyByteBuf, EconomySnapshotPayload> STREAM_CODEC = new StreamCodec<>() {
         @Override public EconomySnapshotPayload decode(RegistryFriendlyByteBuf buf) {
             String countryName=buf.readUtf(128), direction=buf.readUtf(64), government=buf.readUtf(64), religion=buf.readUtf(64);
-            int population=buf.readVarInt(); double workforce=buf.readDouble(); String policySummary=buf.readUtf(512);
+            int population=buf.readVarInt();
+            double workforce=buf.readDouble();
+            int workingPopulation=buf.readVarInt(), employedPopulation=buf.readVarInt(), unemployedPopulation=buf.readVarInt(), workplaceCapacity=buf.readVarInt();
+            int[] workplaceCounts=readInts(buf,MAX_WORKFORCE), workplaceSlots=readInts(buf,MAX_WORKFORCE), sectorWorkers=readInts(buf,MAX_WORKFORCE), sectorAllocation=readInts(buf,MAX_WORKFORCE);
+            double[] sectorBonuses=readDoubles(buf,MAX_WORKFORCE);
+            String policySummary=buf.readUtf(512);
             int unrest=buf.readVarInt(); String demand=buf.readUtf(128), support=buf.readUtf(512);
             int treasury=buf.readInt(); double infrastructureCost=buf.readDouble(), moneyDebt=buf.readDouble(), dieselModifier=buf.readDouble(), totalMaterialPerCycle=buf.readDouble();
             String[] materialIds=readStrings(buf,MAX_MATERIALS,128), materialNames=readStrings(buf,MAX_MATERIALS,256);
@@ -36,11 +45,15 @@ public record EconomySnapshotPayload(
             int[] cityTreasuries=readInts(buf,96), cityIncome=readInts(buf,96), cityInfrastructure=readInts(buf,96), cityPopulation=readInts(buf,96), cityTaxBlocks=readInts(buf,96);
             boolean[] cityCapitals=readBooleans(buf,96), cityMine=readBooleans(buf,96); int level=buf.readVarInt(), points=buf.readVarInt(), next=buf.readVarInt();
             String perk=buf.readUtf(256), nextPerk=buf.readUtf(256);
-            return new EconomySnapshotPayload(countryName,direction,government,religion,population,workforce,policySummary,unrest,demand,support,treasury,infrastructureCost,moneyDebt,dieselModifier,totalMaterialPerCycle,materialIds,materialNames,materialStockpile,materialDebt,materialPerCycle,modifierNames,modifierValues,cityNames,cityCountries,cityMayors,cityTreasuries,cityIncome,cityInfrastructure,cityPopulation,cityTaxBlocks,cityCapitals,cityMine,level,points,next,perk,nextPerk);
+            return new EconomySnapshotPayload(countryName,direction,government,religion,population,workforce,workingPopulation,employedPopulation,unemployedPopulation,workplaceCapacity,workplaceCounts,workplaceSlots,sectorWorkers,sectorAllocation,sectorBonuses,policySummary,unrest,demand,support,treasury,infrastructureCost,moneyDebt,dieselModifier,totalMaterialPerCycle,materialIds,materialNames,materialStockpile,materialDebt,materialPerCycle,modifierNames,modifierValues,cityNames,cityCountries,cityMayors,cityTreasuries,cityIncome,cityInfrastructure,cityPopulation,cityTaxBlocks,cityCapitals,cityMine,level,points,next,perk,nextPerk);
         }
         @Override public void encode(RegistryFriendlyByteBuf buf, EconomySnapshotPayload v) {
             buf.writeUtf(limit(v.countryName,128),128); buf.writeUtf(limit(v.direction,64),64); buf.writeUtf(limit(v.government,64),64); buf.writeUtf(limit(v.religion,64),64);
-            buf.writeVarInt(Math.max(0,v.population)); buf.writeDouble(v.populationWorkforceModifier); buf.writeUtf(limit(v.policySummary,512),512); buf.writeVarInt(Math.max(0,Math.min(100,v.politicalUnrest))); buf.writeUtf(limit(v.politicalDemand,128),128); buf.writeUtf(limit(v.politicalSupportSummary,512),512);
+            buf.writeVarInt(Math.max(0,v.population));
+            buf.writeDouble(v.populationWorkforceModifier);
+            buf.writeVarInt(Math.max(0,v.workingPopulation)); buf.writeVarInt(Math.max(0,v.employedPopulation)); buf.writeVarInt(Math.max(0,v.unemployedPopulation)); buf.writeVarInt(Math.max(0,v.workplaceCapacity));
+            writeInts(buf,v.workplaceCounts,MAX_WORKFORCE); writeInts(buf,v.workplaceSlots,MAX_WORKFORCE); writeInts(buf,v.sectorWorkers,MAX_WORKFORCE); writeInts(buf,v.sectorAllocation,MAX_WORKFORCE); writeDoubles(buf,v.sectorBonuses,MAX_WORKFORCE);
+            buf.writeUtf(limit(v.policySummary,512),512); buf.writeVarInt(Math.max(0,Math.min(100,v.politicalUnrest))); buf.writeUtf(limit(v.politicalDemand,128),128); buf.writeUtf(limit(v.politicalSupportSummary,512),512);
             buf.writeInt(v.treasury); buf.writeDouble(v.infrastructureCost); buf.writeDouble(v.moneyDebt); buf.writeDouble(v.dieselModifier); buf.writeDouble(v.totalMaterialPerCycle);
             writeStrings(buf,v.materialIds,MAX_MATERIALS,120); writeStrings(buf,v.materialNames,MAX_MATERIALS,240); writeInts(buf,v.materialStockpile,MAX_MATERIALS); writeInts(buf,v.materialDebt,MAX_MATERIALS); writeDoubles(buf,v.materialPerCycle,MAX_MATERIALS);
             writeStrings(buf,v.modifierNames,MAX_MODIFIERS,120); writeDoubles(buf,v.modifierValues,MAX_MODIFIERS); writeStrings(buf,v.cityNames,96,120); writeStrings(buf,v.cityCountries,96,120); writeStrings(buf,v.cityMayors,96,120); writeInts(buf,v.cityTreasuries,96); writeInts(buf,v.cityIncome,96); writeInts(buf,v.cityInfrastructure,96); writeInts(buf,v.cityPopulation,96); writeInts(buf,v.cityTaxBlocks,96); writeBooleans(buf,v.cityCapitals,96); writeBooleans(buf,v.cityMine,96);
