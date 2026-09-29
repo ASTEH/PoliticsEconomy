@@ -345,7 +345,8 @@ public final class EconomyScreen extends Screen {
         if (height >= 420) {
             int infoY = bottom - 62;
             g.drawString(font, "РАЗВИТИЕ", left + 13, infoY, MUTED, true);
-            g.drawString(font, "Уровень " + snapshot.developmentLevel(), left + 13, infoY + 14, TEXT, false);
+            g.drawString(font, "Уровень " + snapshot.developmentLevel() + " • " + snapshot.developmentTitle(),
+                left + 13, infoY + 14, TEXT, false);
             double progress = snapshot.developmentNextThreshold() <= 0 ? 1 :
                 snapshot.developmentPoints() / (double) snapshot.developmentNextThreshold();
             progress(g, left + 13, infoY + 31, right - 13, infoY + 37, progress, ACCENT);
@@ -409,21 +410,29 @@ public final class EconomyScreen extends Screen {
         info(g, left + 14, y + 71, right - 14, "Религия", snapshot.religion(), "minecraft:book");
         y += 114;
 
-        panel(g, left, y, right, y + 88);
+        panel(g, left, y, right, y + 104);
         ItemStack developmentIcon = itemStack("minecraft:diamond");
         if (!developmentIcon.isEmpty()) g.renderItem(developmentIcon, left + 10, y + 10);
         g.drawString(font, "РАЗВИТИЕ", left + 38, y + 12, TEXT, true);
+        String developmentProgress = snapshot.developmentLevel() >= 5
+            ? "Максимальный уровень"
+            : format(snapshot.developmentPoints()) + " / " + format(snapshot.developmentNextThreshold()) + " очков";
         g.drawString(font,
-            snapshot.developmentLevel() >= 5
-                ? "Максимальный уровень"
-                : format(snapshot.developmentPoints()) + " / " + format(snapshot.developmentNextThreshold()) + " очков",
-            left + 38, y + 31, MUTED, false);
+            "Уровень " + snapshot.developmentLevel() + " • " + snapshot.developmentTitle(),
+            left + 38, y + 31, TEXT, false);
+        g.drawString(font, developmentProgress, left + 38, y + 46, MUTED, false);
+
         String perk = clipToWidth(snapshot.developmentPerk(), Math.max(100, right - left - 290));
         g.drawString(font, perk, right - 14 - font.width(perk), y + 12, GOLD, false);
         double dev = snapshot.developmentNextThreshold() <= 0 ? 1 :
             snapshot.developmentPoints() / (double) snapshot.developmentNextThreshold();
         progress(g, left + 14, y + 54, right - 14, y + 62, dev, ACCENT);
-        y += 98;
+        g.drawString(font,
+            snapshot.developmentLevel() >= 5
+                ? "Все этапы развития открыты"
+                : "Далее: " + snapshot.developmentNextTitle() + " — " + snapshot.developmentNextPerk(),
+            left + 14, y + 76, MUTED, false);
+        y += 114;
 
         // Материалы объединены в единую панель государственного склада.
         // Оба операционных раздела теперь идут в полную ширину, чтобы список ресурсов
@@ -1730,7 +1739,7 @@ public final class EconomyScreen extends Screen {
                 int warehouse = warehouseExpanded
                     ? 72 + Math.max(1, materialCount()) * 42 + 8
                     : 42;
-                int total = 40 + metrics + attention + 10 + 114 + 98 + 10
+                int total = 40 + metrics + attention + 10 + 114 + 114 + 10
                     + workforce + 10 + warehouse + 10;
                 end = y + total;
             }

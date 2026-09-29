@@ -69,6 +69,32 @@ public final class CountryDevelopmentService {
         return true;
     }
 
+    public static String levelTitle(CountryDirection direction, int level) {
+        return switch (direction) {
+            case INDUSTRIAL -> switch (Math.min(5, Math.max(1, level))) {
+                case 1 -> "Механизация";
+                case 2 -> "Массовое производство";
+                case 3 -> "Промышленная система";
+                case 4 -> "Военно-промышленный комплекс";
+                default -> "Высокотехнологичная промышленность";
+            };
+            case RESOURCE -> switch (Math.min(5, Math.max(1, level))) {
+                case 1 -> "Освоение ресурсов";
+                case 2 -> "Массовая добыча";
+                case 3 -> "Национальный ресурсный фонд";
+                case 4 -> "Агропромышленная база";
+                default -> "Сырьевой гигант";
+            };
+            case TRADE -> switch (Math.min(5, Math.max(1, level))) {
+                case 1 -> "Торговое государство";
+                case 2 -> "Единый рынок";
+                case 3 -> "Торговая система";
+                case 4 -> "Транспортная сеть";
+                default -> "Международный торговый узел";
+            };
+        };
+    }
+
     public static String currentPerk(CountryDirection direction, int level) {
         return switch (direction) {
             case INDUSTRIAL -> switch (Math.min(5, Math.max(1, level))) {
@@ -97,5 +123,9 @@ public final class CountryDevelopmentService {
 
     public static String nextPerk(CountryDirection direction, int level) {
         return level >= 5 ? "Все уровни развития открыты" : currentPerk(direction, level + 1);
+    }
+
+    public static String nextTitle(CountryDirection direction, int level) {
+        return level >= 5 ? "Все уровни развития открыты" : levelTitle(direction, level + 1);
     }
 }
