@@ -61,32 +61,19 @@ public abstract class MtsMillenaireCombatMixin {
         double height = number(readField(box, "heightRadius"));
         double depth = number(readField(box, "depthRadius"));
 
-        AABB search = new AABB(
-            center.x - width,
-            center.y - height,
-            center.z - depth,
-            center.x + width,
-            center.y + height,
-            center.z + depth
-        );
-
         Vec3 motionVec = pointToVec3(motion);
         Vec3 end = motionVec == null ? center : center.add(motionVec);
 
-        if (motionVec != null) {
-            search = search.minmax(
-                new AABB(
-                    Math.min(center.x, end.x) - width,
-                    Math.min(center.y, end.y) - height,
-                    Math.min(center.z, end.z) - depth,
-                    Math.max(center.x, end.x) + width,
-                    Math.max(center.y, end.y) + height,
-                    Math.max(center.z, end.z) + depth
-                )
-            );
-        }
+        AABB search = new AABB(
+            Math.min(center.x, end.x) - width,
+            Math.min(center.y, end.y) - height,
+            Math.min(center.z, end.z) - depth,
+            Math.max(center.x, end.x) + width,
+            Math.max(center.y, end.y) + height,
+            Math.max(center.z, end.z) + depth
+        );
 
-        Level level = politicseconomy$getWorld();
+        Level level = world;
         if (level == null) {
             return;
         }
@@ -116,7 +103,8 @@ public abstract class MtsMillenaireCombatMixin {
         }
     }
 
-    private abstract Level politicseconomy$getWorld();
+    @org.spongepowered.asm.mixin.Shadow
+    protected final Level world;
 
     private static boolean isMillenaireVillager(Entity entity) {
         return entity != null
