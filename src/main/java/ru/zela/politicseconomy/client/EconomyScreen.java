@@ -169,12 +169,13 @@ public final class EconomyScreen extends UiScreen {
                         header(),
                         Ui.divider(),
                         Ui.tabs(pageSignal)
-                            .tab(Page.OVERVIEW, "Обзор")
-                            .tab(Page.COUNTRY, "Государство")
-                            .tab(Page.EFFECTS, "Эффекты")
-                            .tab(Page.CITIES, "Города")
-                            .tab(Page.MARKET, "Рынок")
+                            .tab(Page.OVERVIEW, "ОБЗОР")
+                            .tab(Page.COUNTRY, "ГОСУДАРСТВО")
+                            .tab(Page.EFFECTS, "ЭФФЕКТЫ")
+                            .tab(Page.CITIES, "ГОРОДА")
+                            .tab(Page.MARKET, "РЫНОК")
                             .fillWidth(),
+                        Ui.divider(),
                         Ui.switcher(pageSignal)
                             .when(Page.OVERVIEW, this::overviewPage)
                             .when(Page.COUNTRY, this::countryPage)
