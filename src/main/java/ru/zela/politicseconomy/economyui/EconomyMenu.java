@@ -126,6 +126,21 @@ public final class EconomyMenu {
             CityDirectoryService.CitySnapshot city = cities.get(i);
             cityNames[i]=city.name(); cityCountries[i]=city.country(); cityMayors[i]=city.mayor(); cityTreasuries[i]=city.treasury(); cityIncome[i]=city.incomePerCycle(); cityInfrastructure[i]=city.infrastructureBlocks(); cityPopulation[i]=city.population(); cityTaxBlocks[i]=city.taxBlocks(); cityCapitals[i]=city.capital(); cityMine[i]=city.mine();
         }
+        var marketLines = ru.zela.politicseconomy.economy.PopulationMarketService.demandLines(player.getServer(), countryName);
+        String[] marketItemIds = new String[marketLines.size()], marketItemNames = new String[marketLines.size()];
+        int[] marketBaseDemand = new int[marketLines.size()], marketRemaining = new int[marketLines.size()], marketSold = new int[marketLines.size()], marketImported = new int[marketLines.size()], marketPrices = new int[marketLines.size()];
+        for (int i = 0; i < marketLines.size(); i++) {
+            var line = marketLines.get(i);
+            marketItemIds[i] = line.itemId();
+            marketItemNames[i] = ru.zela.politicseconomy.economy.PopulationDemandCatalog.shortName(line.itemId());
+            marketBaseDemand[i] = line.baseDemand();
+            marketRemaining[i] = line.remaining();
+            marketSold[i] = line.sold();
+            marketImported[i] = line.imported();
+            marketPrices[i] = line.pricePerUnit();
+        }
+        long personalWallet = ru.zela.politicseconomy.economy.PopulationMarketService.wallet(player.getServer(), player.getUUID());
+
         java.util.List<String> modifierNames = new java.util.ArrayList<>(); java.util.List<Double> modifierValues = new java.util.ArrayList<>();
         addModifier(modifierNames, modifierValues, "Промышленное производство", profile == null ? 0 : profile.industrialProduction() + policy.industrialProduction());
         addModifier(modifierNames, modifierValues, "Добыча сырья", profile == null ? 0 : profile.resourceProduction() + policy.resourceProduction());
@@ -152,7 +167,7 @@ public final class EconomyMenu {
             CountryWorkforceService.sectorBonusPercent(player.getServer(), countryName, WorkforceSector.AGRICULTURE));
         addModifier(modifierNames, modifierValues, "Военная промышленность от рабочих",
             CountryWorkforceService.sectorBonusPercent(player.getServer(), countryName, WorkforceSector.MILITARY));
-        return new EconomySnapshotPayload(countryName, selectedDirection == null ? "Не выбрано" : selectedDirection.displayName(), government == null ? "Не выбрано" : government.displayName(), religion == null ? "Не выбрано" : religion.displayName(), population, workforce, workingPopulation, employedPopulation, unemployedPopulation, workplaceCapacity, workplaceCounts, workplaceSlots, sectorWorkers, sectorAllocation, sectorBonuses, policySummary, unrest, demand, supportSummary, country.balance, infrastructureCost, moneyDebt, dieselModifier, totalMaterialPerCycle, materialIds, materialNames, materialStockpile, materialDebt, materialPerCycle, modifierNames.toArray(String[]::new), modifierValues.stream().mapToDouble(Double::doubleValue).toArray(), cityNames, cityCountries, cityMayors, cityTreasuries, cityIncome, cityInfrastructure, cityPopulation, cityTaxBlocks, cityCapitals, cityMine, developmentLevel, developmentPoints, developmentNextThreshold, developmentPerk, developmentNextPerk);
+        return new EconomySnapshotPayload(countryName, selectedDirection == null ? "Не выбрано" : selectedDirection.displayName(), government == null ? "Не выбрано" : government.displayName(), religion == null ? "Не выбрано" : religion.displayName(), population, workforce, workingPopulation, employedPopulation, unemployedPopulation, workplaceCapacity, workplaceCounts, workplaceSlots, sectorWorkers, sectorAllocation, sectorBonuses, policySummary, unrest, demand, supportSummary, country.balance, infrastructureCost, moneyDebt, dieselModifier, totalMaterialPerCycle, materialIds, materialNames, materialStockpile, materialDebt, materialPerCycle, modifierNames.toArray(String[]::new), modifierValues.stream().mapToDouble(Double::doubleValue).toArray(), cityNames, cityCountries, cityMayors, cityTreasuries, cityIncome, cityInfrastructure, cityPopulation, cityTaxBlocks, cityCapitals, cityMine, developmentLevel, developmentPoints, developmentNextThreshold, developmentPerk, developmentNextPerk, marketItemIds, marketItemNames, marketBaseDemand, marketRemaining, marketSold, marketImported, marketPrices, personalWallet);
     }
 
     private static void addModifier(java.util.List<String> names, java.util.List<Double> values, String name, double value) { names.add(name); values.add(value); }
