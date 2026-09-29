@@ -101,6 +101,58 @@ public final class PoliticsEconomyCommands {
                                     IntegerArgumentType.getInteger(context, "amount")
                                 )))))
                 )
+                .then(Commands.literal("trade")
+                    .executes(context -> showTrade(context.getSource()))
+                    .then(Commands.literal("terminal")
+                        .then(Commands.literal("set")
+                            .executes(context -> tradeTerminalSet(context.getSource())))
+                        .then(Commands.literal("show")
+                            .executes(context -> tradeTerminalShow(context.getSource()))))
+                    .then(Commands.literal("order")
+                        .then(Commands.literal("create")
+                            .then(Commands.argument("item", StringArgumentType.word())
+                                .then(Commands.argument("amount", IntegerArgumentType.integer(1, 4096))
+                                    .then(Commands.argument("max_price", IntegerArgumentType.integer(1))
+                                        .executes(context -> tradeOrderCreate(
+                                            context.getSource(),
+                                            StringArgumentType.getString(context, "item"),
+                                            IntegerArgumentType.getInteger(context, "amount"),
+                                            IntegerArgumentType.getInteger(context, "max_price")
+                                        ))))))
+                        .then(Commands.literal("accept")
+                            .then(Commands.argument("id", IntegerArgumentType.integer(1))
+                                .then(Commands.argument("unit_price", IntegerArgumentType.integer(1))
+                                    .executes(context -> tradeOrderAccept(
+                                        context.getSource(),
+                                        IntegerArgumentType.getInteger(context, "id"),
+                                        IntegerArgumentType.getInteger(context, "unit_price")
+                                    )))))
+                        .then(Commands.literal("cancel")
+                            .then(Commands.argument("id", IntegerArgumentType.integer(1))
+                                .executes(context -> tradeOrderCancel(
+                                    context.getSource(),
+                                    IntegerArgumentType.getInteger(context, "id")
+                                )))))
+                    .then(Commands.literal("orders")
+                        .executes(context -> tradeOrders(context.getSource())))
+                    .then(Commands.literal("shipment")
+                        .then(Commands.literal("dispatch")
+                            .then(Commands.argument("order", IntegerArgumentType.integer(1))
+                                .then(Commands.argument("amount", IntegerArgumentType.integer(1, 4096))
+                                    .executes(context -> tradeShipmentDispatch(
+                                        context.getSource(),
+                                        IntegerArgumentType.getInteger(context, "order"),
+                                        IntegerArgumentType.getInteger(context, "amount")
+                                    )))))
+                        .then(Commands.literal("haul")
+                            .then(Commands.argument("id", IntegerArgumentType.integer(1))
+                                .executes(context -> tradeShipmentHaul(
+                                    context.getSource(),
+                                    IntegerArgumentType.getInteger(context, "id")
+                                )))))
+                    .then(Commands.literal("shipments")
+                        .executes(context -> tradeShipments(context.getSource())))
+                )
                 .then(Commands.literal("market")
                     .executes(context -> showPopulationMarket(context.getSource()))
                     .then(Commands.literal("wallet")
