@@ -12,6 +12,9 @@ authors="ZELA"
 [[mixins]]
 config="politicseconomy.mixins.json"
 
+[[mixins]]
+config="politicseconomy.xaerominimap.mixins.json"
+
 description='''${description}'''
 
 [[dependencies.${mod_id}]]
@@ -57,3 +60,10 @@ versionRange="[1.44.2,)"
 ordering="AFTER"
 side="CLIENT"
 
+
+[[dependencies.politicseconomy]]
+modId="xaerominimap"
+type="optional"
+versionRange="[26.4,27)"
+ordering="AFTER"
+side="CLIENT"
