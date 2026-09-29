@@ -90,15 +90,22 @@ public abstract class MtsMillenaireCombatMixin {
         }
 
         List<?> hits = cir.getReturnValue();
+        /*
+         * Do not perform our own ray-trace here.
+         *
+         * MTS does a second, authoritative intersection test immediately
+         * after attackEntities() returns (EntityBullet uses
+         * entity.getBounds().getIntersection(position, endPoint)).
+         * The previous compatibility layer duplicated that test using the
+         * Damage box center, which is not guaranteed to be identical to the
+         * bullet's actual position and could therefore miss Millénaire
+         * villagers even though the projectile visually crossed them.
+         */
+        @SuppressWarnings("unchecked")
+        List<Object> mutableHits = (List<Object>) hits;
         for (LivingEntity villager : villagers) {
-            if (!shouldHit(villager, center, end, motionVec)) {
-                continue;
-            }
-
             Object wrapper = createMtsWrapper(villager);
             if (wrapper != null && !hits.contains(wrapper)) {
-                @SuppressWarnings("unchecked")
-                List<Object> mutableHits = (List<Object>) hits;
                 mutableHits.add(wrapper);
             }
         }
@@ -114,19 +121,6 @@ public abstract class MtsMillenaireCombatMixin {
                 "org.millenaire.entity.MillVillager"
             )
             && MillenaireIntegration.isAvailable();
-    }
-
-    private static boolean shouldHit(
-        LivingEntity villager,
-        Vec3 start,
-        Vec3 end,
-        Vec3 motion
-    ) {
-        AABB box = villager.getBoundingBox().inflate(0.10D);
-        if (motion == null || motion.lengthSqr() < 1.0E-12D) {
-            return box.contains(start);
-        }
-        return box.clip(start, end).isPresent();
     }
 
     private static Object createMtsWrapper(Entity entity) {
