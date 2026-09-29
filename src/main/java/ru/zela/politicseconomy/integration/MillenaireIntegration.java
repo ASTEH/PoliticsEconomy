@@ -13,6 +13,7 @@ import ru.zela.politicseconomy.country.CountryDirectionManager;
 import ru.zela.politicseconomy.country.CountryDevelopmentService;
 import ru.zela.politicseconomy.country.CountryPolicyManager;
 import ru.zela.politicseconomy.country.CountryPolicyBonusService;
+import ru.zela.politicseconomy.country.CountryDirectionBonusService;
 import ru.zela.politicseconomy.country.GovernmentType;
 import ru.zela.politicseconomy.country.ReligionType;
 import ru.zela.politicseconomy.country.WorkforceSector;
