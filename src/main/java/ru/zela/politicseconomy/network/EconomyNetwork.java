@@ -182,6 +182,10 @@ public final class EconomyNetwork {
         PacketDistributor.sendToPlayer(player, payload);
     }
 
+    public static void send(ServerPlayer player, PoliticalClaimsPayload payload) {
+        PacketDistributor.sendToPlayer(player, payload);
+    }
+
     public static void sendAction(String action, String value) {
         PacketDistributor.sendToServer(new CountrySettingsActionPayload(action, value));
     }
