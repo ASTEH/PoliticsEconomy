@@ -9,18 +9,27 @@ import ru.zela.politicseconomy.country.CountryDevelopmentService;
 import ru.zela.politicseconomy.country.CountryDirection;
 import ru.zela.politicseconomy.country.CountryDirectionManager;
 import ru.zela.politicseconomy.integration.PoliticsModIntegration;
+import ru.zela.politicseconomy.integration.MillenaireIntegration;
+import ru.zela.politicseconomy.integration.MillenaireStateSavedData;
+
 import java.util.*;
 
 public final class CountryResearchService {
     private CountryResearchService(){}
-    public record Result(boolean success,String message){}
+
+    public record Result(boolean success, String message){}
 
     public static CountryResearchSavedData get(MinecraftServer server){
         return server.overworld().getDataStorage().computeIfAbsent(
             new net.minecraft.world.level.saveddata.SavedData.Factory<>(
-                CountryResearchSavedData::create,CountryResearchSavedData::load,null
-            ),CountryResearchSavedData.DATA_NAME);
+                CountryResearchSavedData::create,
+                CountryResearchSavedData::load,
+                null
+            ),
+            CountryResearchSavedData.DATA_NAME
+        );
     }
+
     public static Set<String> completed(MinecraftServer server,String country){
         Set<String> result = new HashSet<>(get(server).getCompleted(country));
         // Migration from the previous linear tree: trade_motor became trade_road.
@@ -30,31 +39,73 @@ public final class CountryResearchService {
         }
         return Set.copyOf(result);
     }
-    public static int points(MinecraftServer server,String country){return get(server).getPoints(country);}
-    public static void addPoints(MinecraftServer server,String country,int amount){get(server).addPoints(country,amount);}
-    public static List<CountryResearch> forDirection(CountryDirection direction){return Arrays.stream(CountryResearch.values()).filter(r->r.direction()==direction).toList();}
-    public static CountryResearch byId(String id){for(CountryResearch r:CountryResearch.values())if(r.id().equals(id))return r;return null;}
+
+    public static int points(MinecraftServer server,String country){
+        return get(server).getPoints(country);
+    }
+
+    public static void addPoints(MinecraftServer server,String country,int amount){
+        get(server).addPoints(country,amount);
+    }
+
+    public static List<CountryResearch> forDirection(CountryDirection direction){
+        return Arrays.stream(CountryResearch.values())
+            .filter(r -> r.direction() == direction)
+            .toList();
+    }
+
+    public static CountryResearch byId(String id){
+        for(CountryResearch r:CountryResearch.values()) {
+            if(r.id().equals(id)) return r;
+        }
+        return null;
+    }
 
     public static String status(MinecraftServer server,String country,CountryResearch r){
         Set<String> completed = completed(server, country);
-        if(completed.contains(r.id()))return "COMPLETED";
-        if(CountryDirectionManager.getDirection(server,country)!=r.direction())return "LOCKED";
-        if(CountryDevelopmentService.level(server,country)<r.minLevel())return "LEVEL";
-        if(!completed.containsAll(r.prerequisites()))return "PREREQUISITE";
-        if(points(server,country)<r.researchCost())return "POINTS";
+        if(completed.contains(r.id())) return "COMPLETED";
+
+        if(CountryDirectionManager.getDirection(server,country) != r.direction()) {
+            return "LOCKED";
+        }
+
+        if(CountryDevelopmentService.level(server,country) < r.minLevel()) {
+            return "LEVEL";
+        }
+
+        if(!completed.containsAll(r.prerequisites())) {
+            return "PREREQUISITE";
+        }
+
+        if(points(server,country) < r.researchCost()) {
+            return "POINTS";
+        }
+
+        if (MillenaireIntegration.isStateKey(country)) {
+            UUID villageId = MillenaireIntegration.villageIdFromStateKey(country);
+            long treasury = villageId == null
+                ? 0L
+                : MillenaireStateSavedData.get(server).treasury(villageId);
+            if (treasury < r.moneyCost()) return "MONEY";
+            return "AVAILABLE";
+        }
+
         Country actual=countryObject(server,country);
-        if(actual==null||actual.balance<r.moneyCost())return "MONEY";
+        if(actual==null||actual.balance<r.moneyCost()) return "MONEY";
         return "AVAILABLE";
     }
 
     public static Result research(ServerPlayer player,String id){
         Country country=PoliticsModIntegration.playerCountry(player).orElse(null);
         if(country==null)return new Result(false,"Ты не состоишь ни в одной стране.");
+
         boolean operator=player.isCreative()&&player.hasPermissions(2);
         CountryResearch r=byId(id);
         if(r==null)return new Result(false,"Исследование не найдено.");
+
         if(!operator&&PoliticsModIntegration.role(player,country)!=CountryRole.LEADER)
             return new Result(false,"Исследования может проводить только лидер страны.");
+
         String status=status(player.getServer(),country.getName(),r);
         if(!operator&&!status.equals("AVAILABLE")){
             return switch(status){
@@ -66,14 +117,72 @@ public final class CountryResearchService {
                 default->new Result(false,"Исследование пока недоступно.");
             };
         }
+
         if(!operator){
             country.balance-=r.moneyCost();
             get(player.getServer()).addPoints(country.getName(),-r.researchCost());
             var politics=PoliticsManager.get(player.serverLevel());
             if(politics!=null)politics.setDirty();
         }
+
         get(player.getServer()).complete(country.getName(),r.id());
         return new Result(true,"Исследование завершено: "+r.title());
+    }
+
+    /**
+     * Performs one autonomous research step for a Millénaire state.
+     * The state always researches the next available technology in its own
+     * direction and pays from its own treasury.
+     */
+    public static Result researchMillenaire(MinecraftServer server, String stateKey) {
+        if (!MillenaireIntegration.isStateKey(stateKey)) {
+            return new Result(false, "Это не государство Millénaire.");
+        }
+
+        CountryDirection direction =
+            CountryDirectionManager.getDirection(server, stateKey);
+        if (direction == null) {
+            return new Result(false, "У государства Millénaire нет экономического направления.");
+        }
+
+        List<CountryResearch> candidates = new ArrayList<>(forDirection(direction));
+        candidates.sort(
+            Comparator.comparingInt(CountryResearch::minLevel)
+                .thenComparingInt(CountryResearch::row)
+                .thenComparingInt(CountryResearch::column)
+                .thenComparing(CountryResearch::id)
+        );
+
+        for (CountryResearch research : candidates) {
+            if (!"AVAILABLE".equals(status(server, stateKey, research))) {
+                continue;
+            }
+
+            UUID villageId = MillenaireIntegration.villageIdFromStateKey(stateKey);
+            if (villageId == null) {
+                return new Result(false, "Государство Millénaire не найдено.");
+            }
+
+            MillenaireStateSavedData finances =
+                MillenaireStateSavedData.get(server);
+            long treasury = finances.treasury(villageId);
+            if (treasury < research.moneyCost()
+                || points(server, stateKey) < research.researchCost()) {
+                continue;
+            }
+
+            finances.addTreasury(villageId, -research.moneyCost());
+            addPoints(server, stateKey, -research.researchCost());
+            get(server).complete(stateKey, research.id());
+
+            return new Result(
+                true,
+                "Государство «" + MillenaireIntegration.displayName(server, stateKey)
+                    + "» исследовало технологию: " + research.title()
+            );
+        }
+
+        return new Result(false, "Нет доступной технологии для автономного исследования.");
     }
 
     private static Country countryObject(MinecraftServer server,String name){
@@ -84,11 +193,21 @@ public final class CountryResearchService {
     public static String[] dashboard(MinecraftServer server,String country){
         CountryDirection direction=CountryDirectionManager.getDirection(server,country);
         if(direction==null)return new String[0];
+
         List<String> rows=new ArrayList<>();
         for(CountryResearch r:forDirection(direction)){
-            rows.add(String.join("|",r.id(),r.title(),r.description(),status(server,country,r),
-                Integer.toString(r.researchCost()),Integer.toString(r.moneyCost()),Integer.toString(r.minLevel()),
-                r.icon(),String.join(",",r.prerequisites())));
+            rows.add(String.join(
+                "|",
+                r.id(),
+                r.title(),
+                r.description(),
+                status(server,country,r),
+                Integer.toString(r.researchCost()),
+                Integer.toString(r.moneyCost()),
+                Integer.toString(r.minLevel()),
+                r.icon(),
+                String.join(",",r.prerequisites())
+            ));
         }
         return rows.toArray(String[]::new);
     }
