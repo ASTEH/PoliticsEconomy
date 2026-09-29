@@ -194,7 +194,7 @@ public final class MilitaryWarSavedData extends SavedData {
             );
         }
 
-        public ChunkPos targetChunk() {
+        public ChunkPos targetChunkPos() {
             return new ChunkPos(targetChunk);
         }
     }
