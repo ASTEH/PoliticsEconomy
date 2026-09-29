@@ -1,7 +1,9 @@
 package ru.zela.politicseconomy.mixin;
 
-import com.llamalad7.mixinextras.sugar.Local;
+import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import org.spongepowered.asm.mixin.Mixin;
@@ -9,6 +11,9 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import ru.zela.politicseconomy.client.XaeroPoliticalMinimapOverlay;
+import xaero.common.AXaeroMinimap;
+import xaero.common.graphics.renderer.multitexture.MultiTextureRenderTypeRendererProvider;
+import xaero.common.minimap.render.MinimapRendererHelper;
 
 @Mixin(
     targets = "xaero.common.minimap.element.render.over.MinimapElementOverMapRendererHandler",
@@ -27,10 +32,21 @@ public abstract class XaeroMinimapElementOverMapRendererMixin {
         double ps,
         double pc,
         double zoom,
-        CallbackInfo ci,
-        @Local(argsOnly = true, ordinal = 0) int specW,
-        @Local(argsOnly = true, ordinal = 1) int specH,
-        @Local(argsOnly = true, ordinal = 1) boolean circle
+        boolean cave,
+        float partialTicks,
+        RenderTarget framebuffer,
+        AXaeroMinimap modMain,
+        MinimapRendererHelper helper,
+        MultiBufferSource.BufferSource renderTypeBuffers,
+        Font font,
+        MultiTextureRenderTypeRendererProvider multiTextureRenderTypeRenderers,
+        int specW,
+        int specH,
+        int halfViewW,
+        int halfViewH,
+        boolean circle,
+        float minimapScale,
+        CallbackInfo ci
     ) {
         if (player == null) {
             return;
