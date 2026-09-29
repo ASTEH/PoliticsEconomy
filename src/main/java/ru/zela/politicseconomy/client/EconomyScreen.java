@@ -167,12 +167,14 @@ public final class EconomyScreen extends UiScreen {
                 Ui.card(
                     Ui.column(
                         header(),
+                        Ui.divider(),
                         Ui.tabs(pageSignal)
                             .tab(Page.OVERVIEW, "Обзор")
-                            .tab(Page.COUNTRY, "Страна")
+                            .tab(Page.COUNTRY, "Государство")
                             .tab(Page.EFFECTS, "Эффекты")
                             .tab(Page.CITIES, "Города")
-                            .tab(Page.MARKET, "Рынок"),
+                            .tab(Page.MARKET, "Рынок")
+                            .fillWidth(),
                         Ui.switcher(pageSignal)
                             .when(Page.OVERVIEW, this::overviewPage)
                             .when(Page.COUNTRY, this::countryPage)
@@ -210,9 +212,10 @@ public final class EconomyScreen extends UiScreen {
                 Ui.text(countryTitle).nowrap(),
                 Ui.text(populationText).nowrap()
             ).gap(2),
-            Ui.spacer(),
-            Ui.badge("◆  ВНУТРЕННИЙ РЫНОК"),
-            Ui.text(walletText).nowrap()
+            Ui.column(
+                Ui.text("ГОСУДАРСТВЕННЫЙ КОШЕЛЁК").nowrap(),
+                Ui.text(walletText).nowrap()
+            ).gap(1)
         ).gap(8).fillWidth();
     }
 
@@ -590,9 +593,9 @@ public final class EconomyScreen extends UiScreen {
                         )).nowrap()
                     ).gap(8).fillWidth(),
                     Ui.row(
-                        Ui.chip("Цена зависит от дефицита"),
-                        Ui.chip("После половины цикла — импорт"),
-                        Ui.chip("Trade Warehouse нужен для внешних закупок")
+                        Ui.chip("Цена = дефицит"),
+                        Ui.chip("Импорт после ½ цикла"),
+                        Ui.chip("Trade Warehouse = внешний рынок")
                     ).gap(5).fillWidth()
                 ).gap(7).fillWidth()
             ).padding(10).elevated(true).fillWidth(),
@@ -639,10 +642,10 @@ public final class EconomyScreen extends UiScreen {
                 Ui.column(
                     Ui.button("×1", () -> sellMarket(row, 1))
                         .small()
-                        .primary(),
+                        .outline(),
                     Ui.button("×16", () -> sellMarket(row, 16))
                         .small()
-                        .secondary()
+                        .primary()
                 ).gap(4)
             ).gap(8).fillWidth()
         ).padding(6).fillWidth();
@@ -665,7 +668,7 @@ public final class EconomyScreen extends UiScreen {
                 ).gap(2).flex(),
                 Ui.button("−", () -> changeWorkforce(row.sector(), -5))
                     .small()
-                    .secondary(),
+                    .outline(),
                 Ui.button("+", () -> changeWorkforce(row.sector(), 5))
                     .small()
                     .success()
