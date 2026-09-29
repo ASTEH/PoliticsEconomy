@@ -27,7 +27,11 @@ public final class InfrastructureEvents {
         CountryWorkplaceService.invalidate(level.getServer());
 
         if (event.getPlacedBlock().getBlock() instanceof BedBlock) {
-            CountryPopulationService.onBedChange(level, event.getPos());
+            CountryPopulationService.onBedPlaced(
+                level,
+                event.getPos(),
+                (ServerPlayer) event.getEntity()
+            );
         }
     }
 
