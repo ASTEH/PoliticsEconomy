@@ -1261,9 +1261,23 @@ public final class EconomyScreen extends Screen {
                 Math.max(1, Math.max(effectCount(true), effectCount(false))) * 30 + 22;
             case CITIES -> end = y + 40 + Math.max(1, snapshot.cityNames().length) * 102 + 10;
             case MARKET -> end = y + 40 + 88 + Math.max(1, snapshot.marketItemIds().length) * 77 + 10;
-            case TRADE -> end = y + 40 + 110 + 152 +
-                Math.max(1, Math.max(snapshot.tradeOwnOrders().length, snapshot.tradeOpenOrders().length)) * 84 +
-                10 + 52 + Math.max(1, snapshot.tradeShipments().length) * 84 + 10;
+            case TRADE -> {
+                int tradeWidth = width - contentLeft() - 16;
+                int ownHeight = 56 + Math.max(1, snapshot.tradeOwnOrders().length) * 84;
+                int openHeight = 56 + Math.max(1, snapshot.tradeOpenOrders().length) * 84;
+                int shipmentHeight = 56 + Math.max(1, snapshot.tradeShipments().length) * 84;
+
+                if (tradeWidth < 760) {
+                    end = y + 40 + 110 + 152
+                        + ownHeight + 10
+                        + openHeight + 10
+                        + shipmentHeight + 10;
+                } else {
+                    end = y + 40 + 110 + 108
+                        + Math.max(ownHeight, openHeight) + 10
+                        + shipmentHeight + 10;
+                }
+            }
             default -> end = y;
         }
         return Math.max(0, end - (height - 12));
