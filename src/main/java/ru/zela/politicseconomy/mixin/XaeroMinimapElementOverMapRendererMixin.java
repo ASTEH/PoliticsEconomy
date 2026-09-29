@@ -1,5 +1,6 @@
 package ru.zela.politicseconomy.mixin;
 
+import com.llamalad7.mixinextras.sugar.Local;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
@@ -26,7 +27,10 @@ public abstract class XaeroMinimapElementOverMapRendererMixin {
         double ps,
         double pc,
         double zoom,
-        CallbackInfo ci
+        CallbackInfo ci,
+        @Local(argsOnly = true, ordinal = 0) int specW,
+        @Local(argsOnly = true, ordinal = 1) int specH,
+        @Local(argsOnly = true, ordinal = 1) boolean circle
     ) {
         if (player == null) {
             return;
@@ -39,28 +43,9 @@ public abstract class XaeroMinimapElementOverMapRendererMixin {
             ps,
             pc,
             zoom,
-            readSpecWidth(),
-            readSpecHeight(),
-            readCircle()
+            specW,
+            specH,
+            circle
         );
-    }
-
-    /*
-     * The render method's later arguments are deliberately not referenced
-     * directly. The defaults below match Xaero's normal minimap geometry and
-     * keep this optional integration independent from Xaero's implementation
-     * classes. The actual map transform (renderX/renderZ/ps/pc/zoom) still
-     * comes directly from Xaero.
-     */
-    private int readSpecWidth() {
-        return 128;
-    }
-
-    private int readSpecHeight() {
-        return 128;
-    }
-
-    private boolean readCircle() {
-        return false;
     }
 }
