@@ -120,7 +120,7 @@ public final class PopulationDemandCatalog {
             case TRADE -> multiplier *= tradeMultiplier(good);
         }
 
-        switch (government) {
+        switch (government == null ? GovernmentType.DEMOCRACY : government) {
             case DEMOCRACY -> {
                 if (isOneOf(good, "minecraft:paper", "minecraft:book", "minecraft:glass", "minecraft:cake")) {
                     multiplier *= 1.15D;
@@ -145,7 +145,7 @@ public final class PopulationDemandCatalog {
             }
         }
 
-        switch (religion) {
+        switch (religion == null ? ReligionType.SECULAR : religion) {
             case SECULAR -> {}
             case CHRISTIANITY -> {
                 if (isOneOf(good, "minecraft:bread", "minecraft:book", "minecraft:cake")) multiplier *= 1.20D;
