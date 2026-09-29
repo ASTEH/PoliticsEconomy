@@ -15,6 +15,7 @@ base {
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
 repositories {
+    maven { name = 'Architectury'; url = 'https://maven.architectury.dev' }
     maven { name = 'NeoForged'; url = 'https://maven.neoforged.net/releases' }
     maven { name = 'CurseMaven'; url = 'https://cursemaven.com' }
     maven { name = 'CreateMaven'; url = 'https://maven.createmod.net' }
@@ -38,6 +39,9 @@ neoForge {
 dependencies {
     // PoliticsMod 0.3 for Minecraft 1.21.1 / NeoForge.
     compileOnly 'curse.maven:politicsmod-1409021:8890598'
+    // PoliticsMod's claim packet uses Architectury networking. Keep it compile-only;
+    // PoliticsMod supplies the runtime dependency.
+    compileOnly 'dev.architectury:architectury-neoforge:13.0.11'
     runtimeOnly 'curse.maven:politicsmod-1409021:8890598'
 
     // Match the user's actual runtime: Create 6.0.10 for Minecraft 1.21.1.
