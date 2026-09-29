@@ -755,8 +755,8 @@ public final class EconomyScreen extends Screen {
         g.drawString(font, "Макс. цена / шт.", left + 382, y + 28, MUTED, false);
 
         g.drawString(font,
-            "Поиск по русскому названию или item ID. Выберите товар из списка.",
-            left + 14, y + 70, MUTED, false);
+            "Поиск по русскому названию или item ID.",
+            left + 14, y + 69, MUTED, false);
 
         boolean selectedItemValid = resolveSelectedTradeItemId() != null;
         drawButton(g, right - 148, y + 68, right - 10, y + 95,
@@ -770,7 +770,7 @@ public final class EconomyScreen extends Screen {
                 : null);
 
         g.drawString(font, "Деньги резервируются из казны страны.",
-            right - 360, y + 53, MUTED, false);
+            left + 14, y + 88, MUTED, false);
 
         y = orderBottom + 10;
 
