@@ -42,6 +42,9 @@ public final class MillenaireIntegration {
     private static final String STATE_PREFIX = "millenaire:";
     private static final long SYNC_INTERVAL = 40L;
     private static Boolean available;
+    private static MinecraftServer cachedServer;
+    private static long cachedSecond = Long.MIN_VALUE;
+    private static List<VillageSnapshot> cachedSnapshots = List.of();
 
     private MillenaireIntegration() {}
 
@@ -64,8 +67,7 @@ public final class MillenaireIntegration {
         if (level == null || level.getGameTime() % SYNC_INTERVAL != 0L) return;
 
         try {
-            for (Object village : villages(level)) {
-                VillageSnapshot snapshot = snapshot(level, village);
+            for (VillageSnapshot snapshot : snapshots(server)) {
                 MillenaireStateSavedData data = MillenaireStateSavedData.get(server);
                 data.ensureState(snapshot.villageId(), snapshot.name(), server.getTickCount());
                 ensurePolicyDefaults(server, snapshot);
@@ -172,12 +174,8 @@ public final class MillenaireIntegration {
 
     public static VillageSnapshot snapshotAtChunk(MinecraftServer server, ChunkPos chunk) {
         if (!isAvailable() || server == null || chunk == null) return null;
-        for (Object village : villages(server.overworld())) {
-            try {
-                VillageSnapshot snapshot = snapshot(server.overworld(), village);
-                if (snapshot.territory().contains(chunk)) return snapshot;
-            } catch (Throwable ignored) {
-            }
+        for (VillageSnapshot snapshot : snapshots(server)) {
+            if (snapshot.territory().contains(chunk)) return snapshot;
         }
         return null;
     }
@@ -186,8 +184,10 @@ public final class MillenaireIntegration {
         if (!isStateKey(stateKey) || server == null) return null;
         UUID id = villageIdFromStateKey(stateKey);
         if (id == null) return null;
-        Object village = findVillageById(server.overworld(), id);
-        return village == null ? null : snapshot(server.overworld(), village);
+        for (VillageSnapshot snapshot : snapshots(server)) {
+            if (id.equals(snapshot.villageId())) return snapshot;
+        }
+        return null;
     }
 
     public static int population(MinecraftServer server, String stateKey) {
