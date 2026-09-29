@@ -14,8 +14,10 @@ import java.util.Map;
 public final class CountryWorkforceSavedData extends SavedData {
     public static final String DATA_NAME = "politicseconomy_country_workforce";
     private static final String COUNTRIES = "countries";
+    private static final String REMAINDERS = "dividend_remainders";
 
     private final Map<String, EnumMap<WorkforceSector, Integer>> allocations = new HashMap<>();
+    private final Map<String, Map<String, Double>> dividendRemainders = new HashMap<>();
 
     public static CountryWorkforceSavedData create() {
         return new CountryWorkforceSavedData();
@@ -23,17 +25,33 @@ public final class CountryWorkforceSavedData extends SavedData {
 
     public static CountryWorkforceSavedData load(CompoundTag tag, HolderLookup.Provider registries) {
         CountryWorkforceSavedData data = create();
-        if (!tag.contains(COUNTRIES, Tag.TAG_COMPOUND)) return data;
 
-        CompoundTag countries = tag.getCompound(COUNTRIES);
-        for (String countryName : countries.getAllKeys()) {
-            CompoundTag country = countries.getCompound(countryName);
-            EnumMap<WorkforceSector, Integer> allocation = new EnumMap<>(WorkforceSector.class);
-            for (WorkforceSector sector : WorkforceSector.values()) {
-                allocation.put(sector, Math.max(0, country.getInt(sector.commandName())));
+        if (tag.contains(COUNTRIES, Tag.TAG_COMPOUND)) {
+            CompoundTag countries = tag.getCompound(COUNTRIES);
+            for (String countryName : countries.getAllKeys()) {
+                CompoundTag country = countries.getCompound(countryName);
+                EnumMap<WorkforceSector, Integer> allocation = new EnumMap<>(WorkforceSector.class);
+                for (WorkforceSector sector : WorkforceSector.values()) {
+                    allocation.put(sector, Math.max(0, country.getInt(sector.commandName())));
+                }
+                data.allocations.put(countryName, normalize(allocation));
             }
-            data.allocations.put(countryName, normalize(allocation));
         }
+
+        if (tag.contains(REMAINDERS, Tag.TAG_COMPOUND)) {
+            CompoundTag allRemainders = tag.getCompound(REMAINDERS);
+            for (String countryName : allRemainders.getAllKeys()) {
+                CompoundTag country = allRemainders.getCompound(countryName);
+                Map<String, Double> values = new HashMap<>();
+                for (String itemId : country.getAllKeys()) {
+                    values.put(itemId, Math.max(0.0D, country.getDouble(itemId)));
+                }
+                if (!values.isEmpty()) {
+                    data.dividendRemainders.put(countryName, values);
+                }
+            }
+        }
+
         return data;
     }
 
@@ -48,6 +66,19 @@ public final class CountryWorkforceSavedData extends SavedData {
             countries.put(entry.getKey(), country);
         }
         tag.put(COUNTRIES, countries);
+
+        CompoundTag allRemainders = new CompoundTag();
+        for (Map.Entry<String, Map<String, Double>> entry : dividendRemainders.entrySet()) {
+            CompoundTag country = new CompoundTag();
+            for (Map.Entry<String, Double> remainder : entry.getValue().entrySet()) {
+                country.putDouble(remainder.getKey(), Math.max(0.0D, remainder.getValue()));
+            }
+            if (!country.isEmpty()) {
+                allRemainders.put(entry.getKey(), country);
+            }
+        }
+        tag.put(REMAINDERS, allRemainders);
+
         return tag;
     }
 
@@ -66,6 +97,19 @@ public final class CountryWorkforceSavedData extends SavedData {
 
     public void setAllocation(String countryName, EnumMap<WorkforceSector, Integer> allocation) {
         allocations.put(countryName, normalize(allocation));
+        setDirty();
+    }
+
+    public double getDividendRemainder(String countryName, String itemId) {
+        return dividendRemainders
+            .getOrDefault(countryName, Map.of())
+            .getOrDefault(itemId, 0.0D);
+    }
+
+    public void setDividendRemainder(String countryName, String itemId, double value) {
+        dividendRemainders
+            .computeIfAbsent(countryName, ignored -> new HashMap<>())
+            .put(itemId, Math.max(0.0D, Math.min(0.999999999D, value)));
         setDirty();
     }
 
