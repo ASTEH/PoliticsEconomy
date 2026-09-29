@@ -145,7 +145,7 @@ public final class XaeroPoliticalMapOverlay {
     }
 
     private static int countryFill(String country) {
-        return palette(country, 0x55);
+        return palette(country, 0x66);
     }
 
     private static int countryBorder(String country) {
