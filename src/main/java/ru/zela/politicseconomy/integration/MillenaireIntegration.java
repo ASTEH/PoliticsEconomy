@@ -162,14 +162,20 @@ public final class MillenaireIntegration {
 
     public static List<VillageSnapshot> snapshots(MinecraftServer server) {
         if (!isAvailable() || server == null || server.overworld() == null) return List.of();
-        List<VillageSnapshot> result = new ArrayList<>();
-        for (Object village : villages(server.overworld())) {
-            try {
-                result.add(snapshot(server.overworld(), village));
-            } catch (Throwable ignored) {
+        long second = server.overworld().getGameTime() / 20L;
+        if (server != cachedServer || second != cachedSecond) {
+            List<VillageSnapshot> result = new ArrayList<>();
+            for (Object village : villages(server.overworld())) {
+                try {
+                    result.add(snapshot(server.overworld(), village));
+                } catch (Throwable ignored) {
+                }
             }
+            cachedServer = server;
+            cachedSecond = second;
+            cachedSnapshots = List.copyOf(result);
         }
-        return List.copyOf(result);
+        return cachedSnapshots;
     }
 
     public static VillageSnapshot snapshotAtChunk(MinecraftServer server, ChunkPos chunk) {
