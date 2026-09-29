@@ -48,6 +48,9 @@ public final class CountryPopulationService {
 
     public static int population(MinecraftServer server, String countryName) {
         if (server == null || countryName == null || countryName.isBlank()) return 0;
+        if (ru.zela.politicseconomy.integration.MillenaireIntegration.isStateKey(countryName)) {
+            return ru.zela.politicseconomy.integration.MillenaireIntegration.population(server, countryName);
+        }
         Cache cache = cache(server);
         return cache.byCountry.computeIfAbsent(
             countryName,
