@@ -175,6 +175,7 @@ public final class TradeSavedData extends SavedData {
         private String sellerCountry;
         private int agreedUnitPrice;
         private OrderStatus status;
+        private String cancelReason;
         private final long createdAt;
 
         public Order(
@@ -207,6 +208,7 @@ public final class TradeSavedData extends SavedData {
         public String sellerCountry() { return sellerCountry; }
         public int agreedUnitPrice() { return agreedUnitPrice; }
         public OrderStatus status() { return status; }
+        public String cancelReason() { return cancelReason; }
         public long createdAt() { return createdAt; }
 
         public void accept(String sellerCountry, int unitPrice) {
@@ -225,8 +227,9 @@ public final class TradeSavedData extends SavedData {
             status = OrderStatus.COMPLETE;
         }
 
-        public void cancel() {
-            status = OrderStatus.CANCELLED;
+        public void cancel(String reason) {
+            this.cancelReason = reason == null ? "" : reason;
+            this.status = OrderStatus.CANCELLED;
         }
 
         public void spendReserved(long amount) {
@@ -247,6 +250,9 @@ public final class TradeSavedData extends SavedData {
             }
             tag.putInt("agreed_price", agreedUnitPrice);
             tag.putString("status", status.name());
+            if (cancelReason != null && !cancelReason.isBlank()) {
+                tag.putString("cancel_reason", cancelReason);
+            }
             tag.putLong("created", createdAt);
             return tag;
         }
@@ -266,6 +272,9 @@ public final class TradeSavedData extends SavedData {
                 ? tag.getString("seller")
                 : null;
             order.agreedUnitPrice = Math.max(0, tag.getInt("agreed_price"));
+            order.cancelReason = tag.contains("cancel_reason", Tag.TAG_STRING)
+                ? tag.getString("cancel_reason")
+                : "";
             try {
                 order.status = OrderStatus.valueOf(tag.getString("status"));
             } catch (IllegalArgumentException ignored) {
