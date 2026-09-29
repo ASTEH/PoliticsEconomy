@@ -66,8 +66,25 @@ public final class CountryResearchContentService {
 
     private static void deny(ServerPlayer player, ResourceLocation contentId, CountryResearch technology) {
         player.sendSystemMessage(net.minecraft.network.chat.Component.literal(
-            "Технология «" + technology.title() + "» ещё не исследована. (" + contentId + ")"
+            "Доступ заблокирован: ветка «" + technology.direction().displayName()
+                + "» → технология «" + technology.title() + "» ещё не исследована."
+                + (contentId == null ? "" : " [" + contentId + "]")
         ).withStyle(net.minecraft.ChatFormatting.RED));
+    }
+
+    /** Returns the technology required by an item, also checking the block id for BlockItems. */
+    public static CountryResearch requiredTechnology(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) return null;
+
+        ResourceLocation itemId = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem());
+        CountryResearch result = requiredTechnology(itemId);
+        if (result != null) return result;
+
+        if (stack.getItem() instanceof BlockItem blockItem) {
+            ResourceLocation blockId = net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(blockItem.getBlock());
+            return requiredTechnology(blockId);
+        }
+        return null;
     }
 
     /**
@@ -87,24 +104,25 @@ public final class CountryResearchContentService {
         ServerPlayer player = event.getEntity() instanceof ServerPlayer serverPlayer ? serverPlayer : null;
 
         // A player's technology belongs to their country, not to the chunk in
-        // which they happened to place the block. This also prevents bypassing
-        // the tech tree by stepping outside national territory.
+        // which they happened to place the block. This prevents stepping outside
+        // national territory from becoming a technology-tree bypass.
         if (player != null) {
             if (creativeOperator(player)) return;
             country = playerCountry(player);
         }
 
-        // For automated placement without a player entity (e.g. Create), fall
-        // back to the country owning the destination chunk.
+        // Players without a country must not be able to use locked technology.
+        // Automation has no player, so it falls back to the destination chunk owner.
         if (country == null) {
             var politics = PoliticsModIntegration.manager(level);
-            if (politics == null) return;
-            country = politics.getCountryAt(new ChunkPos(event.getPos()));
+            if (politics != null) {
+                country = politics.getCountryAt(new ChunkPos(event.getPos()));
+            }
         }
 
-        if (country == null || country.getName().isBlank()) return;
-
-        if (CountryResearchService.completed(level.getServer(), country.getName()).contains(technology.id())) return;
+        boolean unlocked = country != null
+            && CountryResearchService.completed(level.getServer(), country.getName()).contains(technology.id());
+        if (unlocked) return;
 
         event.setCanceled(true);
         if (player != null) {
@@ -116,20 +134,35 @@ public final class CountryResearchContentService {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
         if (creativeOperator(player)) return;
 
-        ItemStack stack = player.getItemInHand(event.getHand());
-        if (!(stack.getItem() instanceof BlockItem)) return;
-
-        ResourceLocation contentId = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem());
-
-        // The player's country determines which technologies they are allowed
-        // to use. Destination territory must not become a tech-tree bypass.
+        ItemStack held = player.getItemInHand(event.getHand());
         Country country = playerCountry(player);
-        if (country == null) return;
 
-        CountryResearch technology = requiredTechnology(contentId);
-        if (technology != null && !unlocked(player.getServer(), country.getName(), contentId)) {
-            event.setCanceled(true);
-            deny(player, contentId, technology);
+        // Gate the block being interacted with as well as the held item. This
+        // prevents an already-placed locked machine from being used with an
+        // empty hand or a non-block tool.
+        ResourceLocation blockId = net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(
+            event.getLevel().getBlockState(event.getPos()).getBlock()
+        );
+        CountryResearch blockTechnology = requiredTechnology(blockId);
+        if (blockTechnology != null) {
+            boolean allowed = country != null
+                && CountryResearchService.completed(player.getServer(), country.getName()).contains(blockTechnology.id());
+            if (!allowed) {
+                event.setCanceled(true);
+                deny(player, blockId, blockTechnology);
+                return;
+            }
+        }
+
+        CountryResearch itemTechnology = requiredTechnology(held);
+        if (itemTechnology != null) {
+            boolean allowed = country != null
+                && CountryResearchService.completed(player.getServer(), country.getName()).contains(itemTechnology.id());
+            if (!allowed) {
+                event.setCanceled(true);
+                ResourceLocation itemId = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(held.getItem());
+                deny(player, itemId, itemTechnology);
+            }
         }
     }
 
@@ -137,15 +170,63 @@ public final class CountryResearchContentService {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
         if (creativeOperator(player)) return;
 
-        ResourceLocation contentId = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(player.getItemInHand(event.getHand()).getItem());
-        Country country = playerCountry(player);
-        if (country == null) return;
+        ItemStack held = player.getItemInHand(event.getHand());
+        ResourceLocation contentId = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(held.getItem());
+        CountryResearch technology = requiredTechnology(held);
+        if (technology == null) return;
 
-        CountryResearch technology = requiredTechnology(contentId);
-        if (technology != null && !unlocked(player.getServer(), country.getName(), contentId)) {
+        Country country = playerCountry(player);
+        boolean allowed = country != null
+            && CountryResearchService.completed(player.getServer(), country.getName()).contains(technology.id());
+        if (!allowed) {
             event.setCanceled(true);
             deny(player, contentId, technology);
         }
+    }
+
+    public static void onRightClickEntity(PlayerInteractEvent.EntityInteract event) {
+        if (!(event.getEntity() instanceof ServerPlayer player)) return;
+        if (creativeOperator(player)) return;
+        denyIfLocked(player, event.getItemStack(), event);
+    }
+
+    public static void onRightClickEntitySpecific(PlayerInteractEvent.EntityInteractSpecific event) {
+        if (!(event.getEntity() instanceof ServerPlayer player)) return;
+        if (creativeOperator(player)) return;
+        denyIfLocked(player, event.getItemStack(), event);
+    }
+
+    private static void denyIfLocked(
+        ServerPlayer player,
+        ItemStack stack,
+        net.neoforged.neoforge.event.entity.player.PlayerInteractEvent event
+    ) {
+        CountryResearch technology = requiredTechnology(stack);
+        if (technology == null) return;
+
+        Country country = playerCountry(player);
+        boolean allowed = country != null
+            && CountryResearchService.completed(player.getServer(), country.getName()).contains(technology.id());
+        if (allowed) return;
+
+        event.setCanceled(true);
+        deny(player, net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem()), technology);
+    }
+
+    public static void onAttackEntity(net.neoforged.neoforge.event.entity.player.AttackEntityEvent event) {
+        if (!(event.getEntity() instanceof ServerPlayer player)) return;
+        if (creativeOperator(player)) return;
+        ItemStack held = player.getMainHandItem();
+        CountryResearch technology = requiredTechnology(held);
+        if (technology == null) return;
+
+        Country country = playerCountry(player);
+        boolean allowed = country != null
+            && CountryResearchService.completed(player.getServer(), country.getName()).contains(technology.id());
+        if (allowed) return;
+
+        event.setCanceled(true);
+        deny(player, net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(held.getItem()), technology);
     }
 
 }
