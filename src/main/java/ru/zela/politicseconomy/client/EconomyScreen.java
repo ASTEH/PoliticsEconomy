@@ -814,9 +814,12 @@ public final class EconomyScreen extends UiScreen {
             : "поставщик: " + row.seller();
 
         boolean mySeller = row.seller().equals(snapshotSignal.get().countryName());
+        boolean myBuyer = !mySeller;
         boolean canDispatch = mySeller
             && row.remaining() > 0
             && ("ACCEPTED".equals(row.status()) || "SHIPPING".equals(row.status()));
+        boolean canCancel = myBuyer
+            && ("OPEN".equals(row.status()) || "ACCEPTED".equals(row.status()));
 
         return Ui.card(
             Ui.row(
@@ -845,7 +848,7 @@ public final class EconomyScreen extends UiScreen {
                     Ui.button("ОТМЕНИТЬ", () ->
                         sendTrade("trade_order_cancel", String.valueOf(row.id()))
                     ).small().outline()
-                        .enabled("OPEN".equals(row.status()) || "ACCEPTED".equals(row.status()))
+                        .enabled(canCancel)
                 ).gap(4)
             ).gap(7).fillWidth()
         ).padding(7).fillWidth();
