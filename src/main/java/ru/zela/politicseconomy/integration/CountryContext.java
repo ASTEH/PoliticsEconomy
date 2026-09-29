@@ -39,6 +39,25 @@ public final class CountryContext {
         return country == null ? null : country.getName();
     }
 
+    /**
+     * Returns the economic state key owning a machine position. Player countries
+     * keep their PoliticsMod name; autonomous Millénaire villages use a stable
+     * millenaire:<uuid> key.
+     */
+    public static String machineStateName(ServerLevel level, BlockPos machinePos) {
+        Country country = machineCountry(level, machinePos);
+        if (country != null) {
+            return country.getName();
+        }
+
+        ru.zela.politicseconomy.integration.MillenaireIntegration.VillageSnapshot village =
+            ru.zela.politicseconomy.integration.MillenaireIntegration.snapshotAtChunk(
+                level.getServer(),
+                new ChunkPos(machinePos)
+            );
+        return village == null ? null : village.stateKey();
+    }
+
     public static Country machineCountry(ServerLevel level, BlockPos machinePos) {
         if (level == null || machinePos == null) {
             return null;
