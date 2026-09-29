@@ -13,10 +13,11 @@ import ru.zela.politicseconomy.country.WorkforceSector;
 import ru.zela.politicseconomy.economy.NationalMaterialConsumptionService;
 import ru.zela.politicseconomy.economy.PopulationMarketService;
 
-import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public final class MilitaryAiService {
     private static final long SCAN_INTERVAL_TICKS = 200L;
@@ -25,8 +26,25 @@ public final class MilitaryAiService {
     private static final int MIN_POPULATION = 20;
     private static final long MIN_TREASURY = 150L;
     private static final int[][] DIRECTIONS = {{1,0},{-1,0},{0,1},{0,-1}};
+    private static final Map<String, Set<String>> DEBUG_NEIGHBORS = new HashMap<>();
 
     private MilitaryAiService() {}
+
+    /** Temporary in-memory links used only for local AI testing; never persisted. */
+    public static void addDebugNeighbor(String a, String b) {
+        if (a == null || b == null || a.equals(b)) return;
+        DEBUG_NEIGHBORS.computeIfAbsent(a, ignored -> new HashSet<>()).add(b);
+        DEBUG_NEIGHBORS.computeIfAbsent(b, ignored -> new HashSet<>()).add(a);
+    }
+
+    public static boolean isDebugNeighbor(String a, String b) {
+        return a != null && b != null
+            && DEBUG_NEIGHBORS.getOrDefault(a, Set.of()).contains(b);
+    }
+
+    public static void clearDebugNeighbors() {
+        DEBUG_NEIGHBORS.clear();
+    }
 
     public static void onServerTick(ServerTickEvent.Post event) {
         MinecraftServer server = event.getServer();
@@ -183,6 +201,39 @@ public final class MilitaryAiService {
                 unique.merge(countryName, next,
                     (a, b) -> a.score() >= b.score() ? a : b);
             }
+        }
+
+        // Debug links allow testing two distant villages as neighbours without
+        // changing Millénaire's actual territory or political-map ownership.
+        for (String debugTargetKey : DEBUG_NEIGHBORS.getOrDefault(
+            attacker.stateKey(), Set.of()
+        )) {
+            if (wars.isAtWar(attacker.stateKey(), debugTargetKey)) continue;
+            MillenaireIntegration.VillageSnapshot target =
+                MillenaireIntegration.snapshotForStateKey(server, debugTargetKey);
+            if (target == null || target.villageId().equals(attacker.villageId())) continue;
+
+            int relation = attacker.relations().getOrDefault(target.villageId(), 0);
+            double score = targetScore(
+                power(server, attacker.stateKey(), true, attacker),
+                power(server, target.stateKey(), true, target),
+                Math.max(0, -relation) * 0.45D,
+                pressure * 12.0D
+            );
+            MilitaryWarSavedData.WarCause cause =
+                pressure >= 2
+                    ? MilitaryWarSavedData.WarCause.RESOURCE_SHORTAGE
+                    : MilitaryWarSavedData.WarCause.BORDER_CONFLICT;
+
+            Candidate next = new Candidate(
+                target.stateKey(),
+                target.name(),
+                new ChunkPos(target.center()),
+                score,
+                cause
+            );
+            unique.merge(target.stateKey(), next,
+                (x, y) -> x.score() >= y.score() ? x : y);
         }
 
         return unique.values().stream()
