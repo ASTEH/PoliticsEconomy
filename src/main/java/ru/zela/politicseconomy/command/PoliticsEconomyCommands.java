@@ -247,7 +247,7 @@ public final class PoliticsEconomyCommands {
                                         context.getSource(),
                                         StringArgumentType.getString(context, "item"),
                                         com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(context, "amount")
-                                    ))))))
+                                    )))))
                     .then(Commands.literal("recipe")
                         .then(Commands.argument("item", StringArgumentType.string())
                             .executes(context -> showRecipe(
