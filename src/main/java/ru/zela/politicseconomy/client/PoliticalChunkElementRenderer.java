@@ -9,7 +9,6 @@ import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import ru.zela.politicseconomy.client.PoliticalClaimsClientState;
-import xaero.common.HudMod;
 import xaero.common.IXaeroMinimap;
 import xaero.common.graphics.renderer.multitexture.MultiTextureRenderTypeRendererProvider;
 import xaero.common.minimap.element.render.MinimapElementReader;
@@ -20,7 +19,6 @@ import xaero.common.minimap.render.MinimapRendererHelper;
 
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Native Xaero World Map element renderer for Politics Economy country claims.
