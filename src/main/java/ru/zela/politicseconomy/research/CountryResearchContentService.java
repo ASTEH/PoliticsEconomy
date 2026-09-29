@@ -6,7 +6,6 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
 import net.minecraft.server.level.ServerLevel;
@@ -107,7 +106,11 @@ public final class CountryResearchContentService {
         if (!(stack.getItem() instanceof BlockItem)) return;
 
         ResourceLocation contentId = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(stack.getItem());
-        Country country = playerCountry(player);
+
+        var politics = PoliticsModIntegration.manager(player.serverLevel());
+        if (politics == null) return;
+
+        Country country = politics.getCountryAt(new ChunkPos(event.getPos()));
         if (country == null) return;
 
         CountryResearch technology = requiredTechnology(contentId);
