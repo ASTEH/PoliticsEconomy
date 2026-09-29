@@ -35,7 +35,7 @@ import java.util.function.Function;
  */
 public final class EconomyScreen extends UiScreen {
     private enum Page {
-        OVERVIEW, COUNTRY, EFFECTS, CITIES, MARKET
+        OVERVIEW, COUNTRY, EFFECTS, CITIES, MARKET, TRADE
     }
 
     private final Signal<EconomySnapshotPayload> snapshotSignal;
@@ -47,6 +47,15 @@ public final class EconomyScreen extends UiScreen {
     private final ReadableSignal<List<EffectRow>> negativeEffects;
     private final ReadableSignal<List<CityRow>> cityRows;
     private final ReadableSignal<List<MarketRow>> marketRows;
+    private final ReadableSignal<List<TradeOrderRow>> tradeOwnOrders;
+    private final ReadableSignal<List<TradeOrderOfferRow>> tradeOpenOrders;
+    private final ReadableSignal<List<TradeShipmentRow>> tradeShipments;
+
+    private final Signal<String> tradeItemInput = Signals.of("minecraft:iron_ingot");
+    private final Signal<String> tradeAmountInput = Signals.of("64");
+    private final Signal<String> tradeMaxPriceInput = Signals.of("20");
+    private final Signal<String> tradeAcceptPriceInput = Signals.of("15");
+    private final Signal<String> tradeDispatchAmountInput = Signals.of("64");
 
     public EconomyScreen(EconomySnapshotPayload snapshot) {
         super(Component.literal("Politics Economy"));
@@ -140,6 +149,33 @@ public final class EconomyScreen extends UiScreen {
 
             return List.copyOf(result);
         });
+
+        this.tradeOwnOrders = Signals.computed(() -> {
+            List<TradeOrderRow> result = new ArrayList<>();
+            for (String raw : snapshotSignal.get().tradeOwnOrders()) {
+                TradeOrderRow row = parseTradeOrder(raw);
+                if (row != null) result.add(row);
+            }
+            return List.copyOf(result);
+        });
+
+        this.tradeOpenOrders = Signals.computed(() -> {
+            List<TradeOrderOfferRow> result = new ArrayList<>();
+            for (String raw : snapshotSignal.get().tradeOpenOrders()) {
+                TradeOrderOfferRow row = parseTradeOrderOffer(raw);
+                if (row != null) result.add(row);
+            }
+            return List.copyOf(result);
+        });
+
+        this.tradeShipments = Signals.computed(() -> {
+            List<TradeShipmentRow> result = new ArrayList<>();
+            for (String raw : snapshotSignal.get().tradeShipments()) {
+                TradeShipmentRow row = parseTradeShipment(raw);
+                if (row != null) result.add(row);
+            }
+            return List.copyOf(result);
+        });
     }
 
     public void applySnapshot(EconomySnapshotPayload payload) {
@@ -174,6 +210,7 @@ public final class EconomyScreen extends UiScreen {
                             .tab(Page.EFFECTS, "Эффекты")
                             .tab(Page.CITIES, "Города")
                             .tab(Page.MARKET, "Рынок")
+                            .tab(Page.TRADE, "Торговля")
                             .fillWidth(),
                         Ui.switcher(pageSignal)
                             .when(Page.OVERVIEW, this::overviewPage)
@@ -181,6 +218,7 @@ public final class EconomyScreen extends UiScreen {
                             .when(Page.EFFECTS, this::effectsPage)
                             .when(Page.CITIES, this::citiesPage)
                             .when(Page.MARKET, this::marketPage)
+                            .when(Page.TRADE, this::tradePage)
                             .flex()
                     ).gap(size.width() < 760 ? 6 : 9).fillWidth().fillHeight()
                 )
@@ -651,6 +689,281 @@ public final class EconomyScreen extends UiScreen {
         ).padding(6).fillWidth();
     }
 
+    private UIComponent tradePage() {
+        EconomySnapshotPayload snapshot = snapshotSignal.get();
+        String country = snapshot.countryName();
+
+        UIComponent terminalCard = Ui.card(
+            Ui.column(
+                Ui.row(
+                    Ui.column(
+                        Ui.heading("ТОРГОВЫЙ ТЕРМИНАЛ"),
+                        Ui.text(snapshot.tradeTerminalSet()
+                            ? "Назначен • чанки " + snapshot.tradeTerminalPosition()
+                            : "Не назначен • наведи взгляд на контейнер/хранилище и нажми «Назначить»")
+                    ).gap(3).flex(),
+                    snapshot.tradeTerminalSet()
+                        ? Ui.button("ПЕРЕНАЗНАЧИТЬ", () -> sendTrade("trade_terminal_set", ""))
+                            .small().outline()
+                        : Ui.button("НАЗНАЧИТЬ", () -> sendTrade("trade_terminal_set", ""))
+                            .small().primary()
+                ).gap(8).fillWidth(),
+                Ui.text("Терминал должен находиться в государстве и иметь доступный инвентарь. Все грузы остаются физическими предметами.")
+            ).gap(5)
+        ).padding(10).elevated(true).fillWidth();
+
+        UIComponent createOrder = Ui.card(
+            Ui.column(
+                Ui.heading("СОЗДАТЬ ЗАКУПКУ"),
+                Ui.row(
+                    Ui.column(
+                        Ui.text("Предмет"),
+                        Ui.textField(tradeItemInput)
+                            .placeholder("minecraft:iron_ingot")
+                            .width(190)
+                    ).gap(2).flex(),
+                    Ui.column(
+                        Ui.text("Количество"),
+                        Ui.textField(tradeAmountInput)
+                            .placeholder("64")
+                            .width(90)
+                    ).gap(2),
+                    Ui.column(
+                        Ui.text("Макс. цена / шт."),
+                        Ui.textField(tradeMaxPriceInput)
+                            .placeholder("20")
+                            .width(100)
+                    ).gap(2),
+                    Ui.button("СОЗДАТЬ ЗАКАЗ", () ->
+                        sendTrade(
+                            "trade_order_create",
+                            tradeItemInput.get() + "|" + tradeAmountInput.get() + "|" + tradeMaxPriceInput.get()
+                        )
+                    ).primary()
+                ).gap(6).fillWidth(),
+                Ui.text("При создании заказа деньги резервируются в казне. Поставщик потом принимает его по своей цене.")
+            ).gap(6)
+        ).padding(10).elevated(true).fillWidth();
+
+        UIComponent ownOrders = Ui.card(
+            Ui.column(
+                Ui.row(
+                    Ui.heading("МОИ ЗАКАЗЫ"),
+                    Ui.spacer(),
+                    Ui.text("Цена принятия"),
+                    Ui.textField(tradeAcceptPriceInput)
+                        .placeholder("15")
+                        .width(75)
+                ).gap(6).fillWidth(),
+                Ui.list(
+                    tradeOwnOrders,
+                    this::tradeOwnOrderRow
+                ).key(TradeOrderRow::id).itemHeight(82).flex()
+            ).gap(7).fillWidth().fillHeight()
+        ).padding(10).elevated(true).fillWidth().flex();
+
+        UIComponent marketOrders = Ui.card(
+            Ui.column(
+                Ui.row(
+                    Ui.heading("ДОСТУПНЫЕ ЗАКУПКИ"),
+                    Ui.spacer(),
+                    Ui.text("Ваша страна может принять чужой заказ и стать поставщиком.")
+                ).fillWidth(),
+                Ui.list(
+                    tradeOpenOrders,
+                    this::tradeOpenOrderRow
+                ).key(TradeOrderOfferRow::id).itemHeight(82).flex()
+            ).gap(7).fillWidth().fillHeight()
+        ).padding(10).elevated(true).fillWidth().flex();
+
+        UIComponent logistics = Ui.card(
+            Ui.column(
+                Ui.row(
+                    Ui.column(
+                        Ui.heading("ЛОГИСТИКА"),
+                        Ui.text("Логист получает деньги только после физической доставки груза в терминал покупателя.")
+                    ).gap(3).flex(),
+                    Ui.text("Партия"),
+                    Ui.textField(tradeDispatchAmountInput)
+                        .placeholder("64")
+                        .width(75)
+                ).gap(6).fillWidth(),
+                Ui.list(
+                    tradeShipments,
+                    row -> tradeShipmentRow(row, country)
+                ).key(TradeShipmentRow::id).itemHeight(92).flex()
+            ).gap(7).fillWidth().fillHeight()
+        ).padding(10).elevated(true).fillWidth().flex();
+
+        return Ui.scroll(
+            Ui.column(
+                terminalCard,
+                createOrder,
+                Ui.responsive(size -> size.width() < 850
+                    ? Ui.column(ownOrders, marketOrders).gap(9).fillWidth()
+                    : Ui.row(ownOrders, marketOrders).gap(9).fillWidth().fillHeight()
+                ),
+                logistics
+            ).gap(9).fillWidth()
+        ).flex();
+    }
+
+    private UIComponent tradeOwnOrderRow(TradeOrderRow row) {
+        String sellerText = "—".equals(row.seller())
+            ? "поставщик не выбран"
+            : "поставщик: " + row.seller();
+
+        boolean mySeller = row.seller().equals(snapshotSignal.get().countryName());
+        boolean canDispatch = mySeller
+            && row.remaining() > 0
+            && ("ACCEPTED".equals(row.status()) || "SHIPPING".equals(row.status()));
+
+        return Ui.card(
+            Ui.row(
+                Ui.icon(itemStack(row.itemId())).width(30).height(30),
+                Ui.column(
+                    Ui.row(
+                        Ui.text("#" + row.id() + "  " + row.itemId()).nowrap().flex(),
+                        Ui.badge(format(row.remaining()) + "/" + format(row.quantity()))
+                    ).fillWidth(),
+                    Ui.text(
+                        sellerText
+                            + "  •  максимум $" + row.maxPrice() + "/шт"
+                            + "  •  резерв $" + formatLong(row.reserved())
+                    ).nowrap(),
+                    Ui.text("Статус: " + tradeStatus(row.status())).nowrap()
+                ).gap(2).flex(),
+                Ui.column(
+                    canDispatch
+                        ? Ui.button("ОТПРАВИТЬ", () ->
+                            sendTrade(
+                                "trade_shipment_dispatch",
+                                row.id() + "|" + tradeDispatchAmountInput.get()
+                            )
+                        ).small().primary()
+                        : Ui.spacer().height(1),
+                    Ui.button("ОТМЕНИТЬ", () ->
+                        sendTrade("trade_order_cancel", String.valueOf(row.id()))
+                    ).small().outline()
+                        .enabled("OPEN".equals(row.status()) || "ACCEPTED".equals(row.status()))
+                ).gap(4)
+            ).gap(7).fillWidth()
+        ).padding(7).fillWidth();
+    }
+
+    private UIComponent tradeOpenOrderRow(TradeOrderOfferRow row) {
+        return Ui.card(
+            Ui.row(
+                Ui.icon(itemStack(row.itemId())).width(30).height(30),
+                Ui.column(
+                    Ui.text("#" + row.id() + "  " + row.itemId()).nowrap(),
+                    Ui.text(
+                        "Покупатель: " + row.buyer()
+                            + "  •  нужно " + format(row.remaining())
+                            + "  •  максимум $" + row.maxPrice() + "/шт"
+                    ).nowrap(),
+                    Ui.text("Заказ открыт для поставщиков.").nowrap()
+                ).gap(2).flex(),
+                Ui.button("ПРИНЯТЬ", () ->
+                    sendTrade(
+                        "trade_order_accept",
+                        row.id() + "|" + tradeAcceptPriceInput.get()
+                    )
+                ).small().success()
+            ).gap(7).fillWidth()
+        ).padding(7).fillWidth();
+    }
+
+    private UIComponent tradeShipmentRow(TradeShipmentRow row, String country) {
+        boolean canHaul = "WAITING_LOGISTICS".equals(row.status())
+            && !country.equals(row.seller())
+            && !country.equals(row.buyer());
+
+        String route = row.originChunk() + " → " + row.destinationChunk();
+        String status = tradeStatus(row.status()) + ("назначен".equals(row.courier()) ? " • логист назначен" : "");
+
+        return Ui.card(
+            Ui.row(
+                Ui.icon(itemStack(row.itemId())).width(30).height(30),
+                Ui.column(
+                    Ui.row(
+                        Ui.text("#" + row.id() + "  груз заказа #" + row.orderId()).nowrap().flex(),
+                        Ui.badge("×" + format(row.quantity()))
+                    ).fillWidth(),
+                    Ui.text(row.seller() + " → " + row.buyer()).nowrap(),
+                    Ui.text(row.itemId() + "  •  маршрут " + route).nowrap(),
+                    Ui.text("Статус: " + status).nowrap()
+                ).gap(2).flex(),
+                canHaul
+                    ? Ui.button("ВЗЯТЬ ГРУЗ", () ->
+                        sendTrade("trade_shipment_haul", String.valueOf(row.id()))
+                    ).small().primary()
+                    : Ui.spacer().width(1)
+            ).gap(7).fillWidth()
+        ).padding(7).fillWidth();
+    }
+
+    private void sendTrade(String action, String value) {
+        EconomyNetwork.sendAction(action, value);
+        Toast.show(
+            uiRuntime().overlays(),
+            Toast.info("Торговая операция отправлена", "Сервер проверит заказ, терминал и деньги.")
+        );
+    }
+
+    private static TradeOrderRow parseTradeOrder(String raw) {
+        String[] p = raw.split("\\|", -1);
+        if (p.length != 8) return null;
+        try {
+            return new TradeOrderRow(
+                Integer.parseInt(p[0]), p[1], Integer.parseInt(p[2]), Integer.parseInt(p[3]),
+                Integer.parseInt(p[4]), p[5], p[6], Long.parseLong(p[7])
+            );
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private static TradeOrderOfferRow parseTradeOrderOffer(String raw) {
+        String[] p = raw.split("\\|", -1);
+        if (p.length != 7) return null;
+        try {
+            return new TradeOrderOfferRow(
+                Integer.parseInt(p[0]), p[1], p[2], Integer.parseInt(p[3]),
+                Integer.parseInt(p[4]), Integer.parseInt(p[5]), p[6]
+            );
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private static TradeShipmentRow parseTradeShipment(String raw) {
+        String[] p = raw.split("\\|", -1);
+        if (p.length != 10) return null;
+        try {
+            return new TradeShipmentRow(
+                Integer.parseInt(p[0]), Integer.parseInt(p[1]), p[2], Integer.parseInt(p[3]),
+                p[4], p[5], p[6], p[7], p[8], p[9]
+            );
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    private static String tradeStatus(String status) {
+        return switch (status) {
+            case "OPEN" -> "Открыт";
+            case "ACCEPTED" -> "Принят поставщиком";
+            case "SHIPPING" -> "Частично отправлен";
+            case "COMPLETE" -> "Завершён";
+            case "CANCELLED" -> "Отменён";
+            case "WAITING_LOGISTICS" -> "Ждёт логиста";
+            case "IN_TRANSIT" -> "В пути";
+            case "DELIVERED" -> "Доставлен";
+            default -> status;
+        };
+    }
+
     private UIComponent workforceRow(WorkforceRow row) {
         return Ui.card(
             Ui.row(
@@ -907,5 +1220,39 @@ public final class EconomyScreen extends UiScreen {
         int sold,
         int imported,
         int price
+    ) {}
+
+    private record TradeOrderRow(
+        int id,
+        String itemId,
+        int remaining,
+        int quantity,
+        int maxPrice,
+        String seller,
+        String status,
+        long reserved
+    ) {}
+
+    private record TradeOrderOfferRow(
+        int id,
+        String itemId,
+        String buyer,
+        int remaining,
+        int maxPrice,
+        int agreedPrice,
+        String status
+    ) {}
+
+    private record TradeShipmentRow(
+        int id,
+        int orderId,
+        String itemId,
+        int quantity,
+        String seller,
+        String buyer,
+        String status,
+        String courier,
+        String originChunk,
+        String destinationChunk
     ) {}
 }
