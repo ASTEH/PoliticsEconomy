@@ -51,6 +51,7 @@ public final class EconomyScreen extends Screen {
     private String modalTitle;
 
     private boolean workforceExpanded = true;
+    private boolean requiredResourcesExpanded = true;
     private boolean warehouseExpanded = true;
 
     private EditBox tradeItem;
@@ -425,6 +426,9 @@ public final class EconomyScreen extends Screen {
         progress(g, left + 14, y + 54, right - 14, y + 62, dev, ACCENT);
         y += 98;
 
+        y = drawRequiredResourcesPanel(g, y, left, right, mouseX, mouseY);
+        y += 2;
+
         // Keep large operational panels full-width on common 16:9 / small-window sizes.
         // This avoids squeezing columns until their labels and controls are clipped.
         if (overviewWidth < 960) {
@@ -438,6 +442,88 @@ public final class EconomyScreen extends Screen {
         int workBottom = drawWorkforcePanel(g, y, left, left + half, mouseX, mouseY);
         int matBottom = drawWarehousePanel(g, y, left + half + gap, right, mouseX, mouseY);
         return Math.max(workBottom, matBottom) + 10;
+    }
+
+    private int drawRequiredResourcesPanel(GuiGraphics g, int y, int left, int right, int mouseX, int mouseY) {
+        List<Integer> materialOrder = sortedMaterialIndices();
+        int rowH = 34;
+        int headerH = 40;
+        int rows = Math.max(1, materialOrder.size());
+        int bottom = requiredResourcesExpanded
+            ? y + headerH + 26 + rows * rowH + 8
+            : y + headerH + 8;
+
+        panel(g, left, y, right, bottom);
+
+        ItemStack icon = itemStack("minecraft:iron_ingot");
+        if (!icon.isEmpty()) g.renderItem(icon, left + 10, y + 10);
+
+        g.drawString(font, "НУЖНЫЕ РЕСУРСЫ", left + 38, y + 12, TEXT, true);
+        g.drawString(font, requiredResourcesExpanded ? "▼" : "▶", right - 28, y + 12, ACCENT, true);
+
+        int debtCount = countMaterialDebts();
+        int deficitCount = countMaterialDeficits();
+        String summary = materialCount() == 0
+            ? "Ресурсные обязательства пока не сформированы"
+            : "Позиций: " + materialCount() + " • дефицит: " + deficitCount + " • долг: " + debtCount;
+        g.drawString(font, clipToWidth(summary, Math.max(140, right - left - 64)),
+            left + 150, y + 12, MUTED, false);
+
+        target(left + 8, y + 4, right - 8, y + headerH,
+            () -> {
+                requiredResourcesExpanded = !requiredResourcesExpanded;
+                scroll = Math.min(scroll, estimatedMaxScroll());
+            });
+
+        if (!requiredResourcesExpanded) return bottom;
+
+        g.drawString(font, "Сколько требуется государству на цикл", left + 14, y + headerH + 7, MUTED, false);
+
+        int rowY = y + headerH + 26;
+        for (int i : materialOrder) {
+            int baseX = left + 14;
+            ItemStack materialIcon = materialIconStack(valueAt(snapshot.materialIds(), i));
+            if (!materialIcon.isEmpty()) g.renderItem(materialIcon, baseX, rowY - 6);
+
+            String name = clipToWidth(valueAt(snapshot.materialNames(), i),
+                Math.max(100, right - left - 390));
+            g.drawString(font, name, baseX + 24, rowY, TEXT, false);
+
+            double perCycle = valueAt(snapshot.materialPerCycle(), i);
+            int stock = valueAt(snapshot.materialStockpile(), i);
+            int debt = valueAt(snapshot.materialDebt(), i);
+            int deficit = materialCycleDeficit(i);
+
+            String need = String.format(Locale.ROOT, "Нужно %.2f/цикл", perCycle);
+            g.drawString(font, need, right - 250, rowY, MUTED, false);
+
+            String stockText = "Склад: " + stock;
+            g.drawString(font, stockText, right - 150, rowY, TEXT, false);
+
+            String state;
+            int stateColor;
+            if (debt > 0) {
+                state = "ДОЛГ " + debt;
+                stateColor = NEGATIVE;
+            } else if (deficit > 0) {
+                state = "НЕ ХВАТАЕТ " + deficit;
+                stateColor = GOLD;
+            } else {
+                state = "ХВАТАЕТ";
+                stateColor = POSITIVE;
+            }
+            g.drawString(font, clipToWidth(state, 108),
+                right - 14 - Math.min(108, font.width(state)), rowY, stateColor, true);
+
+            rowY += rowH;
+        }
+
+        if (materialCount() == 0) {
+            g.drawString(font, "Сейчас государству не назначено ни одного материального обязательства.",
+                left + 14, rowY, MUTED, false);
+        }
+
+        return bottom + 10;
     }
 
     private int drawWorkforcePanel(GuiGraphics g, int y, int left, int right, int mouseX, int mouseY) {
@@ -1700,13 +1786,17 @@ public final class EconomyScreen extends Screen {
         switch (page) {
             case OVERVIEW -> {
                 int attention = 58;
+                int requiredResources = requiredResourcesExpanded
+                    ? 40 + 26 + Math.max(1, materialCount()) * 34 + 8
+                    : 48;
                 int workforce = workforceExpanded
                     ? 34 + 28 + WorkforceSector.values().length * 34 + 8
                     : 42;
                 int warehouse = warehouseExpanded
                     ? 72 + Math.max(1, materialCount()) * 38 + 8
                     : 42;
-                int total = 40 + 170 + attention + 10 + 114 + 98 + 10 + Math.max(workforce, warehouse);
+                int total = 40 + 170 + attention + 10 + 114 + 98 + 10
+                    + requiredResources + 2 + Math.max(workforce, warehouse);
                 end = y + total;
             }
             case COUNTRY -> end = y + 40 +
