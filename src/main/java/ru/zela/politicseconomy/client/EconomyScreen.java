@@ -751,7 +751,7 @@ public final class EconomyScreen extends UiScreen {
                     Ui.text(title).nowrap(),
                     Ui.text(value).nowrap()
                 ).gap(1)
-            ).gap(4).fillWidth().flex();
+            ).gap(4).fillWidth().flex()
         ).padding(5).fillWidth().flex();
     }
 
