@@ -557,6 +557,9 @@ public final class EconomyScreen extends Screen {
         if (!warehouseIcon.isEmpty()) g.renderItem(warehouseIcon, left + 10, y + 9);
         g.drawString(font, "ГОСУДАРСТВЕННЫЙ СКЛАД", left + 38, y + 12, TEXT, true);
         g.drawString(font, "Запасы и ресурсные обязательства", left + 14, y + 31, MUTED, false);
+        g.drawString(font,
+            clipToWidth("Сначала: долг → дефицит → наименьший запас", Math.max(120, right - left - 160)),
+            left + 14, y + 51, MUTED, false);
 
         drawButton(g, right - 130, y + 46, right - 14, y + 72,
             "ПОПОЛНИТЬ ИЗ ИНВ.",
@@ -1356,7 +1359,7 @@ public final class EconomyScreen extends Screen {
         g.drawString(font,
             cancelDialog ? "ПОДТВЕРЖДЕНИЕ ОТМЕНЫ" : "ПОДТВЕРЖДЕНИЕ РЕФОРМЫ",
             left + 44, top + 17, MUTED, true);
-        g.drawString(font, clip(modalTitle, cancelDialog ? 58 : 49),
+        g.drawString(font, clipToWidth(modalTitle, w - 68),
             left + 44, top + 39, TEXT, true);
 
         if (cancelDialog) {
