@@ -242,6 +242,38 @@ public final class InfrastructureSavedData extends SavedData {
         return true;
     }
 
+    public void reassignChunkOwner(ServerLevel level, ChunkPos chunk, String ownerCountry) {
+        if (level == null || chunk == null || ownerCountry == null || ownerCountry.isBlank()) {
+            return;
+        }
+        String dimensionId = level.dimension().location().toString();
+        long chunkLong = ChunkPos.asLong(chunk.x, chunk.z);
+
+        Map<Long, Map<Long, String>> dimensionMap = owners.computeIfAbsent(
+            dimensionId,
+            ignored -> new HashMap<>()
+        );
+        Map<Long, String> ownerMap = dimensionMap.computeIfAbsent(
+            chunkLong,
+            ignored -> new HashMap<>()
+        );
+
+        Map<Long, Map<Long, String>> blockDimension = blocks.get(dimensionId);
+        Map<Long, String> blockMap = blockDimension == null ? null : blockDimension.get(chunkLong);
+        if (blockMap != null) {
+            for (Long posLong : blockMap.keySet()) {
+                ownerMap.put(posLong, ownerCountry);
+            }
+        }
+        if (ownerMap.isEmpty()) {
+            dimensionMap.remove(chunkLong);
+        }
+        if (dimensionMap.isEmpty()) {
+            owners.remove(dimensionId);
+        }
+        setDirty();
+    }
+
     public String getOwnerCountry(ServerLevel level, BlockPos pos) {
         String dimensionId = level.dimension().location().toString();
         long chunkLong = ChunkPos.asLong(pos.getX() >> 4, pos.getZ() >> 4);
