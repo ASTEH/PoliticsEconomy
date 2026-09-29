@@ -30,6 +30,8 @@ import ru.zela.politicseconomy.country.CountryWorkplaceService;
 import ru.zela.politicseconomy.country.WorkforceSector;
 import ru.zela.politicseconomy.economy.ResourceExtractionCategory;
 import ru.zela.politicseconomy.economy.NationalMaterialConsumptionService;
+import ru.zela.politicseconomy.economy.PopulationDemandCatalog;
+import ru.zela.politicseconomy.economy.PopulationMarketService;
 import ru.zela.politicseconomy.economy.NationalMaterialDemandService;
 import ru.zela.politicseconomy.economy.NationalMaterialInventoryService;
 import ru.zela.politicseconomy.economy.NationalMaterialLedgerSavedData;
@@ -97,6 +99,24 @@ public final class PoliticsEconomyCommands {
                                     IntegerArgumentType.getInteger(context, "amount")
                                 )))))
                 )
+                .then(Commands.literal("market")
+                    .executes(context -> showPopulationMarket(context.getSource()))
+                    .then(Commands.literal("wallet")
+                        .executes(context -> showMarketWallet(context.getSource())))
+                    .then(Commands.literal("sell")
+                        .then(Commands.argument("item", StringArgumentType.word())
+                            .suggests((context, builder) -> {
+                                for (PopulationDemandCatalog.Good good : PopulationDemandCatalog.goods()) {
+                                    builder.suggest(good.itemId());
+                                }
+                                return builder.buildFuture();
+                            })
+                            .then(Commands.argument("amount", IntegerArgumentType.integer(1, 4096))
+                                .executes(context -> sellToPopulation(
+                                    context.getSource(),
+                                    StringArgumentType.getString(context, "item"),
+                                    IntegerArgumentType.getInteger(context, "amount")
+                                )))))
                 .then(Commands.literal("infrastructure")
                     .executes(context -> showInfrastructure(context.getSource(), false))
                     .then(Commands.literal("country")
@@ -183,6 +203,115 @@ public final class PoliticsEconomyCommands {
     }
 
 
+
+    private static int showPopulationMarket(CommandSourceStack source) {
+        ServerPlayer player;
+        try {
+            player = source.getPlayerOrException();
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("Эта команда доступна только игроку."));
+            return 0;
+        }
+
+        Country country = PoliticsModIntegration.playerCountry(player).orElse(null);
+        if (country == null) {
+            source.sendFailure(Component.literal("Ты не состоишь ни в одной стране."));
+            return 0;
+        }
+
+        int population = CountryPopulationService.population(player.getServer(), country.getName());
+        long wallet = PopulationMarketService.wallet(player.getServer(), player.getUUID());
+
+        source.sendSuccess(
+            () -> Component.literal("=== Внутренний рынок: " + country.getName() + " ===")
+                .withStyle(ChatFormatting.GOLD),
+            false
+        );
+        source.sendSuccess(
+            () -> Component.literal("Население: " + population + " | твой баланс рынка: $" + wallet)
+                .withStyle(ChatFormatting.AQUA),
+            false
+        );
+        source.sendSuccess(
+            () -> Component.literal(
+                "Продажа: /pe market sell <item_id> <amount> | население покупает только востребованные товары."
+            ).withStyle(ChatFormatting.GRAY),
+            false
+        );
+
+        var lines = PopulationMarketService.demandLines(
+            player.getServer(),
+            country.getName()
+        );
+
+        for (PopulationMarketService.DemandLine line : lines) {
+            String name = PopulationDemandCatalog.shortName(line.itemId());
+            String text = name
+                + " | нужно " + line.baseDemand()
+                + " | осталось " + line.remaining()
+                + " | $" + line.pricePerUnit()
+                + "/шт"
+                + " | своё " + line.sold()
+                + " | импорт " + line.imported();
+
+            source.sendSuccess(
+                () -> Component.literal(text)
+                    .withStyle(line.remaining() > 0
+                        ? ChatFormatting.YELLOW
+                        : ChatFormatting.GREEN),
+                false
+            );
+        }
+
+        return 1;
+    }
+
+    private static int showMarketWallet(CommandSourceStack source) {
+        ServerPlayer player;
+        try {
+            player = source.getPlayerOrException();
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("Эта команда доступна только игроку."));
+            return 0;
+        }
+
+        long wallet = PopulationMarketService.wallet(
+            player.getServer(),
+            player.getUUID()
+        );
+        source.sendSuccess(
+            () -> Component.literal("Баланс внутреннего рынка: $" + wallet)
+                .withStyle(ChatFormatting.GOLD),
+            false
+        );
+        return 1;
+    }
+
+    private static int sellToPopulation(
+        CommandSourceStack source,
+        String item,
+        int amount
+    ) {
+        ServerPlayer player;
+        try {
+            player = source.getPlayerOrException();
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("Эта команда доступна только игроку."));
+            return 0;
+        }
+
+        PopulationMarketService.SellResult result =
+            PopulationMarketService.sellToPopulation(player, item, amount);
+
+        source.sendSuccess(
+            () -> Component.literal(result.message())
+                .withStyle(result.success()
+                    ? ChatFormatting.GREEN
+                    : ChatFormatting.RED),
+            true
+        );
+        return result.success() ? 1 : 0;
+    }
 
     private static int showTaxShop(CommandSourceStack source) {
         ServerPlayer player;
