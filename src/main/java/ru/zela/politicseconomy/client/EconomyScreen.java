@@ -210,7 +210,7 @@ public final class EconomyScreen extends UiScreen {
         return Ui.row(
             Ui.column(
                 Ui.text("ECONOMIC COMMAND").nowrap(),
-                Ui.title(countryTitle),
+                Ui.text(countryTitle).nowrap(),
                 Ui.text(populationText).nowrap()
             ).gap(2).flex(),
             Ui.column(
