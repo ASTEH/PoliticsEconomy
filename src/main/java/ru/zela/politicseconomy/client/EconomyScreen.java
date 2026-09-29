@@ -420,8 +420,6 @@ public final class EconomyScreen extends Screen {
         progress(g, left + 14, y + 54, right - 14, y + 62, dev, ACCENT);
         y += 98;
 
-        int overviewWidth = right - left;
-
         if (overviewWidth < 760) {
             int fullBottom = drawWorkforcePanel(g, y, left, right, mouseX, mouseY);
             y = fullBottom + 10;
