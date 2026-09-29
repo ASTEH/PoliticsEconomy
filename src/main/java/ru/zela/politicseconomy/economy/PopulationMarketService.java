@@ -145,11 +145,17 @@ public final class PopulationMarketService {
             return new SellResult(false, 0, 0, "Количество должно быть больше нуля.");
         }
 
-        Country country = PoliticsModIntegration.playerCountry(player).orElse(null);
-        if (country == null) {
-            return new SellResult(false, 0, 0, "Ты не состоишь ни в одной стране.");
+        String stateName = ru.zela.politicseconomy.integration.CountryContext
+            .playerStateName(player);
+        if (stateName == null) {
+            return new SellResult(false, 0, 0, "Ты не находишься на территории государства.");
         }
 
+        boolean millenaireState =
+            ru.zela.politicseconomy.integration.MillenaireIntegration.isStateKey(stateName);
+        Country country = millenaireState
+            ? null
+            : PoliticsModIntegration.playerCountry(player).orElse(null);
         String itemId;
         try {
             itemId = ResourceLocation.parse(rawItemId).toString();
@@ -163,7 +169,19 @@ public final class PopulationMarketService {
         }
 
         PoliticsManager politics = PoliticsManager.get(player.level());
-        if (politics == null
+        if (millenaireState) {
+            var village = ru.zela.politicseconomy.integration.MillenaireIntegration
+                .snapshotAtChunk(player.getServer(), player.chunkPosition());
+            if (village == null || !stateName.equals(village.stateKey())) {
+                return new SellResult(
+                    false,
+                    0,
+                    0,
+                    "Нельзя продавать населению вне территории этого государства."
+                );
+            }
+        } else if (politics == null
+            || country == null
             || !country.getName().equals(
                 politics.getCountryNameAt(player.chunkPosition())
             )) {
@@ -178,9 +196,9 @@ public final class PopulationMarketService {
         MinecraftServer server = player.getServer();
         PopulationMarketSavedData data = get(server);
 
-        ensureCurrentCycle(server, data, country.getName());
+        ensureCurrentCycle(server, data, stateName);
 
-        int remaining = data.remainingDemand(country.getName(), itemId);
+        int remaining = data.remainingDemand(stateName, itemId);
         if (remaining <= 0) {
             return new SellResult(
                 false,
@@ -207,10 +225,10 @@ public final class PopulationMarketService {
             return new SellResult(false, 0, 0, "Нечего продавать.");
         }
 
-        int pricePerUnit = currentPrice(data, country.getName(), good);
+        int pricePerUnit = currentPrice(data, stateName, good);
         long gross = (long) pricePerUnit * sold;
 
-        double taxPercent = playerSaleTax(server, country.getName());
+        double taxPercent = playerSaleTax(server, stateName);
         long tax = Math.max(
             0L,
             Math.min(gross, Math.round(gross * taxPercent / 100.0D))
@@ -220,19 +238,31 @@ public final class PopulationMarketService {
         removeItems(player, item, sold);
 
         data.setRemainingDemand(
-            country.getName(),
+            stateName,
             itemId,
             remaining - sold
         );
-        data.addSold(country.getName(), itemId, sold);
+        data.addSold(stateName, itemId, sold);
 
         if (tax > 0) {
-            long newBalance = Math.min(
-                Integer.MAX_VALUE,
-                (long) country.balance + tax
-            );
-            country.balance = (int) newBalance;
-            politics.setDirty();
+            if (millenaireState) {
+                var village = ru.zela.politicseconomy.integration.MillenaireIntegration
+                    .snapshotForStateKey(server, stateName);
+                if (village != null) {
+                    ru.zela.politicseconomy.integration.MillenaireStateSavedData
+                        .get(server)
+                        .addTreasury(village.villageId(), tax);
+                }
+            } else if (country != null) {
+                long newBalance = Math.min(
+                    Integer.MAX_VALUE,
+                    (long) country.balance + tax
+                );
+                country.balance = (int) newBalance;
+                if (politics != null) {
+                    politics.setDirty();
+                }
+            }
         }
 
         data.addWallet(player.getUUID(), payout);
