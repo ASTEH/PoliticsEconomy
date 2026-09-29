@@ -50,8 +50,8 @@ ordering="AFTER"
 side="BOTH"
 
 [[dependencies.${mod_id}]]
-modId="modernui"
+modId="openui_mc"
 type="required"
-versionRange="[3.13,4)"
+versionRange="[0.0.11,0.1)"
 ordering="AFTER"
 side="CLIENT"
