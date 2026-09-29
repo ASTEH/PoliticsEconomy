@@ -678,6 +678,62 @@ public final class PoliticsEconomyCommands {
 
         Optional<Country> playerCountry = PoliticsModIntegration.playerCountry(player);
         if (playerCountry.isEmpty()) {
+            MillenaireIntegration.VillageSnapshot millenaire =
+                MillenaireIntegration.snapshotAtChunk(
+                    player.getServer(),
+                    player.chunkPosition()
+                );
+            if (millenaire != null) {
+                source.sendSuccess(
+                    () -> Component.literal(
+                        "=== Рабочая сила Millénaire: " + millenaire.name() + " ==="
+                    ).withStyle(ChatFormatting.GOLD),
+                    false
+                );
+                source.sendSuccess(
+                    () -> Component.literal(
+                        "Население: " + millenaire.population()
+                            + " | взрослые: " + millenaire.adults()
+                            + " | дети: " + millenaire.children()
+                    ).withStyle(ChatFormatting.AQUA),
+                    false
+                );
+                int employed = 0;
+                for (int value : millenaire.workersBySector().values()) {
+                    employed += value;
+                }
+                final int employedTotal = employed;
+                source.sendSuccess(
+                    () -> Component.literal(
+                        "Определённых работников: " + employedTotal
+                            + " | рабочих учреждений: "
+                            + millenaire.workplaceSnapshot().totalSlots()
+                    ).withStyle(employedTotal > 0
+                        ? ChatFormatting.GREEN
+                        : ChatFormatting.YELLOW),
+                    false
+                );
+                for (WorkforceSector sector : WorkforceSector.values()) {
+                    int workers = millenaire.workersBySector()
+                        .getOrDefault(sector, 0);
+                    int slots = millenaire.workplaceSnapshot()
+                        .workplaceSlots().getOrDefault(sector, 0);
+                    int blocks = millenaire.workplaceSnapshot()
+                        .workplaceCounts().getOrDefault(sector, 0);
+                    source.sendSuccess(
+                        () -> Component.literal(
+                            sector.displayName()
+                                + ": " + workers + " работников / "
+                                + slots + " мест | зданий " + blocks
+                        ).withStyle(workers > 0
+                            ? ChatFormatting.GREEN
+                            : ChatFormatting.GRAY),
+                        false
+                    );
+                }
+                return 1;
+            }
+
             source.sendFailure(Component.literal("Ты не состоишь ни в одной стране."));
             return 0;
         }
@@ -757,6 +813,67 @@ public final class PoliticsEconomyCommands {
 
         Optional<Country> playerCountry = PoliticsModIntegration.playerCountry(player);
         if (playerCountry.isEmpty()) {
+            MillenaireIntegration.VillageSnapshot millenaire =
+                MillenaireIntegration.snapshotAtChunk(
+                    player.getServer(),
+                    player.chunkPosition()
+                );
+            if (millenaire != null) {
+                MillenaireStateSavedData saved =
+                    MillenaireStateSavedData.get(player.getServer());
+                saved.ensureState(
+                    millenaire.villageId(),
+                    millenaire.name(),
+                    player.getServer().getTickCount()
+                );
+                String key = millenaire.stateKey();
+                var direction =
+                    CountryDirectionManager.getDirection(player.getServer(), key);
+                var government =
+                    CountryPolicyManager.getGovernment(player.getServer(), key);
+                var religion =
+                    CountryPolicyManager.getReligion(player.getServer(), key);
+
+                source.sendSuccess(
+                    () -> Component.literal("=== Экономика государства Millénaire ===")
+                        .withStyle(ChatFormatting.GOLD),
+                    false
+                );
+                source.sendSuccess(
+                    () -> Component.literal(
+                        "Государство: " + millenaire.name()
+                            + " | казна: $" + saved.treasury(millenaire.villageId())
+                    ).withStyle(ChatFormatting.AQUA),
+                    false
+                );
+                source.sendSuccess(
+                    () -> Component.literal(
+                        "Население: " + millenaire.population()
+                            + " | территория: " + millenaire.territory().size() + " чанков"
+                    ).withStyle(ChatFormatting.GREEN),
+                    false
+                );
+                source.sendSuccess(
+                    () -> Component.literal(
+                        "Направление: " + (direction == null ? "не выбрано" : direction.displayName())
+                            + " | правительство: "
+                            + (government == null ? "не выбрано" : government.displayName())
+                            + " | религия: "
+                            + (religion == null ? "не выбрано" : religion.displayName())
+                    ).withStyle(ChatFormatting.LIGHT_PURPLE),
+                    false
+                );
+                source.sendSuccess(
+                    () -> Component.literal(
+                        "Зданий: " + millenaire.workplaceSnapshot().workplaceCounts()
+                            .values().stream().mapToInt(Integer::intValue).sum()
+                            + " рабочих учреждений"
+                    ).withStyle(ChatFormatting.YELLOW),
+                    false
+                );
+                return 1;
+            }
+
             source.sendFailure(Component.literal("Ты не состоишь ни в одной стране."));
             return 0;
         }
@@ -1766,6 +1883,46 @@ public final class PoliticsEconomyCommands {
 
         Optional<Country> playerCountry = PoliticsModIntegration.playerCountry(player);
         if (playerCountry.isEmpty()) {
+            MillenaireIntegration.VillageSnapshot millenaire =
+                MillenaireIntegration.snapshotAtChunk(
+                    player.getServer(),
+                    player.chunkPosition()
+                );
+            if (millenaire != null) {
+                MillenaireStateSavedData saved =
+                    MillenaireStateSavedData.get(player.getServer());
+                saved.ensureState(
+                    millenaire.villageId(),
+                    millenaire.name(),
+                    player.getServer().getTickCount()
+                );
+                String stateKey = millenaire.stateKey();
+                CountryDirection direction =
+                    CountryDirectionManager.getDirection(player.getServer(), stateKey);
+
+                source.sendSuccess(
+                    () -> Component.literal("Your country: " + millenaire.name())
+                        .withStyle(ChatFormatting.AQUA),
+                    false
+                );
+                source.sendSuccess(
+                    () -> Component.literal(
+                        "Millénaire state | population: " + millenaire.population()
+                            + " | treasury: $" + saved.treasury(millenaire.villageId())
+                    ).withStyle(ChatFormatting.GREEN),
+                    false
+                );
+                source.sendSuccess(
+                    () -> Component.literal(
+                        "Culture: " + millenaire.culture()
+                            + " | Direction: "
+                            + (direction == null ? "не выбрано" : direction.displayName())
+                    ).withStyle(ChatFormatting.LIGHT_PURPLE),
+                    false
+                );
+                return 1;
+            }
+
             source.sendSuccess(
                 () -> Component.literal("Your country: none")
                     .withStyle(ChatFormatting.GRAY),
