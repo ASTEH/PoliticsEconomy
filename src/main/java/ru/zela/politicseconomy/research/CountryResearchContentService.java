@@ -8,6 +8,9 @@ import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
+import net.neoforged.neoforge.event.level.BlockEvent;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.ChunkPos;
 import ru.zela.politicseconomy.integration.PoliticsModIntegration;
 
 import java.util.List;
@@ -66,6 +69,34 @@ public final class CountryResearchContentService {
         player.sendSystemMessage(net.minecraft.network.chat.Component.literal(
             "Технология «" + technology.title() + "» ещё не исследована. (" + contentId + ")"
         ).withStyle(net.minecraft.ChatFormatting.RED));
+    }
+
+    /**
+     * Final server-side placement check. Unlike a right-click check, this also
+     * catches blocks placed by automation (for example Create Deployers).
+     */
+    public static void onEntityPlace(BlockEvent.EntityPlaceEvent event) {
+        if (!(event.getLevel() instanceof ServerLevel level)) return;
+
+        ResourceLocation contentId = net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(
+            event.getPlacedBlock().getBlock()
+        );
+        CountryResearch technology = requiredTechnology(contentId);
+        if (technology == null) return;
+
+        var politics = ru.zela.politicseconomy.integration.PoliticsModIntegration.manager(level);
+        if (politics == null) return;
+
+        Country country = politics.getCountryAt(new ChunkPos(event.getPos()));
+        if (country == null) return;
+        if (country.getName().isBlank()) return;
+
+        if (CountryResearchService.completed(level.getServer(), country.getName()).contains(technology.id())) return;
+
+        event.setCanceled(true);
+        if (event.getEntity() instanceof ServerPlayer player && !creativeOperator(player)) {
+            deny(player, contentId, technology);
+        }
     }
 
     public static void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
