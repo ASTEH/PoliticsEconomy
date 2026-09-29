@@ -70,6 +70,12 @@ public final class NationalMaterialInventoryService {
         if (total > 0) {
             int developmentPoints = Math.min(100, Math.max(1, total / 32));
             CountryDevelopmentService.addActivity(player.getServer(), countryName, developmentPoints);
+
+            // Depositing materials is also the payment action. Do not wait for
+            // the next economy cycle: immediately consume warehouse stock
+            // against all outstanding material debts so machines can resume
+            // and the dashboard reflects the cleared debt right away.
+            ledger.settleAllDebtsFromStockpile(countryName);
             ledger.setDirty();
         }
 
