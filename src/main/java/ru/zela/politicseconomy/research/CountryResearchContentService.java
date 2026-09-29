@@ -130,6 +130,23 @@ public final class CountryResearchContentService {
         }
     }
 
+    public static void onLeftClickBlock(PlayerInteractEvent.LeftClickBlock event) {
+        if (!(event.getEntity() instanceof ServerPlayer player)) return;
+        if (creativeOperator(player)) return;
+
+        ItemStack held = player.getItemInHand(event.getHand());
+        CountryResearch technology = requiredTechnology(held);
+        if (technology == null) return;
+
+        Country country = playerCountry(player);
+        boolean allowed = country != null
+            && CountryResearchService.completed(player.getServer(), country.getName()).contains(technology.id());
+        if (!allowed) {
+            event.setCanceled(true);
+            deny(player, net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(held.getItem()), technology);
+        }
+    }
+
     public static void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
         if (!(event.getEntity() instanceof ServerPlayer player)) return;
         if (creativeOperator(player)) return;
