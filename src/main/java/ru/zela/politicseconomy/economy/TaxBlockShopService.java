@@ -116,7 +116,7 @@ public final class TaxBlockShopService {
         if (!player.addItem(purchased) && !purchased.isEmpty()) {
             player.drop(purchased, false);
         }
-        var manager = ru.krona.politicsmod.PoliticsManager.get(player.serverLevel());
+        var manager = net.krona.politicsmod.PoliticsManager.get(player.serverLevel());
         if (manager != null) {
             manager.setDirty();
         }
