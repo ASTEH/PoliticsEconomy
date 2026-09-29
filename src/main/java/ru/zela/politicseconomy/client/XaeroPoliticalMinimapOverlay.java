@@ -72,11 +72,10 @@ public final class XaeroPoliticalMinimapOverlay {
         String currentOwner,
         double pixelsPerBlock
     ) {
-        int radius = Math.max(2, (int) Math.ceil((DEFAULT_SIZE / 16.0D) / Math.max(0.25D, pixelsPerBlock)));
-        radius = Math.min(radius, 8);
-
+        int minimapHalfSize = DEFAULT_SIZE / 2;
         int cell = Math.max(2, (int) Math.round(16.0D * pixelsPerBlock));
-        int halfRadius = radius * cell;
+        int radius = Math.max(2, (int) Math.ceil(minimapHalfSize / (double) cell) + 1);
+        radius = Math.min(radius, 8);
 
         for (int chunkX = centerChunkX - radius; chunkX <= centerChunkX + radius; chunkX++) {
             for (int chunkZ = centerChunkZ - radius; chunkZ <= centerChunkZ + radius; chunkZ++) {
@@ -93,16 +92,16 @@ public final class XaeroPoliticalMinimapOverlay {
                 int color = countryBorder(owner);
 
                 if (!owner.equals(claims.get(chunkKey(chunkX - 1, chunkZ)))) {
-                    drawVertical(graphics, left, top, bottom, color, halfRadius);
+                    drawVertical(graphics, left, top, bottom, color, minimapHalfSize);
                 }
                 if (!owner.equals(claims.get(chunkKey(chunkX + 1, chunkZ)))) {
-                    drawVertical(graphics, right - BORDER_THICKNESS, top, bottom, color, halfRadius);
+                    drawVertical(graphics, right - BORDER_THICKNESS, top, bottom, color, minimapHalfSize);
                 }
                 if (!owner.equals(claims.get(chunkKey(chunkX, chunkZ - 1)))) {
-                    drawHorizontal(graphics, left, right, top, color, halfRadius);
+                    drawHorizontal(graphics, left, right, top, color, minimapHalfSize);
                 }
                 if (!owner.equals(claims.get(chunkKey(chunkX, chunkZ + 1)))) {
-                    drawHorizontal(graphics, left, right, bottom - BORDER_THICKNESS, color, halfRadius);
+                    drawHorizontal(graphics, left, right, bottom - BORDER_THICKNESS, color, minimapHalfSize);
                 }
             }
         }
@@ -117,16 +116,16 @@ public final class XaeroPoliticalMinimapOverlay {
             int currentBottom = currentTop + cell;
 
             if (!currentOwner.equals(claims.get(chunkKey(centerChunkX - 1, centerChunkZ)))) {
-                drawVertical(graphics, currentLeft, currentTop, currentBottom, highlight, halfRadius);
+                drawVertical(graphics, currentLeft, currentTop, currentBottom, highlight, minimapHalfSize);
             }
             if (!currentOwner.equals(claims.get(chunkKey(centerChunkX + 1, centerChunkZ)))) {
-                drawVertical(graphics, currentRight - BORDER_THICKNESS, currentTop, currentBottom, highlight, halfRadius);
+                drawVertical(graphics, currentRight - BORDER_THICKNESS, currentTop, currentBottom, highlight, minimapHalfSize);
             }
             if (!currentOwner.equals(claims.get(chunkKey(centerChunkX, centerChunkZ - 1)))) {
-                drawHorizontal(graphics, currentLeft, currentRight, currentTop, highlight, halfRadius);
+                drawHorizontal(graphics, currentLeft, currentRight, currentTop, highlight, minimapHalfSize);
             }
             if (!currentOwner.equals(claims.get(chunkKey(centerChunkX, centerChunkZ + 1)))) {
-                drawHorizontal(graphics, currentLeft, currentRight, currentBottom - BORDER_THICKNESS, highlight, halfRadius);
+                drawHorizontal(graphics, currentLeft, currentRight, currentBottom - BORDER_THICKNESS, highlight, minimapHalfSize);
             }
         }
     }
