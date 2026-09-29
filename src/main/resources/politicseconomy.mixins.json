@@ -26,7 +26,8 @@
     "DieselEngineBlockEntityMixin",
     "ModularDieselEngineBlockEntityMixin",
     "HugeDieselEngineBlockEntityMixin",
-    "MtsMillenaireCombatMixin"
+    "MtsMillenaireCombatMixin",
+    "MtsMillenaireDamageMixin"
   ],
   "injectors": {
     "defaultRequire": 1
