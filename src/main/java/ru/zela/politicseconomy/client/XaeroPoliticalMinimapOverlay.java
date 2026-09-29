@@ -50,7 +50,7 @@ public final class XaeroPoliticalMinimapOverlay {
 
         // Xaero's default orientation follows the player. Rotating the political
         // layer by the player's yaw keeps the chunk square aligned with the map.
-        graphics.pose().mulPoseMatrix(new Matrix4f().rotateZ((float) Math.toRadians(-player.getYRot())));
+        graphics.pose().mulPose(new Matrix4f().rotateZ((float) Math.toRadians(-player.getYRot())));
 
         drawVisibleBorders(
             graphics,
