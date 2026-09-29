@@ -291,21 +291,21 @@ public final class EconomyScreen extends Screen {
 
         int gap = 8;
         int w = (right - left - gap * 3) / 4;
-        metric(g, left, y, w, "КАЗНА", "$" + formatDouble(snapshot.treasury()), "Государственные деньги", GOLD);
+        metric(g, left, y, w, "КАЗНА", "$" + formatDouble(snapshot.treasury()), "Государственные деньги", "minecraft:emerald", GOLD);
         metric(g, left + w + gap, y, w, "СОДЕРЖАНИЕ",
-            "-$" + formatDouble(snapshot.infrastructureCost()), "Инфраструктура / цикл", NEGATIVE);
+            "-$" + formatDouble(snapshot.infrastructureCost()), "Инфраструктура / цикл", "minecraft:anvil", NEGATIVE);
         metric(g, left + 2 * (w + gap), y, w, "НАСЕЛЕНИЕ",
-            format(snapshot.population()), "Жители страны", ACCENT);
+            format(snapshot.population()), "Жители страны", "minecraft:player_head", ACCENT);
         metric(g, left + 3 * (w + gap), y, w, "ДОЛГ",
-            "$" + formatDouble(snapshot.moneyDebt()), "Денежная задолженность",
+            "$" + formatDouble(snapshot.moneyDebt()), "Денежная задолженность", "minecraft:redstone",
             snapshot.moneyDebt() > 0 ? NEGATIVE : POSITIVE);
         y += 86;
 
         panel(g, left, y, right, y + 104);
         g.drawString(font, "ПОЛИТИЧЕСКИЙ ПРОФИЛЬ", left + 14, y + 12, TEXT, true);
-        info(g, left + 14, y + 33, right - 14, "Направление", snapshot.direction());
-        info(g, left + 14, y + 52, right - 14, "Правление", snapshot.government());
-        info(g, left + 14, y + 71, right - 14, "Религия", snapshot.religion());
+        info(g, left + 14, y + 33, right - 14, "Направление", snapshot.direction(), "minecraft:compass");
+        info(g, left + 14, y + 52, right - 14, "Правление", snapshot.government(), "minecraft:iron_sword");
+        info(g, left + 14, y + 71, right - 14, "Религия", snapshot.religion(), "minecraft:book");
         y += 114;
 
         panel(g, left, y, right, y + 88);
@@ -344,7 +344,9 @@ public final class EconomyScreen extends Screen {
                 format(valueAt(snapshot.workplaceSlots(), i)) + "  " +
                 signed(valueAt(snapshot.sectorBonuses(), i));
 
-            g.drawString(font, line, left + 14, wy, TEXT, false);
+            ItemStack sectorIcon = itemStack(sectors[i].iconItemId());
+            if (!sectorIcon.isEmpty()) g.renderItem(sectorIcon, left + 12, wy - 7);
+            g.drawString(font, line, left + 34, wy, TEXT, false);
             final WorkforceSector sector = sectors[i];
             miniButton(g, left + half - 61, wy - 5, "-", mouseX, mouseY, () -> changeWorkforce(sector, -5));
             miniButton(g, left + half - 33, wy - 5, "+", mouseX, mouseY, () -> changeWorkforce(sector, 5));
@@ -357,14 +359,18 @@ public final class EconomyScreen extends Screen {
 
         int sy = y + 52;
         for (int i = 0; i < materialCount(); i++) {
-            String name = clip(valueAt(snapshot.materialNames(), i), 20);
+            int baseX = left + half + gap + 14;
+            String name = clip(valueAt(snapshot.materialNames(), i), 18);
             int debt = valueAt(snapshot.materialDebt(), i);
-            g.drawString(font, name, left + half + gap + 14, sy, TEXT, false);
+            ItemStack materialIcon = materialIconStack(valueAt(snapshot.materialIds(), i));
+            if (!materialIcon.isEmpty()) g.renderItem(materialIcon, baseX, sy - 8);
+
+            g.drawString(font, name, baseX + 24, sy, TEXT, false);
             g.drawString(font,
                 valueAt(snapshot.materialStockpile(), i) + "  •  " +
                     String.format(Locale.ROOT, "%.2f/c", valueAt(snapshot.materialPerCycle(), i)) +
                     (debt > 0 ? "  • долг " + debt : ""),
-                left + half + gap + 14, sy + 14, debt > 0 ? NEGATIVE : MUTED, false);
+                baseX + 24, sy + 14, debt > 0 ? NEGATIVE : MUTED, false);
             sy += 38;
         }
 
@@ -506,11 +512,13 @@ public final class EconomyScreen extends Screen {
                 + valueAt(snapshot.cityNames(), i)
                 + (valueAt(snapshot.cityMine(), i) ? " • ВАША" : "");
 
-            g.drawString(font, clip(name, 50), left + 14, y + 12, TEXT, true);
-            g.drawString(font, "Государство: " + clip(valueAt(snapshot.cityCountries(), i), 30),
-                left + 14, y + 31, MUTED, false);
-            g.drawString(font, "Мэр: " + clip(valueAt(snapshot.cityMayors(), i), 30),
-                left + 14, y + 50, MUTED, false);
+            ItemStack cityIcon = itemStack(valueAt(snapshot.cityMine(), i) ? "minecraft:gold_block" : "minecraft:bricks");
+            if (!cityIcon.isEmpty()) g.renderItem(cityIcon, left + 10, y + 8);
+            g.drawString(font, clip(name, 47), left + 34, y + 12, TEXT, true);
+            g.drawString(font, "Государство: " + clip(valueAt(snapshot.cityCountries(), i), 27),
+                left + 34, y + 31, MUTED, false);
+            g.drawString(font, "Мэр: " + clip(valueAt(snapshot.cityMayors(), i), 27),
+                left + 34, y + 50, MUTED, false);
 
             int sx = right - 300;
             miniStat(g, sx, y + 12, "Казна", "$" + format(valueAt(snapshot.cityTreasuries(), i)), GOLD);
@@ -688,15 +696,17 @@ public final class EconomyScreen extends Screen {
         y = title(g, left, y, "ТОРГОВЛЯ", "Физические грузы и поставщики — деньги закреплены за реальными поставками");
 
         panel(g, left, y, right, y + 100);
-        g.drawString(font, "ТОРГОВЫЙ ТЕРМИНАЛ", left + 14, y + 13, TEXT, true);
+        ItemStack terminalIcon = itemStack("minecraft:chest");
+        if (!terminalIcon.isEmpty()) g.renderItem(terminalIcon, left + 10, y + 10);
+        g.drawString(font, "ТОРГОВЫЙ ТЕРМИНАЛ", left + 38, y + 13, TEXT, true);
         g.drawString(font,
             snapshot.tradeTerminalSet()
                 ? "Назначен • " + snapshot.tradeTerminalPosition()
                 : "Не назначен",
-            left + 14, y + 32,
+            left + 38, y + 32,
             snapshot.tradeTerminalSet() ? POSITIVE : NEGATIVE, false);
         g.drawString(font, "Используется для физического входа и выхода грузов.",
-            left + 14, y + 54, MUTED, false);
+            left + 38, y + 54, MUTED, false);
 
         drawButton(g, right - 160, y + 21, right - 14, y + 48,
             snapshot.tradeTerminalSet() ? "ПЕРЕНАЗНАЧИТЬ" : "НАЗНАЧИТЬ",
@@ -760,14 +770,16 @@ public final class EconomyScreen extends Screen {
             if (row == null) continue;
 
             g.fill(left + 8, rowY, right - 8, rowY + rowH - 6, PANEL_2);
-            g.drawString(font, "#" + row.id() + " • " + clip(row.itemId(), 21),
-                left + 14, rowY + 8, TEXT, true);
+            ItemStack orderIcon = itemStack(row.itemId());
+            if (!orderIcon.isEmpty()) g.renderItem(orderIcon, left + 12, rowY + 14);
+            g.drawString(font, "#" + row.id() + " • " + clip(tradeItemName(row.itemId()), 18),
+                left + 40, rowY + 8, TEXT, true);
             g.drawString(font,
                 format(row.remaining()) + "/" + format(row.quantity()) +
                     " • max $" + row.maxPrice(),
-                left + 14, rowY + 26, MUTED, false);
+                left + 40, rowY + 26, MUTED, false);
             g.drawString(font, "Статус: " + tradeStatus(row.status()),
-                left + 14, rowY + 44, MUTED, false);
+                left + 40, rowY + 44, MUTED, false);
 
             boolean seller = snapshot.countryName().equals(row.seller());
             boolean canDispatch = seller && row.remaining() > 0 &&
@@ -809,13 +821,15 @@ public final class EconomyScreen extends Screen {
             if (row == null) continue;
 
             g.fill(left + 8, rowY, right - 8, rowY + rowH - 6, PANEL_2);
-            g.drawString(font, "#" + row.id() + " • " + clip(row.itemId(), 19),
-                left + 14, rowY + 8, TEXT, true);
-            g.drawString(font, "Покупатель: " + clip(row.buyer(), 20),
-                left + 14, rowY + 26, MUTED, false);
+            ItemStack orderIcon = itemStack(row.itemId());
+            if (!orderIcon.isEmpty()) g.renderItem(orderIcon, left + 12, rowY + 14);
+            g.drawString(font, "#" + row.id() + " • " + clip(tradeItemName(row.itemId()), 16),
+                left + 40, rowY + 8, TEXT, true);
+            g.drawString(font, "Покупатель: " + clip(row.buyer(), 17),
+                left + 40, rowY + 26, MUTED, false);
             g.drawString(font,
                 "Нужно " + format(row.remaining()) + " • максимум $" + row.maxPrice() + "/шт",
-                left + 14, rowY + 44, MUTED, false);
+                left + 40, rowY + 44, MUTED, false);
 
             drawButton(g, right - 96, rowY + 30, right - 14, rowY + 53,
                 "ПРИНЯТЬ", POSITIVE_DARK, POSITIVE, mouseX, mouseY,
@@ -846,15 +860,17 @@ public final class EconomyScreen extends Screen {
             if (row == null) continue;
 
             g.fill(left + 8, rowY, right - 8, rowY + rowH - 6, PANEL_2);
+            ItemStack shipmentIcon = itemStack(row.itemId());
+            if (!shipmentIcon.isEmpty()) g.renderItem(shipmentIcon, left + 12, rowY + 14);
             g.drawString(font,
-                "#" + row.id() + " • заказ #" + row.orderId() + " • " + clip(row.itemId(), 23),
-                left + 14, rowY + 8, TEXT, true);
+                "#" + row.id() + " • заказ #" + row.orderId() + " • " + clip(tradeItemName(row.itemId()), 20),
+                left + 40, rowY + 8, TEXT, true);
             g.drawString(font,
                 row.seller() + " → " + row.buyer() + " • ×" + format(row.quantity()),
-                left + 14, rowY + 26, MUTED, false);
+                left + 40, rowY + 26, MUTED, false);
             g.drawString(font,
                 tradeStatus(row.status()) + " • " + row.originChunk() + " → " + row.destinationChunk(),
-                left + 14, rowY + 44, MUTED, false);
+                left + 40, rowY + 44, MUTED, false);
 
             boolean canHaul = "WAITING_LOGISTICS".equals(row.status()) &&
                 !snapshot.countryName().equals(row.seller()) &&
@@ -873,7 +889,8 @@ public final class EconomyScreen extends Screen {
     }
 
     private void drawModal(GuiGraphics g, int mouseX, int mouseY) {
-        g.fill(0, 0, width, height, 0xAA000000);
+        // The modal is a true top layer: background panels and text must not remain readable.
+        g.fill(0, 0, width, height, 0xF2000000);
 
         int w = Math.min(520, width - 32);
         int h = 172;
@@ -881,8 +898,14 @@ public final class EconomyScreen extends Screen {
         int top = (height - h) / 2;
 
         panel(g, left, top, left + w, top + h);
-        g.drawString(font, "ПОДТВЕРЖДЕНИЕ РЕФОРМЫ", left + 18, top + 17, MUTED, true);
-        g.drawString(font, clip(modalTitle, 52), left + 18, top + 39, TEXT, true);
+        ItemStack reformIcon = itemStack(
+            "direction".equals(modalAction) ? "minecraft:compass"
+                : "government".equals(modalAction) ? "minecraft:iron_sword"
+                : "minecraft:book"
+        );
+        if (!reformIcon.isEmpty()) g.renderItem(reformIcon, left + 14, top + 13);
+        g.drawString(font, "ПОДТВЕРЖДЕНИЕ РЕФОРМЫ", left + 44, top + 17, MUTED, true);
+        g.drawString(font, clip(modalTitle, 49), left + 44, top + 39, TEXT, true);
 
         boolean first = switch (modalAction) {
             case "direction" -> "Не выбрано".equals(snapshot.direction());
@@ -904,13 +927,10 @@ public final class EconomyScreen extends Screen {
         g.drawString(font, "Стоимость: " + clip(cost, 55),
             left + 18, top + 88, first ? POSITIVE : GOLD, true);
 
-        drawButton(g, left + w - 196, top + h - 42, left + w - 104, top + h - 15,
-            "ОТМЕНА", PANEL_3, TEXT, mouseX, mouseY, this::closeModal);
-        drawButton(g, left + w - 95, top + h - 42, left + w - 18, top + h - 15,
-            "ПОДТВЕРДИТЬ", ACCENT_DARK, ACCENT, mouseX, mouseY, () -> {
-                EconomyNetwork.sendAction(modalAction, modalCommand);
-                closeModal();
-            });
+        drawButtonVisual(g, left + w - 196, top + h - 42, left + w - 104, top + h - 15,
+            "ОТМЕНА", PANEL_3, TEXT, mouseX, mouseY);
+        drawButtonVisual(g, left + w - 95, top + h - 42, left + w - 18, top + h - 15,
+            "ПОДТВЕРДИТЬ", ACCENT_DARK, ACCENT, mouseX, mouseY);
     }
 
     private void closeModal() {
@@ -935,17 +955,22 @@ public final class EconomyScreen extends Screen {
         return y + 40;
     }
 
-    private void metric(GuiGraphics g, int x, int y, int w, String title, String value, String subtitle, int accent) {
+    private void metric(GuiGraphics g, int x, int y, int w, String title, String value, String subtitle, String iconId, int accent) {
         panel(g, x, y, x + w, y + 76);
         g.fill(x, y, x + 3, y + 76, accent);
-        g.drawString(font, title, x + 12, y + 10, MUTED, true);
-        g.drawString(font, value, x + 12, y + 28, TEXT, true);
-        g.drawString(font, clip(subtitle, 21), x + 12, y + 49, MUTED, false);
+        ItemStack icon = itemStack(iconId);
+        if (!icon.isEmpty()) g.renderItem(icon, x + 9, y + 11);
+        g.drawString(font, title, x + 34, y + 10, MUTED, true);
+        g.drawString(font, value, x + 34, y + 28, TEXT, true);
+        g.drawString(font, clip(subtitle, 19), x + 34, y + 49, MUTED, false);
     }
 
-    private void info(GuiGraphics g, int x, int y, int right, String name, String value) {
-        g.drawString(font, name, x, y, MUTED, false);
-        String v = clip(value, 35);
+    private void info(GuiGraphics g, int x, int y, int right, String name, String value, String iconId) {
+        ItemStack icon = itemStack(iconId);
+        if (!icon.isEmpty()) g.renderItem(icon, x, y - 3);
+        int textX = x + 24;
+        g.drawString(font, name, textX, y, MUTED, false);
+        String v = clip(value, 30);
         g.drawString(font, v, right - font.width(v), y, TEXT, true);
     }
 
@@ -956,6 +981,17 @@ public final class EconomyScreen extends Screen {
 
     private void miniButton(GuiGraphics g, int x, int y, String label, int mouseX, int mouseY, Runnable action) {
         drawButton(g, x, y, x + 24, y + 20, label, PANEL_3, TEXT, mouseX, mouseY, action);
+    }
+
+    private void drawButtonVisual(
+        GuiGraphics g, int left, int top, int right, int bottom,
+        String text, int fill, int accent, int mouseX, int mouseY
+    ) {
+        boolean hover = inside(mouseX, mouseY, left, top, right, bottom);
+        g.fill(left, top, right, bottom, hover ? brighten(fill) : fill);
+        outline(g, left, top, right, bottom, hover ? accent : BORDER);
+        int tx = left + Math.max(4, (right - left - font.width(text)) / 2);
+        g.drawString(font, text, tx, top + 6, hover ? TEXT : accent, true);
     }
 
     private void drawButton(GuiGraphics g, int left, int top, int right, int bottom,
@@ -1024,7 +1060,28 @@ public final class EconomyScreen extends Screen {
     public boolean mouseClicked(double mouseX, double mouseY, int button) {
         if (button != 0) return super.mouseClicked(mouseX, mouseY, button);
 
-        if (modalAction == null && page == Page.TRADE && super.mouseClicked(mouseX, mouseY, button)) {
+        if (modalAction != null) {
+            int w = Math.min(520, width - 32);
+            int h = 172;
+            int left = (width - w) / 2;
+            int top = (height - h) / 2;
+
+            if (inside(mouseX, mouseY, left + w - 196, top + h - 42, left + w - 104, top + h - 15)) {
+                closeModal();
+                return true;
+            }
+
+            if (inside(mouseX, mouseY, left + w - 95, top + h - 42, left + w - 18, top + h - 15)) {
+                EconomyNetwork.sendAction(modalAction, modalCommand);
+                closeModal();
+                return true;
+            }
+
+            // Modal owns the complete input layer. Nothing behind it can receive a click.
+            return true;
+        }
+
+        if (page == Page.TRADE && super.mouseClicked(mouseX, mouseY, button)) {
             return true;
         }
 
@@ -1132,6 +1189,20 @@ public final class EconomyScreen extends Screen {
         } catch (Exception ignored) {
             return ItemStack.EMPTY;
         }
+    }
+
+    private static ItemStack materialIconStack(String raw) {
+        if (raw == null || raw.isBlank()) return ItemStack.EMPTY;
+        for (String candidate : raw.split("\\|")) {
+            ItemStack stack = itemStack(candidate);
+            if (!stack.isEmpty()) return stack;
+        }
+        return ItemStack.EMPTY;
+    }
+
+    private static String tradeItemName(String itemId) {
+        ItemStack stack = itemStack(itemId);
+        return stack.isEmpty() ? itemId : stack.getHoverName().getString();
     }
 
     private String clip(String value, int maxChars) {
