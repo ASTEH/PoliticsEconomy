@@ -238,6 +238,14 @@ public enum CountryResearch {
         this.contentSummary = contentSummary;
     }
 
+    public static CountryResearch byId(String id) {
+        if (id == null) return null;
+        for (CountryResearch research : values()) {
+            if (research.id.equals(id)) return research;
+        }
+        return null;
+    }
+
     public String id() { return id; }
     public CountryDirection direction() { return direction; }
     public String title() { return title; }
