@@ -25,6 +25,13 @@ public final class EconomyNetwork {
         PayloadRegistrar registrar = event.registrar("1");
         registrar.playToClient(EconomySnapshotPayload.TYPE, EconomySnapshotPayload.STREAM_CODEC, EconomyNetwork::handleClient);
         registrar.playToClient(
+            EconomyOpenPayload.TYPE,
+            EconomyOpenPayload.STREAM_CODEC,
+            (payload, context) -> context.enqueueWork(() ->
+                ru.zela.politicseconomy.client.EconomyClientPayloadHandler.requestOpen()
+            )
+        );
+        registrar.playToClient(
             PoliticalClaimsPayload.TYPE,
             PoliticalClaimsPayload.STREAM_CODEC,
             (payload, context) -> context.enqueueWork(() -> handlePoliticalClaimsClient(payload))
