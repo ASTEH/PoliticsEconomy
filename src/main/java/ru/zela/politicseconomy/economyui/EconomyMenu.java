@@ -317,6 +317,14 @@ public final class EconomyMenu {
             CountryWorkforceService.sectorBonusPercent(player.getServer(), countryName, WorkforceSector.AGRICULTURE));
         addModifier(modifierNames, modifierValues, "Военная промышленность от рабочих",
             CountryWorkforceService.sectorBonusPercent(player.getServer(), countryName, WorkforceSector.MILITARY));
+        addModifier(modifierNames, modifierValues, "Военная готовность",
+            ru.zela.politicseconomy.integration.MilitaryEconomyService.readiness(
+                player.getServer(), countryName
+            ));
+        addModifier(modifierNames, modifierValues, "Военное снабжение",
+            ru.zela.politicseconomy.integration.MilitaryEconomyService.supplyPercent(
+                player.getServer(), countryName
+            ));
         String displayStateName = millenaireState && millenaireSnapshot != null
             ? millenaireSnapshot.name()
             : countryName;

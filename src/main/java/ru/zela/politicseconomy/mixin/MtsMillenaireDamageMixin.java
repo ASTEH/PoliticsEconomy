@@ -77,7 +77,7 @@ public abstract class MtsMillenaireDamageMixin {
         }
 
         HealthSnapshot before = POLITICSECONOMY$HEALTH_BEFORE.remove(entity);
-        if (before == null || !living.isAlive()) {
+        if (before == null) {
             return;
         }
 
@@ -99,6 +99,25 @@ public abstract class MtsMillenaireDamageMixin {
                     living.kill();
                 }
             }
+        }
+
+        double beforeTotal =
+            before.health() + before.absorption();
+        double afterTotal =
+            Math.max(0.0D, living.getHealth())
+                + Math.max(0.0D, living.getAbsorptionAmount());
+        double actualDamage =
+            Math.max(0.0D, beforeTotal - afterTotal);
+        boolean casualty =
+            !living.isAlive() || living.getHealth() <= 0.0F;
+
+        if (actualDamage > 0.0D || casualty) {
+            ru.zela.politicseconomy.integration.MilitaryEconomyService
+                .recordMillCombatHit(
+                    living,
+                    actualDamage > 0.0D ? actualDamage : amount,
+                    casualty
+                );
         }
     }
 
