@@ -55,3 +55,11 @@ type="required"
 versionRange="[0.0.11,0.1)"
 ordering="AFTER"
 side="CLIENT"
+
+[[dependencies.${mod_id}]]
+modId="xaeroworldmap"
+type="optional"
+versionRange="[1.40.2,)"
+ordering="AFTER"
+side="CLIENT"
+
