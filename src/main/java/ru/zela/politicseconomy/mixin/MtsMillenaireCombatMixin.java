@@ -123,18 +123,10 @@ public abstract class MtsMillenaireCombatMixin {
         Vec3 motion
     ) {
         AABB box = villager.getBoundingBox().inflate(0.10D);
-        if (motion == null) {
+        if (motion == null || motion.lengthSqr() < 1.0E-12D) {
             return box.contains(start);
         }
-        return box.clip(start, end).isPresent()
-            || box.intersects(
-                start.x,
-                start.y,
-                start.z,
-                end.x,
-                end.y,
-                end.z
-            );
+        return box.clip(start, end).isPresent();
     }
 
     private static Object createMtsWrapper(Entity entity) {
