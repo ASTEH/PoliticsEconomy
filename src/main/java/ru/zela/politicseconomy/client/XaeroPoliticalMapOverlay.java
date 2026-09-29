@@ -1,10 +1,5 @@
 package ru.zela.politicseconomy.client;
 
-import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.BufferUploader;
-import com.mojang.blaze3d.vertex.DefaultVertexFormat;
-import com.mojang.blaze3d.vertex.Tesselator;
-import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
@@ -103,27 +98,15 @@ public final class XaeroPoliticalMapOverlay {
     private static void drawQuads(GuiGraphics graphics, List<Quad> quads) {
         if (quads.isEmpty()) return;
 
-        RenderSystem.enableBlend();
-        RenderSystem.defaultBlendFunc();
-        RenderSystem.disableDepthTest();
-        RenderSystem.setShader(net.minecraft.client.renderer.GameRenderer::getPositionColorShader);
-
-        var matrix = graphics.pose().last().pose();
-        var buffer = Tesselator.getInstance().begin(
-            VertexFormat.Mode.QUADS,
-            DefaultVertexFormat.POSITION_COLOR
-        );
-
         for (Quad quad : quads) {
-            buffer.addVertex(matrix, quad.left(), quad.top(), 0.0F).setColor(quad.color());
-            buffer.addVertex(matrix, quad.right(), quad.top(), 0.0F).setColor(quad.color());
-            buffer.addVertex(matrix, quad.right(), quad.bottom(), 0.0F).setColor(quad.color());
-            buffer.addVertex(matrix, quad.left(), quad.bottom(), 0.0F).setColor(quad.color());
+            graphics.fill(
+                quad.left(),
+                quad.top(),
+                Math.max(quad.left() + 1, quad.right()),
+                Math.max(quad.top() + 1, quad.bottom()),
+                quad.color()
+            );
         }
-
-        BufferUploader.drawWithShader(buffer.buildOrThrow());
-        RenderSystem.enableDepthTest();
-        RenderSystem.disableBlend();
     }
 
     private static void drawBorders(GuiGraphics graphics, List<BorderLine> borders) {
