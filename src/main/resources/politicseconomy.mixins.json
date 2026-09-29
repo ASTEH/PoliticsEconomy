@@ -8,6 +8,7 @@
     "CityStoneBlockMixin",
     "FoundingStoneBlockMixin",
     "PoliticsManagerTerritoryMixin",
+    "ClaimLandPayloadMixin",
     "ResidentialBuildingBlockMixin",
     "MarketDataPayloadMixin",
     "SequencedAssemblyRecipeMixin",
