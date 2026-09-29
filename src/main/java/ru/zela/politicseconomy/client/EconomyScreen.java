@@ -31,7 +31,7 @@ public final class EconomyScreen extends Screen {
         TRADE("Торговля", "minecraft:chest"),
         TRADE_HISTORY("История заказов", "minecraft:written_book"),
         DEBTS("Долги", "minecraft:iron_block"),
-        RESEARCH("Исследования", "minecraft:bookshelf");
+        RESEARCH("Технологии", "minecraft:bookshelf");
 
         final String title;
         final String iconId;
