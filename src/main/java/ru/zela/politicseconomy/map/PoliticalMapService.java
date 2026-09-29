@@ -25,7 +25,7 @@ import java.util.Map;
  */
 public final class PoliticalMapService {
     private static final int SYNC_INTERVAL_TICKS = 100; // 5 seconds
-    private static final int SYNC_RADIUS_CHUNKS = 40;
+    private static final int SYNC_RADIUS_CHUNKS = 64;
 
     private static long lastSyncTick = Long.MIN_VALUE;
 
