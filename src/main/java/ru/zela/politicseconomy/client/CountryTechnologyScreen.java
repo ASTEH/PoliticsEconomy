@@ -27,8 +27,8 @@ public final class CountryTechnologyScreen extends Screen {
     private static final int BLUE = 0xFF58A8FF;
     private static final int BLUE_DARK = 0xFF173956;
     private static final int DISABLED = 0xFF4C5865;
-    private static final int NODE_W = 126;
-    private static final int NODE_H = 72;
+    private static final int NODE_W = 146;
+    private static final int NODE_H = 82;
     private static final int ROW_GAP = 104;
 
     private EconomySnapshotPayload snapshot;
@@ -106,17 +106,27 @@ public final class CountryTechnologyScreen extends Screen {
     }
 
     private void drawHeader(GuiGraphics g) {
-        g.fill(16, 14, width - 16, 70, PANEL);
-        outline(g, 16, 14, width - 16, 70, BORDER);
+        int right = width - 16;
+        g.fill(16, 14, right, 70, PANEL);
+        outline(g, 16, 14, right, 70, BORDER);
 
         g.drawString(font, "ДЕРЕВО ТЕХНОЛОГИЙ", 34, 24, TEXT, true);
-        g.drawString(font, snapshot.countryName(), 34, 43, MUTED, false);
-        g.drawString(font, snapshot.direction(), 210, 24, directionColor(), true);
-        g.drawString(font, "Экономика " + snapshot.developmentLevel() + " • " + snapshot.developmentTitle(),
-            210, 43, MUTED, false);
+        g.drawString(font,
+            clip(snapshot.countryName(), Math.max(110, width / 5)),
+            34, 43, MUTED, false);
 
-        g.drawString(font, "ОЧКИ", width - 148, 24, MUTED, true);
-        g.drawString(font, Integer.toString(snapshot.researchPoints()), width - 148, 40, GOLD, true);
+        int economyX = Math.min(250, Math.max(190, width / 3));
+        g.drawString(font,
+            clip(snapshot.direction(), Math.max(120, right - economyX - 150)),
+            economyX, 24, directionColor(), true);
+        g.drawString(font,
+            clip("Экономика " + snapshot.developmentLevel() + " • " + snapshot.developmentTitle(),
+                Math.max(140, right - economyX - 150)),
+            economyX, 43, MUTED, false);
+
+        int pointsX = right - 90;
+        g.drawString(font, "ОЧКИ", pointsX, 24, MUTED, true);
+        g.drawString(font, Integer.toString(snapshot.researchPoints()), pointsX, 40, GOLD, true);
     }
 
     private void drawTree(GuiGraphics g, int mouseX, int mouseY) {
@@ -169,9 +179,13 @@ public final class CountryTechnologyScreen extends Screen {
     }
 
     private int centerX(CountryResearch node, int left, int right) {
-        int width = right - left;
-        int spread = Math.max(110, Math.min(190, (width - NODE_W * 2) / 2));
-        return (left + right) / 2 + node.column() * spread;
+        int available = Math.max(1, right - left - NODE_W - 24);
+        int spread = Math.max(78, Math.min(175, available / 2));
+        int center = (left + right) / 2 + node.column() * spread;
+
+        int minCenter = left + NODE_W / 2 + 8;
+        int maxCenter = right - NODE_W / 2 - 8;
+        return Math.max(minCenter, Math.min(maxCenter, center));
     }
 
     private int centerY(CountryResearch node) {
@@ -220,12 +234,17 @@ public final class CountryTechnologyScreen extends Screen {
         outline(g, left, top, right, bottom,
             selected ? GOLD : state.equals("COMPLETED") ? POSITIVE : state.equals("AVAILABLE") ? BLUE : BORDER);
 
-        ItemStack icon = itemStack(node.icon());
-        if (!icon.isEmpty()) g.renderItem(icon, left + 8, top + 10);
+        ItemStack icon = technologyIcon(node);
+        if (!icon.isEmpty()) g.renderItem(icon, left + 8, top + 9);
 
-        g.drawString(font, "T" + (node.row() + 1), left + 34, top + 8, MUTED, true);
-        String title = clip(node.title(), 86);
-        g.drawString(font, title, left + 34, top + 24, TEXT, true);
+        g.drawString(font, "УР. " + node.minLevel(), left + 34, top + 8, MUTED, true);
+
+        int titleWidth = NODE_W - 42;
+        List<String> titleLines = wrap(node.title(), titleWidth, 2);
+        int titleY = top + 23;
+        for (int i = 0; i < titleLines.size(); i++) {
+            g.drawString(font, titleLines.get(i), left + 34, titleY + i * 12, TEXT, true);
+        }
 
         String stateText = switch (state) {
             case "COMPLETED" -> "ОТКРЫТО";
@@ -236,7 +255,7 @@ public final class CountryTechnologyScreen extends Screen {
             case "MONEY" -> "НУЖНЫ ДЕНЬГИ";
             default -> "ЗАБЛОКИРОВАНО";
         };
-        g.drawString(font, stateText, left + 8, bottom - 16,
+        g.drawString(font, clip(stateText, NODE_W - 16), left + 8, bottom - 16,
             state.equals("COMPLETED") ? POSITIVE : state.equals("AVAILABLE") ? BLUE : MUTED, true);
     }
 
@@ -252,11 +271,17 @@ public final class CountryTechnologyScreen extends Screen {
         CountryResearch node = technology(selectedId);
         if (node == null) return;
 
-        ItemStack icon = itemStack(node.icon());
+        ItemStack icon = technologyIcon(node);
         if (!icon.isEmpty()) g.renderItem(icon, left + 16, top + 16);
 
-        g.drawString(font, node.title(), left + 54, top + 18, TEXT, true);
-        g.drawString(font, "Уровень " + node.minLevel(), left + 54, top + 36, MUTED, false);
+        int titleWidth = right - left - 76;
+        List<String> detailTitle = wrap(node.title(), titleWidth, 2);
+        int titleY = top + 16;
+        for (int i = 0; i < detailTitle.size(); i++) {
+            g.drawString(font, detailTitle.get(i), left + 54, titleY + i * 12, TEXT, true);
+        }
+        g.drawString(font, "Уровень " + node.minLevel(), left + 54,
+            top + 46, MUTED, false);
 
         int y = top + 70;
         for (String line : wrap(node.description(), right - left - 28, 24)) {
@@ -286,30 +311,41 @@ public final class CountryTechnologyScreen extends Screen {
         int iconX = left + 14;
         int iconY = y;
         int shown = 0;
+        int contentWidth = right - left - 42;
         for (String rule : node.contentRules()) {
-            if ("*".equals(rule.substring(rule.indexOf(':') + 1))) {
-                ItemStack packIcon = itemStack(node.icon());
+            if (!rule.contains(":")) continue;
+
+            int separator = rule.indexOf(':');
+            String path = rule.substring(separator + 1);
+
+            if ("*".equals(path)) {
+                ItemStack packIcon = representativeIconForRule(rule);
                 if (!packIcon.isEmpty()) {
                     g.renderItem(packIcon, iconX, iconY);
                 }
-                g.drawString(font, clip(rule + "  •  весь контент мода", 188),
+                g.drawString(font,
+                    clip(rule.substring(0, separator) + ":* • весь контент мода",
+                        contentWidth - 30),
                     iconX + 24, iconY + 4, BLUE, false);
-                iconY += 26;
+                iconY += 28;
                 shown++;
             } else {
                 ItemStack contentIcon = itemStack(rule);
                 if (!contentIcon.isEmpty()) {
                     g.renderItem(contentIcon, iconX, iconY);
                 }
-                g.drawString(font, clip(rule, 26), iconX + 24, iconY + 4, MUTED, false);
-                iconX += 92;
+
+                String displayName = contentIcon.isEmpty()
+                    ? rule
+                    : contentIcon.getHoverName().getString();
+                g.drawString(font,
+                    clip(displayName, Math.max(90, contentWidth - 30)),
+                    iconX + 24, iconY + 4, MUTED, false);
+
+                iconY += 24;
                 shown++;
-                if (shown % 2 == 0) {
-                    iconX = left + 14;
-                    iconY += 28;
-                }
             }
-            if (iconY > bottom - 102) break;
+            if (iconY > bottom - 102 || shown >= 8) break;
         }
 
         String state = status(node.id());
@@ -400,13 +436,56 @@ public final class CountryTechnologyScreen extends Screen {
     }
 
     private ItemStack itemStack(String id) {
+        if (id == null || id.isBlank() || id.endsWith(":*")) return ItemStack.EMPTY;
         try {
             ResourceLocation location = ResourceLocation.parse(id);
-            if (!net.minecraft.core.registries.BuiltInRegistries.ITEM.containsKey(location)) return ItemStack.EMPTY;
-            return new ItemStack(net.minecraft.core.registries.BuiltInRegistries.ITEM.get(location));
+            var item = net.minecraft.core.registries.BuiltInRegistries.ITEM.getOptional(location).orElse(null);
+            if (item != null) {
+                return new ItemStack(item);
+            }
+
+            var block = net.minecraft.core.registries.BuiltInRegistries.BLOCK.getOptional(location).orElse(null);
+            if (block != null && block.asItem() != net.minecraft.world.item.Items.AIR) {
+                return new ItemStack(block.asItem());
+            }
         } catch (Exception ignored) {
-            return ItemStack.EMPTY;
+            // Invalid optional content is rendered as text instead of breaking the UI.
         }
+        return ItemStack.EMPTY;
+    }
+
+    private ItemStack technologyIcon(CountryResearch node) {
+        ItemStack direct = itemStack(node.icon());
+        if (!direct.isEmpty()) return direct;
+
+        for (String rule : node.contentRules()) {
+            ItemStack fallback = representativeIconForRule(rule);
+            if (!fallback.isEmpty()) return fallback;
+        }
+        return ItemStack.EMPTY;
+    }
+
+    private ItemStack representativeIconForRule(String rule) {
+        if (rule == null || !rule.contains(":")) return ItemStack.EMPTY;
+        int separator = rule.indexOf(':');
+        String namespace = rule.substring(0, separator);
+        String path = rule.substring(separator + 1);
+
+        if (!"*".equals(path)) {
+            return itemStack(rule);
+        }
+
+        try {
+            for (var entry : net.minecraft.core.registries.BuiltInRegistries.ITEM.entrySet()) {
+                ResourceLocation id = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(entry.getValue());
+                if (id != null && namespace.equals(id.getNamespace())) {
+                    return new ItemStack(entry.getValue());
+                }
+            }
+        } catch (Exception ignored) {
+            // Registry may be in a partially initialized client state.
+        }
+        return ItemStack.EMPTY;
     }
 
     private void line(GuiGraphics g, int x1, int y1, int x2, int y2, int color) {
