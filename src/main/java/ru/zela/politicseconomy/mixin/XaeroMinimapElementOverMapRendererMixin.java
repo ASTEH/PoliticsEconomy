@@ -8,17 +8,15 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Coerce;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import ru.zela.politicseconomy.client.XaeroPoliticalMinimapOverlay;
+import xaero.common.AXaeroMinimap;
 import xaero.common.graphics.renderer.multitexture.MultiTextureRenderTypeRendererProvider;
+import xaero.common.minimap.element.render.over.MinimapElementOverMapRendererHandler;
 import xaero.common.minimap.render.MinimapRendererHelper;
 
-@Mixin(
-    targets = "xaero.common.minimap.element.render.over.MinimapElementOverMapRendererHandler",
-    remap = false
-)
+@Mixin(MinimapElementOverMapRendererHandler.class)
 public abstract class XaeroMinimapElementOverMapRendererMixin {
 
     @Inject(method = "render", at = @At("RETURN"), remap = false)
@@ -35,7 +33,7 @@ public abstract class XaeroMinimapElementOverMapRendererMixin {
         boolean cave,
         float partialTicks,
         RenderTarget framebuffer,
-        @Coerce Object modMain,
+        AXaeroMinimap modMain,
         MinimapRendererHelper helper,
         MultiBufferSource.BufferSource renderTypeBuffers,
         Font font,
