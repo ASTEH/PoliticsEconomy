@@ -169,10 +169,9 @@ public final class CountryTechnologyScreen extends Screen {
     }
 
     private int centerX(CountryResearch node, int left, int right) {
-        int available = right - left - 36;
-        int columns = 5;
-        int spacing = Math.max(108, Math.min(154, available / columns));
-        return left + 18 + ((node.column() + 2) * spacing) + NODE_W / 2;
+        int width = right - left;
+        int spread = Math.max(110, Math.min(190, (width - NODE_W * 2) / 2));
+        return (left + right) / 2 + node.column() * spread;
     }
 
     private int centerY(CountryResearch node) {
@@ -281,12 +280,36 @@ public final class CountryTechnologyScreen extends Screen {
         }
 
         y += 10;
-        g.drawString(font, "КОНТЕНТ", left + 14, y, TEXT, true);
-        y += 18;
+        g.drawString(font, "ОТКРЫВАЕМЫЕ БЛОКИ И ПРЕДМЕТЫ", left + 14, y, TEXT, true);
+        y += 20;
+
+        int iconX = left + 14;
+        int iconY = y;
+        int shown = 0;
         for (String rule : node.contentRules()) {
-            g.drawString(font, "• " + clip(rule, 30), left + 14, y, MUTED, false);
-            y += 14;
-            if (y > bottom - 90) break;
+            if ("*".equals(rule.substring(rule.indexOf(':') + 1))) {
+                ItemStack packIcon = itemStack(node.icon());
+                if (!packIcon.isEmpty()) {
+                    g.renderItem(packIcon, iconX, iconY);
+                }
+                g.drawString(font, clip(rule + "  •  весь контент мода", 188),
+                    iconX + 24, iconY + 4, BLUE, false);
+                iconY += 26;
+                shown++;
+            } else {
+                ItemStack contentIcon = itemStack(rule);
+                if (!contentIcon.isEmpty()) {
+                    g.renderItem(contentIcon, iconX, iconY);
+                }
+                g.drawString(font, clip(rule, 26), iconX + 24, iconY + 4, MUTED, false);
+                iconX += 92;
+                shown++;
+                if (shown % 2 == 0) {
+                    iconX = left + 14;
+                    iconY += 28;
+                }
+            }
+            if (iconY > bottom - 102) break;
         }
 
         String state = status(node.id());
