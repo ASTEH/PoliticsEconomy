@@ -62,38 +62,28 @@ public final class PoliticalMapService {
             return;
         }
 
-        int centerX = player.chunkPosition().x;
-        int centerZ = player.chunkPosition().z;
-
         Map<String, Integer> countryIndices = new LinkedHashMap<>();
         List<String> countries = new ArrayList<>();
         List<Long> chunks = new ArrayList<>();
         List<Integer> owners = new ArrayList<>();
 
-        int minX = centerX - SYNC_RADIUS_CHUNKS;
-        int maxX = centerX + SYNC_RADIUS_CHUNKS;
-        int minZ = centerZ - SYNC_RADIUS_CHUNKS;
-        int maxZ = centerZ + SYNC_RADIUS_CHUNKS;
+        // PoliticsMod already exposes its complete persisted claim set.
+        // Send all known claims so every player can see every country's territory,
+        // not only the territory close to their own position.
+        politics.forEachClaim((pos, color) -> {
+            String countryName = politics.getCountryNameAt(pos);
+            if (countryName == null || countryName.isBlank()) return;
 
-        for (int chunkX = minX; chunkX <= maxX; chunkX++) {
-            for (int chunkZ = minZ; chunkZ <= maxZ; chunkZ++) {
-                Country owner = politics.getCountryAt(new ChunkPos(chunkX, chunkZ));
-                if (owner == null) continue;
-
-                String countryName = owner.getName();
-                if (countryName == null || countryName.isBlank()) continue;
-
-                Integer index = countryIndices.get(countryName);
-                if (index == null) {
-                    index = countries.size();
-                    countryIndices.put(countryName, index);
-                    countries.add(countryName);
-                }
-
-                chunks.add(ChunkPos.asLong(chunkX, chunkZ));
-                owners.add(index);
+            Integer index = countryIndices.get(countryName);
+            if (index == null) {
+                index = countries.size();
+                countryIndices.put(countryName, index);
+                countries.add(countryName);
             }
-        }
+
+            chunks.add(pos.toLong());
+            owners.add(index);
+        });
 
         long[] chunkArray = new long[chunks.size()];
         int[] ownerArray = new int[owners.size()];
@@ -106,13 +96,14 @@ public final class PoliticalMapService {
         EconomyNetwork.send(
             player,
             new PoliticalClaimsPayload(
-                centerX,
-                centerZ,
-                SYNC_RADIUS_CHUNKS,
+                player.chunkPosition().x,
+                player.chunkPosition().z,
+                128,
                 countries.toArray(String[]::new),
                 chunkArray,
                 ownerArray
             )
         );
     }
+
 }
