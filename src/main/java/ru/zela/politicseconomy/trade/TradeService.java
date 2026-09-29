@@ -350,9 +350,10 @@ public final class TradeService {
 
             markShipment(extracted, shipmentId);
 
-            // Seal only the requested amount, allowing partial shipments from a full stack.
-            ItemStack remainder = handler.insertItem(slot, extracted, false);
-            if (!remainder.isEmpty()) {
+            // A partial shipment leaves the untagged remainder in the source
+            // slot, so the sealed stack must be placed into another slot (or
+            // an empty source slot for a full-stack shipment).
+            if (!insertSealedShipment(handler, slot, extracted)) {
                 clearShipment(extracted);
                 handler.insertItem(slot, extracted, false);
                 continue;
@@ -578,6 +579,24 @@ public final class TradeService {
             net.minecraft.core.component.DataComponents.CUSTOM_DATA,
             net.minecraft.world.item.component.CustomData.of(tag)
         );
+    }
+
+    private static boolean insertSealedShipment(IItemHandler handler, int originalSlot, ItemStack shipment) {
+        if (shipment == null || shipment.isEmpty()) {
+            return false;
+        }
+
+        int slots = handler.getSlots();
+        for (int offset = 0; offset < slots; offset++) {
+            int slot = (originalSlot + offset) % slots;
+            ItemStack remainder = handler.insertItem(slot, shipment, false);
+            if (remainder.isEmpty()) {
+                return true;
+            }
+            shipment = remainder;
+        }
+
+        return false;
     }
 
     private static void clearShipment(ItemStack stack) {
