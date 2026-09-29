@@ -11,7 +11,6 @@ import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import ru.zela.politicseconomy.integration.PoliticsModIntegration;
 
 import java.util.List;
-import java.util.Set;
 
 public final class CountryResearchContentService {
     private CountryResearchContentService() {}
@@ -65,7 +64,7 @@ public final class CountryResearchContentService {
 
     private static void deny(ServerPlayer player, ResourceLocation contentId, CountryResearch technology) {
         player.sendSystemMessage(net.minecraft.network.chat.Component.literal(
-            "Технология "" + technology.title() + "" ещё не исследована. (" + contentId + ")"
+            "Технология «" + technology.title() + "» ещё не исследована. (" + contentId + ")"
         ).withStyle(net.minecraft.ChatFormatting.RED));
     }
 
