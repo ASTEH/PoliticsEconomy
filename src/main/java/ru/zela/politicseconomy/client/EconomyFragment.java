@@ -50,13 +50,44 @@ public final class EconomyFragment extends Fragment {
     private static final int PURPLE = 0xFF9485B0;
     private static final Map<String, WeakReference<Image>> ITEM_ICON_CACHE = new HashMap<>();
 
-    private final EconomySnapshotPayload snapshot;
+    private static EconomyFragment activeFragment;
+
+    private EconomySnapshotPayload snapshot;
+    private int activePage = 0;
     private FrameLayout screenRoot;
     private LinearLayout pageHost;
     private FrameLayout popupOverlay;
 
     public EconomyFragment(EconomySnapshotPayload snapshot) {
         this.snapshot = snapshot;
+        activeFragment = this;
+    }
+
+    public static boolean updateActive(EconomySnapshotPayload payload) {
+        EconomyFragment fragment = activeFragment;
+        if (fragment == null || fragment.screenRoot == null || fragment.pageHost == null) {
+            return false;
+        }
+
+        fragment.snapshot = payload;
+        fragment.removePopup();
+
+        Context context;
+        try {
+            context = fragment.requireContext();
+        } catch (IllegalStateException ignored) {
+            return false;
+        }
+
+        switch (fragment.activePage) {
+            case 1 -> fragment.showCountrySettings(context);
+            case 2 -> fragment.showEffects(context);
+            case 3 -> fragment.showCities(context);
+            case 4 -> fragment.showAdmin(context);
+            default -> fragment.showOverview(context);
+        }
+
+        return true;
     }
 
     @Override
@@ -163,6 +194,7 @@ public final class EconomyFragment extends Fragment {
     }
 
     private void showOverview(Context context) {
+        activePage = 0;
         pageHost.removeAllViews();
 
         LinearLayout metrics = row(context);
@@ -324,6 +356,7 @@ public final class EconomyFragment extends Fragment {
     }
 
     private void showCountrySettings(Context context) {
+        activePage = 1;
         pageHost.removeAllViews();
 
         LinearLayout intro = panel(context);
@@ -369,6 +402,7 @@ public final class EconomyFragment extends Fragment {
     }
 
     private void showEffects(Context context) {
+        activePage = 2;
         pageHost.removeAllViews();
 
         LinearLayout intro = panel(context);
@@ -408,6 +442,7 @@ public final class EconomyFragment extends Fragment {
     }
 
     private void showCities(Context context) {
+        activePage = 3;
         pageHost.removeAllViews();
 
         LinearLayout intro = panel(context);
@@ -643,6 +678,7 @@ public final class EconomyFragment extends Fragment {
     }
 
     private void showAdmin(Context context) {
+        activePage = 4;
         pageHost.removeAllViews();
 
         LinearLayout admin = panel(context);
