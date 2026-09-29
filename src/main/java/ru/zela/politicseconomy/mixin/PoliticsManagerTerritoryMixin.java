@@ -25,11 +25,6 @@ public abstract class PoliticsManagerTerritoryMixin {
         if (owner instanceof ServerPlayer player
             && !TerritoryService.canCreateCountry(player, center)) {
             ci.cancel();
-            return;
-        }
-        var server = net.neoforged.neoforge.server.ServerLifecycleHooks.getCurrentServer();
-        if (server != null) {
-            ru.zela.politicseconomy.map.PoliticalMapService.syncAll(server);
         }
     }
 
@@ -43,8 +38,30 @@ public abstract class PoliticsManagerTerritoryMixin {
         if (player instanceof ServerPlayer serverPlayer
             && !TerritoryService.canFoundCity(serverPlayer, center, cityName)) {
             ci.cancel();
-            return;
         }
+    }
+
+    @Inject(method = "createCountry", at = @At("TAIL"), remap = false)
+    private static void politicseconomy$syncCountryMap(
+        Level level,
+        BlockPos center,
+        Player owner,
+        String name,
+        CallbackInfo ci
+    ) {
+        var server = net.neoforged.neoforge.server.ServerLifecycleHooks.getCurrentServer();
+        if (server != null) {
+            ru.zela.politicseconomy.map.PoliticalMapService.syncAll(server);
+        }
+    }
+
+    @Inject(method = "foundNewCity", at = @At("TAIL"), remap = false)
+    private void politicseconomy$syncCityMap(
+        BlockPos center,
+        Player player,
+        String cityName,
+        CallbackInfo ci
+    ) {
         var server = net.neoforged.neoforge.server.ServerLifecycleHooks.getCurrentServer();
         if (server != null) {
             ru.zela.politicseconomy.map.PoliticalMapService.syncAll(server);
