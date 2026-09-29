@@ -124,46 +124,13 @@ public record CountryDirectionProfile(
         );
     }
 
+    /**
+     * Research is now primarily a content-unlock system. Numeric direction bonuses
+     * stay in development levels and country policy, so technology progression does
+     * not become another stack of small percentage modifiers.
+     */
     public CountryDirectionProfile withResearch(java.util.Set<String> completedResearch) {
-        double industrial = industrialProduction, resource = resourceProduction;
-        double agriculture = agriculturalProduction, military = militaryProduction;
-        double trade = tradeIncome, fee = tradeFee;
-        double industrialUpkeep = industrialMaintenance, diesel = dieselFuelConsumption;
-        double resourceUpkeep = resourceMaintenance, transportUpkeep = transportMaintenance;
-        double population = populationGrowth, advancedCost = advancedIndustryCost;
-        double defaultLoss = resourceExtractionLoss;
-        java.util.Map<ResourceExtractionCategory, Double> losses =
-            new java.util.EnumMap<>(ResourceExtractionCategory.class);
-        losses.putAll(categoryExtractionLosses);
-
-        if (completedResearch.contains("industrial_mechanization")) industrial += 5.0;
-        if (completedResearch.contains("industrial_electrification")) diesel -= 5.0;
-        if (completedResearch.contains("industrial_machinery")) industrialUpkeep -= 5.0;
-        if (completedResearch.contains("industrial_military")) military += 5.0;
-        if (completedResearch.contains("industrial_advanced")) advancedCost -= 5.0;
-
-        if (completedResearch.contains("resource_mining")) {
-            defaultLoss = Math.max(0.0, defaultLoss - 5.0);
-            for (ResourceExtractionCategory category : ResourceExtractionCategory.values()) {
-                losses.put(category, Math.max(0.0, losses.getOrDefault(category, defaultLoss) - 5.0));
-            }
-        }
-        if (completedResearch.contains("resource_refining")) resource += 5.0;
-        if (completedResearch.contains("resource_agro")) agriculture += 5.0;
-        if (completedResearch.contains("resource_oil")) diesel -= 5.0;
-        if (completedResearch.contains("resource_reserve")) resourceUpkeep -= 5.0;
-
-        if (completedResearch.contains("trade_market")) trade += 5.0;
-        if (completedResearch.contains("trade_logistics")) fee -= 5.0;
-        if (completedResearch.contains("trade_rail")) transportUpkeep -= 5.0;
-        if (completedResearch.contains("trade_motor")) population += 5.0;
-        if (completedResearch.contains("trade_hub")) trade += 5.0;
-
-        return new CountryDirectionProfile(
-            industrial, resource, agriculture, military, trade, fee,
-            industrialUpkeep, diesel, resourceUpkeep, transportUpkeep,
-            foodConsumption, population, advancedCost, defaultLoss, java.util.Map.copyOf(losses)
-        );
+        return this;
     }
 
     public double extractionLoss(ResourceExtractionCategory category) {
