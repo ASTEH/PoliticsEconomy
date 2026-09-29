@@ -234,12 +234,12 @@ public final class EconomyScreen extends UiScreen {
         UIComponent workforceList = Ui.list(
             workforceRows,
             this::workforceRow
-        ).key(WorkforceRow::sector).itemHeight(58).flex();
+        ).key(WorkforceRow::sector).itemHeight(58).height(250);
 
         UIComponent materialList = Ui.list(
             materialRows,
             this::materialRow
-        ).key(MaterialRow::itemId).itemHeight(48).flex();
+        ).key(MaterialRow::itemId).itemHeight(48).height(180);
 
         UIComponent metrics = metricLayout(
             metric(
@@ -586,9 +586,9 @@ public final class EconomyScreen extends UiScreen {
                             Ui.title("ВНУТРЕННИЙ РЫНОК"),
                             Ui.text("Население покупает реальные предметы. Ты можешь продавать товары своей стране.")
                         ).gap(3).flex(),
-                        Ui.badge(Component.literal(
-                            textSignal(s -> "$" + formatLong(s.personalWallet())).get()
-                        ))
+                        Ui.text(textSignal(s ->
+                            "$" + formatLong(s.personalWallet())
+                        )).nowrap()
                     ).gap(8).fillWidth(),
                     Ui.row(
                         Ui.chip("Цена зависит от дефицита"),
