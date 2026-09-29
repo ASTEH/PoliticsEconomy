@@ -34,9 +34,9 @@ import java.util.UUID;
  *
  * Population creates concrete item demand every economic cycle. Players can
  * sell demanded items directly to their country's population and receive
- * personal market money. Once the local market is still undersupplied halfway
- * through the cycle, the country can automatically import matching listings
- * from other countries through PoliticsMod's international market.
+ * personal market money. International procurement is deliberately kept out
+ * of this service so that cross-country goods must move physically through
+ * TradeService logistics.
  */
 public final class PopulationMarketService {
     private static final int MIN_CYCLE_TICKS = 20;
@@ -80,16 +80,9 @@ public final class PopulationMarketService {
             startCycle(server, data, cycle);
         }
 
-        long phaseTick = overworld.getGameTime() % cycleTicks;
-        long importStart = Math.max(
-            1L,
-            (long) Math.floor(cycleTicks * IMPORT_PHASE)
-        );
-
-        if (phaseTick >= importStart && data.lastImportCycle() < cycle) {
-            importMissingGoods(server, data);
-            data.setLastImportCycle(cycle);
-        }
+        // International demand is no longer filled by virtual PoliticsMod
+        // purchases. Cross-country procurement is handled by TradeService,
+        // where goods must physically travel between terminals.
     }
 
     private static void startCycle(
