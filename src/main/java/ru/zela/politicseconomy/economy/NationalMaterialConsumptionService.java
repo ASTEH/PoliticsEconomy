@@ -95,6 +95,51 @@ public final class NationalMaterialConsumptionService {
             }
         }
 
+        for (ru.zela.politicseconomy.integration.MillenaireIntegration.VillageSnapshot state
+            : ru.zela.politicseconomy.integration.MillenaireIntegration.snapshots(server)) {
+            String countryName = state.stateKey();
+            ledger.initializeCountry(countryName);
+
+            NationalMaterialDemandService.CountryDemand demand =
+                NationalMaterialDemandService.calculate(server.overworld(), countryName);
+
+            for (NationalMaterialDemandService.MaterialDemand material : demand.materials()) {
+                String choiceKey = material.key();
+                double accumulated = ledger.getRemainder(countryName, choiceKey)
+                    + material.perCycleConsumption();
+
+                int currentUnitsDue = material.perCycleConsumption() > 1.0E-9D
+                    ? Math.max(1, (int) Math.ceil(accumulated - 1.0E-9D))
+                    : 0;
+
+                double nextRemainder = accumulated - currentUnitsDue;
+                ledger.setRemainder(countryName, choiceKey, Math.max(0.0D, nextRemainder));
+
+                int oldDebt = ledger.getDebt(countryName, choiceKey);
+                long totalDueLong = (long) currentUnitsDue + oldDebt;
+                int totalDue = totalDueLong > Integer.MAX_VALUE
+                    ? Integer.MAX_VALUE
+                    : (int) totalDueLong;
+
+                if (totalDue <= 0) continue;
+
+                int paid = ru.zela.politicseconomy.integration.MillenaireIntegration
+                    .consumeFromWarehouse(
+                        server,
+                        countryName,
+                        material.acceptedItemIds(),
+                        totalDue
+                    );
+                ledger.setDebt(countryName, choiceKey, totalDue - paid);
+            }
+
+            if (!demand.materials().isEmpty() && !ledger.hasAnyDebt(countryName)) {
+                CountryDevelopmentService.addActivity(server, countryName, 5);
+                CountryResearchService.addPoints(server, countryName, 1);
+            }
+        }
+
+
         ledger.setDirty();
     }
 
