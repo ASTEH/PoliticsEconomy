@@ -1,5 +1,10 @@
 package ru.zela.politicseconomy.client;
 
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.BufferUploader;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
@@ -7,6 +12,8 @@ import net.neoforged.fml.ModList;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -42,6 +49,9 @@ public final class XaeroPoliticalMapOverlay {
         int minChunkZ = floorDiv(state.screenToBlockZ(0), 16) - 1;
         int maxChunkZ = floorDiv(state.screenToBlockZ(screen.height), 16) + 1;
 
+        List<Quad> quads = new ArrayList<>();
+        List<BorderLine> borders = new ArrayList<>();
+
         for (Map.Entry<Long, String> entry : claims.entrySet()) {
             long packed = entry.getKey();
             int chunkX = PoliticalClaimsClientState.chunkX(packed);
@@ -57,63 +67,77 @@ public final class XaeroPoliticalMapOverlay {
             int top = state.worldToScreenY((double) chunkZ * 16.0D);
             int bottom = state.worldToScreenY((double) (chunkZ + 1) * 16.0D);
 
-            if (right < 0 || left > screen.width || bottom < 0 || top > screen.height) {
-                continue;
+            if (right <= 0 || left >= screen.width || bottom <= 0 || top >= screen.height) continue;
+
+            if (right == left) right = left + (state.scale < 1.0D ? 1 : 2);
+            if (bottom == top) bottom = top + (state.scale < 1.0D ? 1 : 2);
+
+            quads.add(new Quad(
+                left, top, right, bottom,
+                countryFill(country)
+            ));
+
+            int border = countryBorder(country);
+            long westKey = chunkKey(chunkX - 1, chunkZ);
+            long eastKey = chunkKey(chunkX + 1, chunkZ);
+            long northKey = chunkKey(chunkX, chunkZ - 1);
+            long southKey = chunkKey(chunkX, chunkZ + 1);
+
+            if (!country.equals(claims.get(westKey))) {
+                borders.add(new BorderLine(left, top, left, bottom, border));
             }
-
-            if (right <= left) right = left + 1;
-            if (bottom <= top) bottom = top + 1;
-
-            int fill = countryFill(country);
-            graphics.fill(left, top, right, bottom, fill);
-
-            drawExternalBorders(
-                screen,
-                graphics,
-                claims,
-                chunkX,
-                chunkZ,
-                country,
-                left,
-                right,
-                top,
-                bottom
-            );
+            if (!country.equals(claims.get(eastKey))) {
+                borders.add(new BorderLine(right - 1, top, right - 1, bottom, border));
+            }
+            if (!country.equals(claims.get(northKey))) {
+                borders.add(new BorderLine(left, top, right, top, border));
+            }
+            if (!country.equals(claims.get(southKey))) {
+                borders.add(new BorderLine(left, bottom - 1, right, bottom - 1, border));
+            }
         }
+
+        drawQuads(graphics, quads);
+        drawBorders(graphics, borders);
     }
 
-    private static void drawExternalBorders(
-        Screen screen,
-        GuiGraphics graphics,
-        Map<Long, String> claims,
-        int chunkX,
-        int chunkZ,
-        String country,
-        int left,
-        int right,
-        int top,
-        int bottom
-    ) {
-        int border = countryBorder(country);
+    private static void drawQuads(GuiGraphics graphics, List<Quad> quads) {
+        if (quads.isEmpty()) return;
 
-        // Draw only borders where the adjacent chunk is empty or belongs to another state.
-        // This keeps a country as one continuous colored area instead of a visible grid.
-        String west = claims.get(chunkKey(chunkX - 1, chunkZ));
-        String east = claims.get(chunkKey(chunkX + 1, chunkZ));
-        String north = claims.get(chunkKey(chunkX, chunkZ - 1));
-        String south = claims.get(chunkKey(chunkX, chunkZ + 1));
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        RenderSystem.disableDepthTest();
+        RenderSystem.setShader(net.minecraft.client.renderer.GameRenderer::getPositionColorShader);
 
-        if (!country.equals(west)) {
-            graphics.fill(left, top, Math.min(left + 1, right), bottom, border);
+        var matrix = graphics.pose().last().pose();
+        var buffer = Tesselator.getInstance().begin(
+            VertexFormat.Mode.QUADS,
+            DefaultVertexFormat.POSITION_COLOR
+        );
+
+        for (Quad quad : quads) {
+            buffer.addVertex(matrix, quad.left(), quad.top(), 0.0F).setColor(quad.color());
+            buffer.addVertex(matrix, quad.right(), quad.top(), 0.0F).setColor(quad.color());
+            buffer.addVertex(matrix, quad.right(), quad.bottom(), 0.0F).setColor(quad.color());
+            buffer.addVertex(matrix, quad.left(), quad.bottom(), 0.0F).setColor(quad.color());
         }
-        if (!country.equals(east)) {
-            graphics.fill(Math.max(right - 1, left), top, right, bottom, border);
-        }
-        if (!country.equals(north)) {
-            graphics.fill(left, top, right, Math.min(top + 1, bottom), border);
-        }
-        if (!country.equals(south)) {
-            graphics.fill(left, Math.max(bottom - 1, top), right, bottom, border);
+
+        BufferUploader.drawWithShader(buffer.buildOrThrow());
+        RenderSystem.enableDepthTest();
+        RenderSystem.disableBlend();
+    }
+
+    private static void drawBorders(GuiGraphics graphics, List<BorderLine> borders) {
+        if (borders.isEmpty()) return;
+
+        for (BorderLine line : borders) {
+            graphics.fill(
+                line.x1(),
+                line.y1(),
+                line.x2() == line.x1() ? line.x1() + 1 : line.x2(),
+                line.y2() == line.y1() ? line.y1() + 1 : line.y2(),
+                line.color()
+            );
         }
     }
 
@@ -232,6 +256,10 @@ public final class XaeroPoliticalMapOverlay {
     private static int floorDiv(int value, int divisor) {
         return Math.floorDiv(value, divisor);
     }
+
+    private record Quad(int left, int top, int right, int bottom, int color) {}
+
+    private record BorderLine(int x1, int y1, int x2, int y2, int color) {}
 
     private record MapState(
         double cameraX,
