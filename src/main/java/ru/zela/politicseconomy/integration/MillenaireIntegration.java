@@ -326,6 +326,61 @@ public final class MillenaireIntegration {
         return snapshot == null ? stateKey : snapshot.name();
     }
 
+    public static double maintenanceCost(
+        MinecraftServer server,
+        VillageSnapshot state
+    ) {
+        if (server == null || state == null) return 0.0D;
+
+        double total = 0.0D;
+        for (Map.Entry<WorkforceSector, Integer> entry
+            : state.workplaceSnapshot().workplaceSlots().entrySet()) {
+            int slots = Math.max(0, entry.getValue());
+            double basePerSlot = switch (entry.getKey()) {
+                case AGRICULTURE -> 0.10D;
+                case EXTRACTION -> 0.18D;
+                case INDUSTRY -> 0.30D;
+                case MILITARY -> 0.35D;
+                case TRADE_LOGISTICS -> 0.16D;
+                case CONSTRUCTION_SERVICES -> 0.08D;
+            };
+
+            double modifier;
+            CountryDirection direction =
+                CountryDirectionManager.getDirection(server, state.stateKey());
+            var policy =
+                CountryPolicyManager.getGovernment(server, state.stateKey());
+            var religion =
+                CountryPolicyManager.getReligion(server, state.stateKey());
+
+            var profile =
+                CountryDirectionBonusService.profile(server, state.stateKey());
+            var policyProfile =
+                CountryPolicyBonusService.profile(server, state.stateKey());
+
+            modifier = switch (entry.getKey()) {
+                case AGRICULTURE, EXTRACTION ->
+                    1.0D + (profile == null ? 0.0D : profile.resourceMaintenance())
+                        / 100.0D
+                        + (policyProfile.resourceMaintenance()) / 100.0D;
+                case INDUSTRY, MILITARY ->
+                    1.0D + (profile == null ? 0.0D : profile.industrialMaintenance())
+                        / 100.0D
+                        + (policyProfile.industrialMaintenance()) / 100.0D;
+                case TRADE_LOGISTICS ->
+                    1.0D + (profile == null ? 0.0D : profile.transportMaintenance())
+                        / 100.0D
+                        + (policyProfile.transportMaintenance()) / 100.0D;
+                case CONSTRUCTION_SERVICES -> 1.0D;
+            };
+
+            total += slots * basePerSlot * Math.max(0.0D, modifier);
+        }
+
+        // Empty villages should not incur a synthetic maintenance charge.
+        return Math.max(0.0D, total);
+    }
+
     public static VillageSnapshot snapshot(ServerLevel level, Object village) {
         UUID id = villageId(village);
         String name = stringValue(invoke(village, "getVillageName"));
