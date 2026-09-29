@@ -45,6 +45,7 @@ import ru.zela.politicseconomy.recipe.RecipeAnalysis;
 import ru.zela.politicseconomy.recipe.RecipeAnalyzer;
 import ru.zela.politicseconomy.trade.TradeSavedData;
 import ru.zela.politicseconomy.trade.TradeService;
+import ru.zela.politicseconomy.territory.TerritoryService;
 
 import java.util.Optional;
 import java.util.Map;
@@ -59,6 +60,11 @@ public final class PoliticsEconomyCommands {
             Commands.literal("pe")
                 .then(Commands.literal("info")
                     .executes(context -> showInfo(context.getSource())))
+                .then(Commands.literal("territory")
+                    .then(Commands.literal("claim")
+                        .executes(context -> claimTerritory(context.getSource())))
+                    .then(Commands.literal("status")
+                        .executes(context -> territoryStatus(context.getSource()))))
                 .then(Commands.literal("profile")
                     .executes(context -> showProfile(context.getSource())))
                 .then(Commands.literal("direction")
@@ -1443,6 +1449,49 @@ public final class PoliticsEconomyCommands {
             (set ? "Склад " : "Добавлено ") + name + ": " + value
         ).withStyle(ChatFormatting.YELLOW), true);
         return 1;
+    }
+
+    private static int claimTerritory(CommandSourceStack source) {
+        try {
+            ServerPlayer player = source.getPlayerOrException();
+            return TerritoryService.buyFreeChunk(player) ? 1 : 0;
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("Эта команда доступна только игроку."));
+            return 0;
+        }
+    }
+
+    private static int territoryStatus(CommandSourceStack source) {
+        try {
+            ServerPlayer player = source.getPlayerOrException();
+            var politics = net.krona.politicsmod.PoliticsManager.get(player.serverLevel());
+            if (politics == null) return 0;
+
+            String country = politics.getPlayerCountry(player.getUUID());
+            if (country == null) {
+                source.sendFailure(Component.literal("Ты не состоишь ни в одной стране."));
+                return 0;
+            }
+
+            ChunkPos chunk = player.chunkPosition();
+            String owner = politics.getCountryNameAt(chunk);
+            String occupation = TerritoryService.occupationProgressText(player.getServer(), chunk);
+            int nextPrice = TerritoryService.claimPrice(player.getServer(), country);
+
+            source.sendSuccess(
+                () -> Component.literal(
+                    "Чанк " + chunk.x + ", " + chunk.z
+                        + " | владелец: " + (owner == null ? "свободен" : owner)
+                        + " | цена расширения: $" + nextPrice
+                        + (occupation == null ? "" : " | " + occupation)
+                ).withStyle(ChatFormatting.GOLD),
+                false
+            );
+            return 1;
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("Не удалось получить статус территории."));
+            return 0;
+        }
     }
 
     private static int showInfo(CommandSourceStack source) {
