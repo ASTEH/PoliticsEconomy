@@ -5,6 +5,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.event.level.BlockEvent;
 import net.krona.politicsmod.PoliticsManager;
 import ru.zela.politicseconomy.integration.EnterpriseMaterialControlService;
+import ru.zela.politicseconomy.country.CountryWorkplaceService;
 
 /** Records only blocks that were explicitly placed by a player. */
 public final class InfrastructureEvents {
@@ -24,6 +25,7 @@ public final class InfrastructureEvents {
         PoliticsManager politics = PoliticsManager.get(level);
         String ownerCountry = politics == null ? null : politics.getPlayerCountry(event.getEntity().getUUID());
         InfrastructureManager.add(level, event.getPos(), event.getPlacedBlock(), ownerCountry);
+        CountryWorkplaceService.invalidate(level.getServer());
     }
 
     public static void onBreak(BlockEvent.BreakEvent event) {
@@ -36,5 +38,6 @@ public final class InfrastructureEvents {
 
         EnterpriseMaterialControlService.remove(level, event.getPos());
         InfrastructureManager.remove(level, event.getPos());
+        CountryWorkplaceService.invalidate(level.getServer());
     }
 }
