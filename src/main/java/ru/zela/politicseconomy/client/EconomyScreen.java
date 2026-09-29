@@ -128,7 +128,7 @@ public final class EconomyScreen extends Screen {
 
     private void layoutTradeInputs() {
         int left = contentLeft();
-        int top = contentTop();
+        int top = contentTop() - (int) scroll;
 
         tradeItem.setX(left + 8);
         tradeItem.setY(top + 48);
@@ -180,15 +180,16 @@ public final class EconomyScreen extends Screen {
             case MARKET -> end = drawMarket(graphics, end, left, right, mouseX, mouseY);
             case TRADE -> end = drawTrade(graphics, end, left, right, mouseX, mouseY);
         }
-        graphics.disableScissor();
-
         if (page == Page.TRADE && modalAction == null) {
+            layoutTradeInputs();
             tradeItem.render(graphics, mouseX, mouseY, partialTick);
             tradeAmount.render(graphics, mouseX, mouseY, partialTick);
             tradeMaxPrice.render(graphics, mouseX, mouseY, partialTick);
             tradeAcceptPrice.render(graphics, mouseX, mouseY, partialTick);
             tradeDispatchAmount.render(graphics, mouseX, mouseY, partialTick);
         }
+
+        graphics.disableScissor();
 
         drawCloseButton(graphics, mouseX, mouseY);
 
