@@ -21,8 +21,6 @@ repositories {
     maven { name = 'CreateMaven'; url = 'https://maven.createmod.net' }
     maven { name = 'IThundXR'; url = 'https://maven.ithundxr.dev/snapshots' }
     maven { name = 'Modrinth'; url = 'https://api.modrinth.com/maven' }
-    // Xaero's official developer Maven: exposes the actual deobfuscated client API.
-    maven { name = 'Xaero'; url = 'https://chocolateminecraft.com/maven' }
 }
 
 neoForge {
@@ -54,10 +52,6 @@ dependencies {
 
     // Optional Xaero's World Map API. Provided by the player's modpack at runtime.
     // 1.40.2+ exposes the element wrapper used by this client-only political overlay.
-
-    // Compile against Xaero's Minimap's client render hook; the mod itself remains
-    // an optional runtime dependency and is not bundled into PoliticsEconomy.
-    compileOnly("xaero.minimap:xaerominimap-neoforge-1.21.1:26.5.0")
 
     // Create: Diesel Generators 1.21.1-1.3.15. Used only for the economy integration.
     compileOnly("maven.modrinth:ZM3tt6p1:UoPH8lO1")
