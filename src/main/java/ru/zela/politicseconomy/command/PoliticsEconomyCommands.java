@@ -849,6 +849,7 @@ public final class PoliticsEconomyCommands {
             player = source.getPlayerOrException();
         } catch (Exception ignored) {
         }
+        final ChunkPos viewerChunk = player == null ? null : player.chunkPosition();
 
         source.sendSuccess(
             () -> Component.literal("=== Государства Millénaire ===")
@@ -879,7 +880,7 @@ public final class PoliticsEconomyCommands {
                         + " | казна $" + treasury
                         + " | территория " + state.territory().size() + " ч."
                 ).withStyle(
-                    player != null && state.territory().contains(player.chunkPosition())
+                    viewerChunk != null && state.territory().contains(viewerChunk)
                         ? ChatFormatting.AQUA
                         : ChatFormatting.WHITE
                 ),
