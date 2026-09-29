@@ -57,6 +57,7 @@ public final class EconomyFragment extends Fragment {
     private FrameLayout screenRoot;
     private LinearLayout pageHost;
     private FrameLayout popupOverlay;
+    private boolean awaitingUpdate;
 
     public EconomyFragment(EconomySnapshotPayload snapshot) {
         this.snapshot = snapshot;
@@ -70,6 +71,7 @@ public final class EconomyFragment extends Fragment {
         }
 
         fragment.snapshot = payload;
+        fragment.awaitingUpdate = false;
         fragment.removePopup();
 
         Context context;
@@ -84,6 +86,7 @@ public final class EconomyFragment extends Fragment {
             case 2 -> fragment.showEffects(context);
             case 3 -> fragment.showCities(context);
             case 4 -> fragment.showAdmin(context);
+            case 5 -> fragment.showMarket(context);
             default -> fragment.showOverview(context);
         }
 
@@ -97,6 +100,7 @@ public final class EconomyFragment extends Fragment {
         DataSet savedInstanceState
     ) {
         Context context = requireContext();
+        activeFragment = this;
 
         screenRoot = new FrameLayout(context);
         screenRoot.setBackground(solid(BG, 0));
@@ -117,11 +121,13 @@ public final class EconomyFragment extends Fragment {
         Button country = tabButton(context, "СТРАНА");
         Button effects = tabButton(context, "ЭФФЕКТЫ");
         Button cities = tabButton(context, "ГОРОДА");
+        Button market = tabButton(context, "РЫНОК");
 
         tabs.addView(overview, new LinearLayout.LayoutParams(0, dp(40), 1));
         tabs.addView(country, marginTab());
         tabs.addView(effects, marginTab());
         tabs.addView(cities, marginTab());
+        tabs.addView(market, marginTab());
 
         if (Minecraft.getInstance().player != null
             && Minecraft.getInstance().player.isCreative()) {
@@ -144,6 +150,7 @@ public final class EconomyFragment extends Fragment {
         country.setOnClickListener(v -> showCountrySettings(context));
         effects.setOnClickListener(v -> showEffects(context));
         cities.setOnClickListener(v -> showCities(context));
+        market.setOnClickListener(v -> showMarket(context));
 
         if (needsInitialCountrySetup()) {
             showCountrySettings(context);
@@ -296,6 +303,15 @@ public final class EconomyFragment extends Fragment {
             MUTED
         ));
 
+        if (awaitingUpdate) {
+            workforce.addView(label(
+                context,
+                "Изменение отправлено серверу — обновляем показатели…",
+                10,
+                GOLD
+            ));
+        }
+
         for (int i = 0; i < WorkforceSector.values().length; i++) {
             WorkforceSector sector = WorkforceSector.values()[i];
             workforce.addView(workforceSectorRow(context, sector, i),
@@ -349,18 +365,121 @@ public final class EconomyFragment extends Fragment {
         Button minus = smallButton(context, "−");
         minus.setTextSize(12);
         minus.setEnabled(allocation > 0);
-        minus.setOnClickListener(v ->
-            EconomyNetwork.sendAction("workforce", sector.commandName() + ":-5"));
+        minus.setOnClickListener(v -> submitWorkforceChange(
+            minus,
+            sector.commandName() + ":-5"
+        ));
         card.addView(minus, new LinearLayout.LayoutParams(dp(42), dp(36)));
 
         Button plus = smallButton(context, "+");
         plus.setTextSize(12);
         plus.setEnabled(allocation < 100);
-        plus.setOnClickListener(v ->
-            EconomyNetwork.sendAction("workforce", sector.commandName() + ":5"));
+        plus.setOnClickListener(v -> submitWorkforceChange(
+            plus,
+            sector.commandName() + ":5"
+        ));
         card.addView(plus, new LinearLayout.LayoutParams(dp(42), dp(36)));
 
         return card;
+    }
+
+    private void submitWorkforceChange(Button button, String value) {
+        awaitingUpdate = true;
+        button.setEnabled(false);
+        button.setText("…");
+        EconomyNetwork.sendAction("workforce", value);
+    }
+
+    private void showMarket(Context context) {
+        activePage = 5;
+        pageHost.removeAllViews();
+
+        LinearLayout walletPanel = panel(context);
+        walletPanel.addView(sectionTitle(context, "ВНУТРЕННИЙ РЫНОК"));
+        walletPanel.addView(label(context,
+            "Население покупает реальные предметы. Продавай товары своей стране и получай личные деньги.",
+            11, MUTED));
+        walletPanel.addView(infoLine(
+            context,
+            "minecraft:emerald",
+            "Твой кошелёк",
+            "$" + formatLong(snapshot.personalWallet())
+        ));
+        pageHost.addView(walletPanel);
+
+        if (snapshot.marketItemIds().length == 0) {
+            LinearLayout empty = panel(context);
+            empty.addView(label(context,
+                "В этом цикле население не сформировало спрос. Нужны жители в стране.",
+                12, MUTED));
+            pageHost.addView(empty, marginPanel());
+            return;
+        }
+
+        LinearLayout goods = panel(context);
+        goods.addView(sectionTitle(context, "СПРОС НА ТОВАРЫ"));
+        goods.addView(label(context,
+            "Цена растёт, пока товар остаётся дефицитным. После половины цикла государство может импортировать нехватку через торговый склад.",
+            10, MUTED));
+
+        for (int i = 0; i < snapshot.marketItemIds().length; i++) {
+            goods.addView(marketRow(context, i), marginPanel());
+        }
+        pageHost.addView(goods, marginPanel());
+    }
+
+    private View marketRow(Context context, int index) {
+        String itemId = stringAt(snapshot.marketItemIds(), index);
+        String name = stringAt(snapshot.marketItemNames(), index);
+        int base = valueAt(snapshot.marketBaseDemand(), index);
+        int remaining = valueAt(snapshot.marketRemaining(), index);
+        int sold = valueAt(snapshot.marketSold(), index);
+        int imported = valueAt(snapshot.marketImported(), index);
+        int price = valueAt(snapshot.marketPrices(), index);
+
+        LinearLayout card = row(context);
+        card.setBackground(solid(PANEL_3, dp(8)));
+        card.setPadding(dp(8), dp(6), dp(8), dp(6));
+
+        card.addView(itemIcon(context, itemId, 30),
+            new LinearLayout.LayoutParams(dp(34), dp(34)));
+
+        LinearLayout details = column(context);
+        details.addView(label(context, name, 12, TEXT));
+        details.addView(label(
+            context,
+            "Спрос: " + format(remaining) + " / " + format(base)
+                + "  •  продано " + format(sold)
+                + "  •  импорт " + format(imported),
+            9,
+            remaining > 0 ? WARNING : SUCCESS
+        ));
+        details.addView(label(context,
+            "Цена: $" + format(price) + " за 1 шт.",
+            10,
+            GOLD));
+        card.addView(details, new LinearLayout.LayoutParams(0, dp(48), 1));
+
+        Button one = smallButton(context, "×1");
+        one.setEnabled(remaining > 0);
+        one.setOnClickListener(v -> submitMarketSale(one, itemId, 1));
+        card.addView(one, new LinearLayout.LayoutParams(dp(48), dp(36)));
+
+        Button stack = smallButton(context, "×16");
+        stack.setEnabled(remaining > 0);
+        stack.setOnClickListener(v -> submitMarketSale(stack, itemId, 16));
+        LinearLayout.LayoutParams stackParams = new LinearLayout.LayoutParams(dp(56), dp(36));
+        stackParams.setMargins(dp(5), 0, 0, 0);
+        card.addView(stack, stackParams);
+
+        return card;
+    }
+
+    private void submitMarketSale(Button button, String itemId, int amount) {
+        awaitingUpdate = true;
+        button.setEnabled(false);
+        button.setText("…");
+        EconomyNetwork.sendAction("market_sell", amount + "|" + itemId);
     }
 
     private void showCountrySettings(Context context) {
@@ -1082,6 +1201,16 @@ public final class EconomyFragment extends Fragment {
     private void closeDashboard() {
         removePopup();
         Minecraft.getInstance().execute(() -> Minecraft.getInstance().setScreen(null));
+    }
+
+    private static String stringAt(String[] values, int index) {
+        return values != null && index >= 0 && index < values.length && values[index] != null
+            ? values[index]
+            : "";
+    }
+
+    private static String formatLong(long value) {
+        return String.format(Locale.ROOT, "%,d", Math.max(0L, value));
     }
 
     private static int valueAt(int[] values, int index) {
