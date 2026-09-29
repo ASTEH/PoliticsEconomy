@@ -8,7 +8,6 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.renderer.GameRenderer;
-import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.util.Mth;
 import org.joml.Matrix4f;
 
@@ -63,9 +62,9 @@ public final class XaeroPoliticalMinimapOverlay {
             DefaultVertexFormat.POSITION_COLOR
         );
 
-        Matrix4f matrix = poseStack.last().pose();
         poseStack.pushPose();
         poseStack.translate(0.0D, 0.0D, -980.0D);
+        Matrix4f matrix = poseStack.last().pose();
 
         boolean drew = false;
 
