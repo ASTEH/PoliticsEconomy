@@ -1,11 +1,11 @@
 package ru.zela.politicseconomy.territory;
 
-import net.krona.politicsmod.PoliticsConfig;
+import net.krona.politicsmod.config.PoliticsConfig;
 import net.krona.politicsmod.PoliticsManager;
 import net.krona.politicsmod.politics.Country;
 import net.krona.politicsmod.politics.CountryRole;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.chat.ChatFormatting;
+import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
