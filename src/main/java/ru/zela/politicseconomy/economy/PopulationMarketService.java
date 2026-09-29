@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Internal population market.
@@ -301,13 +302,14 @@ public final class PopulationMarketService {
             }
 
             List<Map.Entry<String, Integer>> needs =
-                new ArrayList<>(data.remainingDemand(buyer.getName()).entrySet());
+                new ArrayList<>(data.baseDemand(buyer.getName()).entrySet());
 
             for (Map.Entry<String, Integer> need : needs) {
-                if (need.getValue() <= 0) continue;
+                int base = need.getValue();
+                int remaining = data.remainingDemand(buyer.getName(), need.getKey());
+                if (remaining <= 0) continue;
 
-                int base = data.baseDemand(buyer.getName(), need.getKey());
-                if (base <= 0 || need.getValue() * 2 < base) {
+                if (base <= 0 || remaining * 2 < base) {
                     // Local players have supplied at least half the cycle's demand.
                     continue;
                 }
@@ -325,7 +327,7 @@ public final class PopulationMarketService {
                     politics,
                     buyer,
                     need.getKey(),
-                    need.getValue(),
+                    remaining,
                     referencePrice,
                     data
                 );
@@ -476,7 +478,7 @@ public final class PopulationMarketService {
         }
 
         result.sort(
-            Comparator.comparingDouble(
+            Comparator.<DemandLine>comparingDouble(
                 line -> -((line.baseDemand() <= 0)
                     ? 0.0D
                     : line.remaining() / (double) line.baseDemand())
