@@ -4,7 +4,11 @@ import net.krona.politicsmod.PoliticsManager;
 import net.krona.politicsmod.politics.Country;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.network.chat.Component;
+import net.minecraft.ChatFormatting;
+import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.chunk.LevelChunk;
@@ -94,6 +98,56 @@ public final class CountryPopulationService {
         level.getServer().execute(() -> refreshAround(level, pos));
     }
 
+    /** Called after a player places a bed so invalid housing gets an immediate on-screen warning. */
+    public static void onBedPlaced(ServerLevel level, BlockPos pos, ServerPlayer player) {
+        level.getServer().execute(() -> {
+            BlockPos head = findBedHead(level, pos);
+            if (head != null && !isValidBed(level, head)) {
+                player.displayClientMessage(
+                    Component.literal("Кровать не засчитана: над ней нет крыши в пределах 5 блоков. Население не добавится.")
+                        .withStyle(ChatFormatting.YELLOW),
+                    true
+                );
+            } else if (head != null
+                && PoliticsManager.get(level) != null
+                && PoliticsManager.get(level).getCountryAt(new ChunkPos(head)) == null) {
+                player.displayClientMessage(
+                    Component.literal("Кровать не засчитана: этот чанк не принадлежит государству. Население не добавится.")
+                        .withStyle(ChatFormatting.YELLOW),
+                    true
+                );
+            }
+            refreshAround(level, pos);
+        });
+    }
+
+    /** Resolves either half of a bed to its HEAD block. */
+    private static BlockPos findBedHead(ServerLevel level, BlockPos pos) {
+        var state = level.getBlockState(pos);
+        if (state.getBlock() instanceof BedBlock) {
+            if (state.getValue(BedBlock.PART) == net.minecraft.world.level.block.state.properties.BedPart.HEAD) {
+                return pos;
+            }
+            Direction facing = state.getValue(BedBlock.FACING);
+            BlockPos candidate = pos.relative(facing);
+            var candidateState = level.getBlockState(candidate);
+            if (candidateState.getBlock() instanceof BedBlock
+                && candidateState.getValue(BedBlock.PART) == net.minecraft.world.level.block.state.properties.BedPart.HEAD) {
+                return candidate;
+            }
+        }
+
+        for (Direction direction : Direction.Plane.HORIZONTAL) {
+            BlockPos candidate = pos.relative(direction);
+            var candidateState = level.getBlockState(candidate);
+            if (candidateState.getBlock() instanceof BedBlock
+                && candidateState.getValue(BedBlock.PART) == net.minecraft.world.level.block.state.properties.BedPart.HEAD) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
     private static void refreshAround(ServerLevel level, BlockPos pos) {
         int centerX = pos.getX() >> 4;
         int centerZ = pos.getZ() >> 4;
@@ -111,16 +165,9 @@ public final class CountryPopulationService {
         invalidate(level.getServer());
     }
 
-    /**
-     * Counts only beds that qualify as housing:
-     * - the bed must have a roof above it;
-     * - another bed cannot occupy the same vertical column (same X/Z).
-     *
-     * A vertical stack of beds is therefore treated as invalid housing instead
-     * of multiplying population through stacked decorative beds.
-     */
+    /** Counts every valid bed head; beds may be stacked vertically at the same X/Z. */
     private static int countBeds(ServerLevel level, LevelChunk chunk) {
-        java.util.List<BlockPos> heads = new java.util.ArrayList<>();
+        int validBeds = 0;
 
         int minX = chunk.getPos().getMinBlockX();
         int minZ = chunk.getPos().getMinBlockZ();
@@ -134,46 +181,20 @@ public final class CountryPopulationService {
                     var state = chunk.getBlockState(pos);
                     if (state.getBlock() instanceof BedBlock
                         && state.getValue(BedBlock.PART)
-                        == net.minecraft.world.level.block.state.properties.BedPart.HEAD) {
-                        heads.add(pos);
+                        == net.minecraft.world.level.block.state.properties.BedPart.HEAD
+                        && hasRoof(level, pos)) {
+                        validBeds++;
                     }
                 }
             }
         }
 
-        if (heads.isEmpty()) {
-            return 0;
-        }
-
-        java.util.Map<Long, Integer> bedsByColumn = new java.util.HashMap<>();
-        for (BlockPos head : heads) {
-            long column = net.minecraft.core.BlockPos.asLong(
-                head.getX(),
-                0,
-                head.getZ()
-            );
-            bedsByColumn.merge(column, 1, Integer::sum);
-        }
-
-        int validBeds = 0;
-        for (BlockPos head : heads) {
-            long column = net.minecraft.core.BlockPos.asLong(
-                head.getX(),
-                0,
-                head.getZ()
-            );
-
-            // Two beds with the same X/Z are stacked vertically. Exclude both.
-            if (bedsByColumn.getOrDefault(column, 0) != 1) {
-                continue;
-            }
-
-            if (hasRoof(level, head)) {
-                validBeds++;
-            }
-        }
-
         return validBeds;
+    }
+
+    /** A bed is housing only when there is a solid roof within five blocks above its head. */
+    private static boolean isValidBed(ServerLevel level, BlockPos bedHead) {
+        return hasRoof(level, bedHead);
     }
 
     /**
