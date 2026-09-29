@@ -111,8 +111,17 @@ public final class CountryPopulationService {
         invalidate(level.getServer());
     }
 
+    /**
+     * Counts only beds that qualify as housing:
+     * - the bed must have a roof above it;
+     * - another bed cannot occupy the same vertical column (same X/Z).
+     *
+     * A vertical stack of beds is therefore treated as invalid housing instead
+     * of multiplying population through stacked decorative beds.
+     */
     private static int countBeds(ServerLevel level, LevelChunk chunk) {
-        int beds = 0;
+        java.util.List<BlockPos> heads = new java.util.ArrayList<>();
+
         int minX = chunk.getPos().getMinBlockX();
         int minZ = chunk.getPos().getMinBlockZ();
         int minY = level.getMinBuildHeight();
@@ -124,15 +133,63 @@ public final class CountryPopulationService {
                     BlockPos pos = new BlockPos(x, y, z);
                     var state = chunk.getBlockState(pos);
                     if (state.getBlock() instanceof BedBlock
-                        && state.getValue(BedBlock.PART)
-                            == net.minecraft.world.level.block.state.properties.BedPart.HEAD) {
-                        beds++;
+                        && state.getValue(
+                            net.minecraft.world.level.block.state.properties.BedPart.PART
+                        ) == net.minecraft.world.level.block.state.properties.BedPart.HEAD) {
+                        heads.add(pos);
                     }
                 }
             }
         }
 
-        return beds;
+        if (heads.isEmpty()) {
+            return 0;
+        }
+
+        java.util.Map<Long, Integer> bedsByColumn = new java.util.HashMap<>();
+        for (BlockPos head : heads) {
+            long column = net.minecraft.core.BlockPos.asLong(
+                head.getX(),
+                0,
+                head.getZ()
+            );
+            bedsByColumn.merge(column, 1, Integer::sum);
+        }
+
+        int validBeds = 0;
+        for (BlockPos head : heads) {
+            long column = net.minecraft.core.BlockPos.asLong(
+                head.getX(),
+                0,
+                head.getZ()
+            );
+
+            // Two beds with the same X/Z are stacked vertically. Exclude both.
+            if (bedsByColumn.getOrDefault(column, 0) != 1) {
+                continue;
+            }
+
+            if (hasRoof(level, head)) {
+                validBeds++;
+            }
+        }
+
+        return validBeds;
+    }
+
+    /**
+     * Uses the same practical roof definition as PoliticsMod's old residential
+     * scanner: any solid-rendering block within five blocks above the bed head.
+     */
+    private static boolean hasRoof(ServerLevel level, BlockPos bedHead) {
+        for (int i = 1; i <= 5; i++) {
+            BlockPos above = bedHead.above(i);
+            var state = level.getBlockState(above);
+            if (state.isSolidRender(level, above)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static int calculateCountry(
