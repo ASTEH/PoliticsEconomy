@@ -78,6 +78,10 @@ public final class CountryWorkforceService {
     }
 
     public static int workingPopulation(MinecraftServer server, String countryName) {
+        if (ru.zela.politicseconomy.integration.MillenaireIntegration.isStateKey(countryName)) {
+            return ru.zela.politicseconomy.integration.MillenaireIntegration.adultPopulation(server, countryName);
+        }
+
         int population = CountryPopulationService.population(server, countryName);
         if (population <= 0) return 0;
 
@@ -92,6 +96,12 @@ public final class CountryWorkforceService {
         String countryName,
         WorkforceSector sector
     ) {
+        if (ru.zela.politicseconomy.integration.MillenaireIntegration.isStateKey(countryName)) {
+            return ru.zela.politicseconomy.integration.MillenaireIntegration
+                .sectorWorkers(server, countryName)
+                .getOrDefault(sector, 0);
+        }
+
         int workers = workingPopulation(server, countryName);
         if (workers <= 0) return 0;
 
