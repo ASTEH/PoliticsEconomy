@@ -74,6 +74,31 @@ public final class EconomyMenu {
         );
     }
 
+    /** Builds the dashboard payload for the Millénaire state at the player's current position. */
+    public static EconomySnapshotPayload buildMillenaireSnapshot(ServerPlayer player) {
+        var village = ru.zela.politicseconomy.integration.MillenaireIntegration.snapshotAtChunk(
+            player.getServer(), player.chunkPosition()
+        );
+        if (village == null) {
+            return null;
+        }
+
+        var saved = ru.zela.politicseconomy.integration.MillenaireStateSavedData
+            .get(player.getServer());
+        saved.ensureState(
+            village.villageId(),
+            village.name(),
+            player.getServer().getTickCount()
+        );
+
+        return buildSnapshot(
+            player,
+            village.stateKey(),
+            (int) Math.min(Integer.MAX_VALUE, saved.treasury(village.villageId())),
+            true
+        );
+    }
+
     private static String networkSafeMaterialId(NationalMaterialDemandService.MaterialDemand material, int index) {
         String key = material.key();
         if (key.length() <= 120) return key;
