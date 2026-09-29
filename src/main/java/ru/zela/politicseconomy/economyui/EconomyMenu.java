@@ -4,6 +4,7 @@ import net.krona.politicsmod.politics.Country;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.ChunkPos;
 import ru.zela.politicseconomy.country.CountryDirection;
 import ru.zela.politicseconomy.country.CountryDirectionBonusService;
 import ru.zela.politicseconomy.country.CountryDirectionManager;
@@ -26,6 +27,8 @@ import ru.zela.politicseconomy.infrastructure.MaintenanceService;
 import ru.zela.politicseconomy.integration.PoliticsModIntegration;
 import ru.zela.politicseconomy.network.EconomyNetwork;
 import ru.zela.politicseconomy.network.EconomySnapshotPayload;
+import ru.zela.politicseconomy.trade.TradeSavedData;
+import ru.zela.politicseconomy.trade.TradeService;
 
 /** Server-side source for the country-economy dashboard. */
 public final class EconomyMenu {
@@ -141,6 +144,54 @@ public final class EconomyMenu {
         }
         long personalWallet = ru.zela.politicseconomy.economy.PopulationMarketService.wallet(player.getServer(), player.getUUID());
 
+        TradeSavedData.Terminal tradeTerminal = TradeService.terminal(player.getServer(), countryName);
+        boolean tradeTerminalSet = tradeTerminal != null;
+        String tradeTerminalPosition = tradeTerminal == null
+            ? "Не назначен"
+            : new ChunkPos(net.minecraft.core.BlockPos.of(tradeTerminal.pos())).toString();
+
+        java.util.List<String> tradeOwnOrders = new java.util.ArrayList<>();
+        for (TradeSavedData.Order order : TradeService.countryOrders(player.getServer(), countryName)) {
+            tradeOwnOrders.add(
+                order.id() + "|" + order.itemId() + "|"
+                    + order.remaining() + "|" + order.quantity() + "|"
+                    + order.maxUnitPrice() + "|"
+                    + safeTradeText(order.sellerCountry()) + "|"
+                    + order.status().name() + "|" + order.reservedFunds()
+            );
+        }
+
+        java.util.List<String> tradeOpenOrders = new java.util.ArrayList<>();
+        for (TradeSavedData.Order order : TradeService.openOrders(player.getServer(), countryName)) {
+            tradeOpenOrders.add(
+                order.id() + "|" + order.itemId() + "|"
+                    + safeTradeText(order.buyerCountry()) + "|"
+                    + order.remaining() + "|" + order.maxUnitPrice() + "|"
+                    + order.agreedUnitPrice() + "|" + order.status().name()
+            );
+        }
+
+        java.util.List<String> tradeShipments = new java.util.ArrayList<>();
+        for (TradeSavedData.Shipment shipment : TradeService.get(player.getServer()).shipments().values()) {
+            if (!countryName.equals(shipment.sellerCountry())
+                && !countryName.equals(shipment.buyerCountry())
+                && shipment.status() != TradeSavedData.ShipmentStatus.WAITING_LOGISTICS) {
+                continue;
+            }
+            ChunkPos originChunk = new ChunkPos(net.minecraft.core.BlockPos.of(shipment.originPos()));
+            ChunkPos destinationChunk = new ChunkPos(net.minecraft.core.BlockPos.of(shipment.destinationPos()));
+            tradeShipments.add(
+                shipment.id() + "|" + shipment.orderId() + "|"
+                    + shipment.itemId() + "|" + shipment.quantity() + "|"
+                    + safeTradeText(shipment.sellerCountry()) + "|"
+                    + safeTradeText(shipment.buyerCountry()) + "|"
+                    + shipment.status().name() + "|"
+                    + (shipment.courier() == null ? "нет" : "назначен") + "|"
+                    + originChunk.x + "," + originChunk.z + "|"
+                    + destinationChunk.x + "," + destinationChunk.z
+            );
+        }
+
         java.util.List<String> modifierNames = new java.util.ArrayList<>(); java.util.List<Double> modifierValues = new java.util.ArrayList<>();
         addModifier(modifierNames, modifierValues, "Промышленное производство", profile == null ? 0 : profile.industrialProduction() + policy.industrialProduction());
         addModifier(modifierNames, modifierValues, "Добыча сырья", profile == null ? 0 : profile.resourceProduction() + policy.resourceProduction());
@@ -167,8 +218,12 @@ public final class EconomyMenu {
             CountryWorkforceService.sectorBonusPercent(player.getServer(), countryName, WorkforceSector.AGRICULTURE));
         addModifier(modifierNames, modifierValues, "Военная промышленность от рабочих",
             CountryWorkforceService.sectorBonusPercent(player.getServer(), countryName, WorkforceSector.MILITARY));
-        return new EconomySnapshotPayload(countryName, selectedDirection == null ? "Не выбрано" : selectedDirection.displayName(), government == null ? "Не выбрано" : government.displayName(), religion == null ? "Не выбрано" : religion.displayName(), population, workforce, workingPopulation, employedPopulation, unemployedPopulation, workplaceCapacity, workplaceCounts, workplaceSlots, sectorWorkers, sectorAllocation, sectorBonuses, policySummary, unrest, demand, supportSummary, country.balance, infrastructureCost, moneyDebt, dieselModifier, totalMaterialPerCycle, materialIds, materialNames, materialStockpile, materialDebt, materialPerCycle, modifierNames.toArray(String[]::new), modifierValues.stream().mapToDouble(Double::doubleValue).toArray(), cityNames, cityCountries, cityMayors, cityTreasuries, cityIncome, cityInfrastructure, cityPopulation, cityTaxBlocks, cityCapitals, cityMine, developmentLevel, developmentPoints, developmentNextThreshold, developmentPerk, developmentNextPerk, marketItemIds, marketItemNames, marketBaseDemand, marketRemaining, marketSold, marketImported, marketPrices, personalWallet);
+        return new EconomySnapshotPayload(countryName, selectedDirection == null ? "Не выбрано" : selectedDirection.displayName(), government == null ? "Не выбрано" : government.displayName(), religion == null ? "Не выбрано" : religion.displayName(), population, workforce, workingPopulation, employedPopulation, unemployedPopulation, workplaceCapacity, workplaceCounts, workplaceSlots, sectorWorkers, sectorAllocation, sectorBonuses, policySummary, unrest, demand, supportSummary, country.balance, infrastructureCost, moneyDebt, dieselModifier, totalMaterialPerCycle, materialIds, materialNames, materialStockpile, materialDebt, materialPerCycle, modifierNames.toArray(String[]::new), modifierValues.stream().mapToDouble(Double::doubleValue).toArray(), cityNames, cityCountries, cityMayors, cityTreasuries, cityIncome, cityInfrastructure, cityPopulation, cityTaxBlocks, cityCapitals, cityMine, developmentLevel, developmentPoints, developmentNextThreshold, developmentPerk, developmentNextPerk, marketItemIds, marketItemNames, marketBaseDemand, marketRemaining, marketSold, marketImported, marketPrices, personalWallet, tradeTerminalSet, tradeTerminalPosition, tradeOwnOrders.toArray(String[]::new), tradeOpenOrders.toArray(String[]::new), tradeShipments.toArray(String[]::new));
     }
 
     private static void addModifier(java.util.List<String> names, java.util.List<Double> values, String name, double value) { names.add(name); values.add(value); }
+
+    private static String safeTradeText(String value) {
+        return value == null ? "—" : value.replace("|", "/");
+    }
 }
