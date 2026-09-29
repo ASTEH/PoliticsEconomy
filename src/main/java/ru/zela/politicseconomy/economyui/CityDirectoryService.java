@@ -7,11 +7,8 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.ChunkPos;
-import net.neoforged.neoforge.common.Tags;
+import ru.zela.politicseconomy.country.CountryPopulationService;
 import ru.zela.politicseconomy.infrastructure.InfrastructureManager;
-import ru.zela.politicseconomy.infrastructure.InfrastructureClassifier;
-
-import net.krona.politicsmod.block.entity.ResidentialBuildingEntity;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -42,7 +39,6 @@ public final class CityDirectoryService {
         if (politics == null) return List.of();
 
         List<CitySnapshot> result = new ArrayList<>();
-
         for (Country country : politics.getCountries().values()) {
             for (String city : country.cities) {
                 int taxBlocks = countTaxBlocks(politics, country, city);
@@ -76,7 +72,9 @@ public final class CityDirectoryService {
                 .thenComparing(CitySnapshot::name)
         );
 
-        return result.size() <= MAX_CITIES ? List.copyOf(result) : List.copyOf(result.subList(0, MAX_CITIES));
+        return result.size() <= MAX_CITIES
+            ? List.copyOf(result)
+            : List.copyOf(result.subList(0, MAX_CITIES));
     }
 
     private static int countTaxBlocks(PoliticsManager politics, Country country, String city) {
@@ -95,27 +93,20 @@ public final class CityDirectoryService {
         String cityName
     ) {
         int blocks = 0;
-        int population = 0;
-
         var level = server.overworld();
+
         for (var chunkEntry : InfrastructureManager.get(server).getDimension(level).entrySet()) {
             ChunkPos chunkPos = new ChunkPos(chunkEntry.getKey());
             Country owner = politics.getCountryAt(chunkPos);
             if (owner == null || !countryName.equals(owner.getName())) continue;
             if (!cityName.equals(politics.getCityAt(chunkPos))) continue;
-
             blocks += chunkEntry.getValue().size();
-
-            for (var blockEntry : chunkEntry.getValue().entrySet()) {
-                BlockPos pos = BlockPos.of(blockEntry.getKey());
-                if (!level.hasChunkAt(pos)) continue;
-                if (level.getBlockEntity(pos) instanceof ResidentialBuildingEntity residential) {
-                    population += Math.max(0, residential.getPop());
-                }
-            }
         }
 
-        return new CityInfrastructure(blocks, population);
+        return new CityInfrastructure(
+            blocks,
+            CountryPopulationService.cityPopulation(server, countryName, cityName)
+        );
     }
 
     private static String nameOf(MinecraftServer server, UUID uuid) {
