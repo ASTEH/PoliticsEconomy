@@ -340,17 +340,17 @@ public final class TradeService {
             if (shipmentIdOf(stack) > 0) continue;
 
             int stackCount = stack.getCount();
-            if (taggedAmount + stackCount > amountWanted) {
-                continue;
-            }
+            int take = Math.min(stackCount, amountWanted - taggedAmount);
+            if (take <= 0) continue;
 
-            ItemStack extracted = handler.extractItem(slot, stackCount, false);
-            if (extracted.isEmpty() || extracted.getCount() != stackCount) {
+            ItemStack extracted = handler.extractItem(slot, take, false);
+            if (extracted.isEmpty() || extracted.getCount() != take) {
                 continue;
             }
 
             markShipment(extracted, shipmentId);
 
+            // Seal only the requested amount, allowing partial shipments from a full stack.
             ItemStack remainder = handler.insertItem(slot, extracted, false);
             if (!remainder.isEmpty()) {
                 clearShipment(extracted);
@@ -358,7 +358,7 @@ public final class TradeService {
                 continue;
             }
 
-            taggedAmount += stackCount;
+            taggedAmount += take;
         }
 
         if (taggedAmount <= 0) {
@@ -628,12 +628,7 @@ public final class TradeService {
     }
 
     private static boolean hasTradeWarehouse(MinecraftServer server, String countryName) {
-        ServerPlayer anyPlayer = server.getPlayerList().getPlayers().stream()
-            .filter(player -> countryName.equals(country(player)))
-            .findFirst()
-            .orElse(null);
-
-        if (anyPlayer == null) {
+        if (server == null || countryName == null || countryName.isBlank()) {
             return false;
         }
 
