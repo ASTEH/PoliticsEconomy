@@ -62,7 +62,7 @@ public final class StarterKitService {
     }
 
     private static void givePoliticsItem(ServerPlayer player, String path, int amount) {
-        ResourceLocation id = ResourceLocation.fromNamespaceAndPath("politicsmod", path);
+        ResourceLocation id = ResourceLocation.parse("politicsmod:" + path);
         var item = BuiltInRegistries.ITEM.getOptional(id).orElse(null);
         if (item == null) {
             return;
