@@ -17,6 +17,7 @@ import ru.zela.politicseconomy.network.EconomyNetwork;
 import ru.zela.politicseconomy.network.EconomySnapshotPayload;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 
@@ -50,6 +51,14 @@ public final class EconomyScreen extends Screen {
     private EditBox tradeMaxPrice;
     private EditBox tradeAcceptPrice;
     private EditBox tradeDispatchAmount;
+    private String selectedTradeItemId = "minecraft:iron_ingot";
+    private List<TradeItemOption> tradeItemOptions = List.of();
+
+    // Coordinates are calculated from the actual trade cards every frame.
+    private int tradeOrderTop;
+    private int tradeOwnOrdersTop;
+    private int tradeOwnOrdersLeft;
+    private int tradeOwnOrdersRight;
 
     private static final int BG = 0xFF0D1117;
     private static final int PANEL = 0xFF151B23;
@@ -85,7 +94,8 @@ public final class EconomyScreen extends Screen {
         tradeAcceptPrice = new EditBox(font, 0, 0, 72, 20, Component.literal("Цена"));
         tradeDispatchAmount = new EditBox(font, 0, 0, 72, 20, Component.literal("Партия"));
 
-        tradeItem.setValue("minecraft:iron_ingot");
+        buildTradeItemOptions();
+        tradeItem.setValue(tradeItemDisplayName(selectedTradeItemId));
         tradeAmount.setValue("64");
         tradeMaxPrice.setValue("20");
         tradeAcceptPrice.setValue("15");
@@ -107,7 +117,7 @@ public final class EconomyScreen extends Screen {
 
     @Override
     public void resize(Minecraft minecraft, int width, int height) {
-        String item = tradeItem == null ? "minecraft:iron_ingot" : tradeItem.getValue();
+        String item = tradeItem == null ? tradeItemDisplayName(selectedTradeItemId) : tradeItem.getValue();
         String amount = tradeAmount == null ? "64" : tradeAmount.getValue();
         String max = tradeMaxPrice == null ? "20" : tradeMaxPrice.getValue();
         String accept = tradeAcceptPrice == null ? "15" : tradeAcceptPrice.getValue();
@@ -127,20 +137,29 @@ public final class EconomyScreen extends Screen {
     }
 
     private void layoutTradeInputs() {
-        int left = contentLeft();
-        int top = contentTop() - (int) scroll;
+        int scrollOffset = (int) scroll;
 
-        tradeItem.setX(left + 8);
-        tradeItem.setY(top + 48);
-        tradeAmount.setX(left + 198);
-        tradeAmount.setY(top + 48);
-        tradeMaxPrice.setX(left + 280);
-        tradeMaxPrice.setY(top + 48);
+        int orderTop = tradeOrderTop - scrollOffset;
+        tradeItem.setX(contentLeft() + 14);
+        tradeItem.setY(orderTop + 38);
+        tradeItem.setWidth(182);
 
-        tradeAcceptPrice.setX(left + 120);
-        tradeAcceptPrice.setY(top + 224);
-        tradeDispatchAmount.setX(left + 318);
-        tradeDispatchAmount.setY(top + 224);
+        tradeAmount.setX(contentLeft() + 206);
+        tradeAmount.setY(orderTop + 38);
+        tradeAmount.setWidth(72);
+
+        tradeMaxPrice.setX(contentLeft() + 288);
+        tradeMaxPrice.setY(orderTop + 38);
+        tradeMaxPrice.setWidth(88);
+
+        int ownTop = tradeOwnOrdersTop - scrollOffset;
+        tradeAcceptPrice.setX(tradeOwnOrdersLeft + 92);
+        tradeAcceptPrice.setY(ownTop + 24);
+        tradeAcceptPrice.setWidth(64);
+
+        tradeDispatchAmount.setX(tradeOwnOrdersLeft + 218);
+        tradeDispatchAmount.setY(ownTop + 24);
+        tradeDispatchAmount.setWidth(64);
     }
 
     private void updateTradeInputVisibility() {
@@ -187,6 +206,7 @@ public final class EconomyScreen extends Screen {
             tradeMaxPrice.render(graphics, mouseX, mouseY, partialTick);
             tradeAcceptPrice.render(graphics, mouseX, mouseY, partialTick);
             tradeDispatchAmount.render(graphics, mouseX, mouseY, partialTick);
+            drawTradeItemDropdown(graphics, mouseX, mouseY);
         }
 
         graphics.disableScissor();
@@ -559,6 +579,111 @@ public final class EconomyScreen extends Screen {
         return y + 6;
     }
 
+    private void buildTradeItemOptions() {
+        List<TradeItemOption> options = new ArrayList<>();
+        for (var entry : BuiltInRegistries.ITEM.entrySet()) {
+            var item = entry.getValue();
+            if (item == null) continue;
+            ResourceLocation id = BuiltInRegistries.ITEM.getKey(item);
+            if (id == null) continue;
+            String name = new ItemStack(item).getHoverName().getString();
+            if (name == null || name.isBlank()) name = id.getPath().replace('_', ' ');
+            options.add(new TradeItemOption(id.toString(), name));
+        }
+
+        options.sort(
+            Comparator.comparing(TradeItemOption::name, String.CASE_INSENSITIVE_ORDER)
+                .thenComparing(TradeItemOption::id)
+        );
+        tradeItemOptions = List.copyOf(options);
+    }
+
+    private String tradeItemDisplayName(String itemId) {
+        if (itemId == null) return "";
+        for (TradeItemOption option : tradeItemOptions) {
+            if (itemId.equals(option.id())) return option.name();
+        }
+        try {
+            ResourceLocation id = ResourceLocation.parse(itemId);
+            return BuiltInRegistries.ITEM.getOptional(id)
+                .map(item -> new ItemStack(item).getHoverName().getString())
+                .orElse(itemId);
+        } catch (Exception ignored) {
+            return itemId;
+        }
+    }
+
+    private List<TradeItemOption> filteredTradeItems() {
+        String query = tradeItem == null ? "" : tradeItem.getValue().trim().toLowerCase(Locale.ROOT);
+        if (query.isEmpty()) return tradeItemOptions.stream().limit(8).toList();
+
+        return tradeItemOptions.stream()
+            .filter(option ->
+                option.name().toLowerCase(Locale.ROOT).contains(query)
+                    || option.id().toLowerCase(Locale.ROOT).contains(query))
+            .limit(8)
+            .toList();
+    }
+
+    private String resolveSelectedTradeItemId() {
+        String query = tradeItem.getValue().trim();
+        if (query.isEmpty()) return null;
+
+        if (query.equalsIgnoreCase(tradeItemDisplayName(selectedTradeItemId))) {
+            return selectedTradeItemId;
+        }
+
+        for (TradeItemOption option : tradeItemOptions) {
+            if (option.name().equalsIgnoreCase(query)
+                || option.id().equalsIgnoreCase(query)) {
+                selectedTradeItemId = option.id();
+                return selectedTradeItemId;
+            }
+        }
+
+        return null;
+    }
+
+    private void drawTradeItemDropdown(GuiGraphics g, int mouseX, int mouseY) {
+        if (!tradeItem.isFocused() || modalAction != null) return;
+
+        List<TradeItemOption> matches = filteredTradeItems();
+        if (matches.isEmpty()) return;
+
+        int left = tradeItem.getX();
+        int top = tradeItem.getY() + tradeItem.getHeight() + 2;
+        int right = left + tradeItem.getWidth();
+        int bottom = top + matches.size() * 28 + 2;
+
+        g.fill(left, top, right, bottom, PANEL_2);
+        outline(g, left, top, right, bottom, BORDER);
+
+        int rowY = top + 1;
+        for (TradeItemOption option : matches) {
+            boolean hover = inside(mouseX, mouseY, left + 1, rowY, right - 1, rowY + 27);
+            if (hover) {
+                g.fill(left + 1, rowY, right - 1, rowY + 27, PANEL_3);
+            }
+
+            ItemStack stack = itemStack(option.id());
+            if (!stack.isEmpty()) {
+                g.renderItem(stack, left + 6, rowY + 5);
+            }
+
+            g.drawString(font, clip(option.name(), 28), left + 30, rowY + 5, TEXT, true);
+            g.drawString(font, clip(option.id(), 31), left + 30, rowY + 16, MUTED, false);
+
+            target(left + 1, rowY, right - 1, rowY + 27, () -> {
+                selectedTradeItemId = option.id();
+                tradeItem.setValue(option.name());
+                tradeItem.setCursorPosition(0);
+                tradeItem.setHighlightPos(0);
+                tradeItem.setFocused(false);
+            });
+            rowY += 28;
+        }
+    }
+
     private int drawTrade(GuiGraphics g, int y, int left, int right, int mouseX, int mouseY) {
         y = title(g, left, y, "ТОРГОВЛЯ", "Физические грузы и поставщики — деньги закреплены за реальными поставками");
 
@@ -580,22 +705,34 @@ public final class EconomyScreen extends Screen {
             mouseX, mouseY, () -> sendTrade("trade_terminal_set", ""));
         y += 110;
 
+        tradeOrderTop = y;
         panel(g, left, y, right, y + 82);
         g.drawString(font, "СОЗДАТЬ ЗАКУПКУ", left + 14, y + 12, TEXT, true);
-        g.drawString(font, "Предмет", left + 10, y + 31, MUTED, false);
-        g.drawString(font, "Количество", left + 200, y + 31, MUTED, false);
-        g.drawString(font, "Макс. цена", left + 282, y + 31, MUTED, false);
+        g.drawString(font, "Предмет", left + 14, y + 31, MUTED, false);
+        g.drawString(font, "Количество", left + 206, y + 31, MUTED, false);
+        g.drawString(font, "Макс. цена", left + 288, y + 31, MUTED, false);
+        g.drawString(font, "Выберите предмет по русскому названию или item ID.",
+            right - 286, y + 31, MUTED, false);
         g.drawString(font, "Деньги резервируются из казны страны.",
             right - 286, y + 62, MUTED, false);
 
+        boolean selectedItemValid = resolveSelectedTradeItemId() != null;
         drawButton(g, right - 145, y + 38, right - 10, y + 67,
-            "СОЗДАТЬ ЗАКАЗ", ACCENT_DARK, ACCENT, mouseX, mouseY,
-            () -> sendTrade("trade_order_create",
-                tradeItem.getValue() + "|" + tradeAmount.getValue() + "|" + tradeMaxPrice.getValue()));
+            "СОЗДАТЬ ЗАКАЗ",
+            selectedItemValid ? ACCENT_DARK : PANEL_3,
+            selectedItemValid ? ACCENT : MUTED,
+            mouseX, mouseY,
+            selectedItemValid
+                ? () -> sendTrade("trade_order_create",
+                    selectedTradeItemId + "|" + tradeAmount.getValue() + "|" + tradeMaxPrice.getValue())
+                : null);
         y += 92;
 
         int gap = 10;
         int half = (right - left - gap) / 2;
+        tradeOwnOrdersTop = y;
+        tradeOwnOrdersLeft = left;
+        tradeOwnOrdersRight = left + half;
         int ownEnd = drawTradeOwnOrders(g, y, left, left + half, mouseX, mouseY);
         int openEnd = drawTradeOpenOrders(g, y, left + half + gap, right, mouseX, mouseY);
         y = Math.max(ownEnd, openEnd) + 10;
@@ -610,6 +747,7 @@ public final class EconomyScreen extends Screen {
         panel(g, left, y, right, bottom);
         g.drawString(font, "МОИ ЗАКАЗЫ", left + 14, y + 12, TEXT, true);
         g.drawString(font, "Цена принятия", left + 14, y + 31, MUTED, false);
+        g.drawString(font, "Партия", left + 140, y + 31, MUTED, false);
         int rowY = y + 48;
 
         if (snapshot.tradeOwnOrders().length == 0) {
@@ -1090,6 +1228,8 @@ public final class EconomyScreen extends Screen {
             return null;
         }
     }
+
+    private record TradeItemOption(String id, String name) {}
 
     private record ClickTarget(int left, int top, int right, int bottom, Runnable action) {
         boolean contains(double x, double y) {
