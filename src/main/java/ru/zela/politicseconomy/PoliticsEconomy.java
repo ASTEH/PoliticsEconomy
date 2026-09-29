@@ -41,6 +41,7 @@ public final class PoliticsEconomy {
         NeoForge.EVENT_BUS.addListener(TerritoryBorderVisualService::onServerTick);
         NeoForge.EVENT_BUS.addListener(ResourceExtractionEvents::onBlockDrops);
         NeoForge.EVENT_BUS.addListener(ru.zela.politicseconomy.research.CountryResearchContentService::onRightClickBlock);
+        NeoForge.EVENT_BUS.addListener(ru.zela.politicseconomy.research.CountryResearchContentService::onEntityPlace);
         NeoForge.EVENT_BUS.addListener(ru.zela.politicseconomy.research.CountryResearchContentService::onRightClickItem);
         NeoForge.EVENT_BUS.addListener(ru.zela.politicseconomy.research.CountryResearchContentService::onItemPickup);
         NeoForge.EVENT_BUS.addListener(CountryWorkforceCycleService::onServerTick);
