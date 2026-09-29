@@ -64,6 +64,46 @@ public final class CountryResearchContentService {
         return PoliticsModIntegration.playerCountry(player).orElse(null);
     }
 
+    /**
+     * Resolves the technology state for a player. PoliticsMod membership has
+     * priority; otherwise the Millénaire state controlling the player's
+     * current chunk is used.
+     */
+    private static String playerTechnologyState(ServerPlayer player) {
+        Country country = playerCountry(player);
+        if (country != null) return country.getName();
+
+        var village = ru.zela.politicseconomy.integration.MillenaireIntegration
+            .snapshotAtChunk(player.getServer(), player.chunkPosition());
+        return village == null ? null : village.stateKey();
+    }
+
+    /**
+     * Resolves a technology state for a destination chunk. This is used by
+     * automation, where there is no player entity to provide a country.
+     */
+    private static String stateAtChunk(ServerLevel level, ChunkPos chunk) {
+        var politics = PoliticsModIntegration.manager(level);
+        if (politics != null) {
+            Country country = politics.getCountryAt(chunk);
+            if (country != null) return country.getName();
+        }
+
+        var village = ru.zela.politicseconomy.integration.MillenaireIntegration
+            .snapshotAtChunk(level.getServer(), chunk);
+        return village == null ? null : village.stateKey();
+    }
+
+    private static boolean technologyUnlocked(
+        MinecraftServer server,
+        String stateKey,
+        CountryResearch technology
+    ) {
+        return stateKey != null
+            && CountryResearchService.completed(server, stateKey)
+                .contains(technology.id());
+    }
+
     private static void deny(ServerPlayer player, ResourceLocation contentId, CountryResearch technology) {
         player.sendSystemMessage(net.minecraft.network.chat.Component.literal(
             "Доступ заблокирован: ветка «" + technology.direction().displayName()
@@ -100,28 +140,25 @@ public final class CountryResearchContentService {
         CountryResearch technology = requiredTechnology(contentId);
         if (technology == null) return;
 
-        Country country = null;
         ServerPlayer player = event.getEntity() instanceof ServerPlayer serverPlayer ? serverPlayer : null;
 
-        // A player's technology belongs to their country, not to the chunk in
-        // which they happened to place the block. This prevents stepping outside
-        // national territory from becoming a technology-tree bypass.
-        if (player != null) {
-            if (creativeOperator(player)) return;
-            country = playerCountry(player);
-        }
+        if (player != null && creativeOperator(player)) return;
 
-        // Players without a country must not be able to use locked technology.
-        // Automation has no player, so it falls back to the destination chunk owner.
-        if (country == null) {
-            var politics = PoliticsModIntegration.manager(level);
-            if (politics != null) {
-                country = politics.getCountryAt(new ChunkPos(event.getPos()));
-            }
-        }
+        /*
+         * A player's technology belongs to their political state. If the
+         * player has no PoliticsMod country, use the Millénaire state at the
+         * player's current chunk. Automation instead uses the destination
+         * chunk's state.
+         */
+        String stateKey = player != null
+            ? playerTechnologyState(player)
+            : stateAtChunk(level, new ChunkPos(event.getPos()));
 
-        boolean unlocked = country != null
-            && CountryResearchService.completed(level.getServer(), country.getName()).contains(technology.id());
+        boolean unlocked = technologyUnlocked(
+            level.getServer(),
+            stateKey,
+            technology
+        );
         if (unlocked) return;
 
         event.setCanceled(true);
@@ -138,9 +175,12 @@ public final class CountryResearchContentService {
         CountryResearch technology = requiredTechnology(held);
         if (technology == null) return;
 
-        Country country = playerCountry(player);
-        boolean allowed = country != null
-            && CountryResearchService.completed(player.getServer(), country.getName()).contains(technology.id());
+        String stateKey = playerTechnologyState(player);
+        boolean allowed = technologyUnlocked(
+            player.getServer(),
+            stateKey,
+            technology
+        );
         if (!allowed) {
             event.setCanceled(true);
             deny(player, net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(held.getItem()), technology);
@@ -162,8 +202,11 @@ public final class CountryResearchContentService {
         );
         CountryResearch blockTechnology = requiredTechnology(blockId);
         if (blockTechnology != null) {
-            boolean allowed = country != null
-                && CountryResearchService.completed(player.getServer(), country.getName()).contains(blockTechnology.id());
+            boolean allowed = technologyUnlocked(
+                player.getServer(),
+                stateKey,
+                blockTechnology
+            );
             if (!allowed) {
                 event.setCanceled(true);
                 deny(player, blockId, blockTechnology);
@@ -173,8 +216,11 @@ public final class CountryResearchContentService {
 
         CountryResearch itemTechnology = requiredTechnology(held);
         if (itemTechnology != null) {
-            boolean allowed = country != null
-                && CountryResearchService.completed(player.getServer(), country.getName()).contains(itemTechnology.id());
+            boolean allowed = technologyUnlocked(
+                player.getServer(),
+                stateKey,
+                itemTechnology
+            );
             if (!allowed) {
                 event.setCanceled(true);
                 ResourceLocation itemId = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(held.getItem());
@@ -223,9 +269,12 @@ public final class CountryResearchContentService {
         CountryResearch technology = requiredTechnology(stack);
         if (technology == null) return false;
 
-        Country country = playerCountry(player);
-        return country == null
-            || !CountryResearchService.completed(player.getServer(), country.getName()).contains(technology.id());
+        String stateKey = playerTechnologyState(player);
+        return !technologyUnlocked(
+            player.getServer(),
+            stateKey,
+            technology
+        );
     }
 
     private static void denyLockedItem(ServerPlayer player, ItemStack stack) {
