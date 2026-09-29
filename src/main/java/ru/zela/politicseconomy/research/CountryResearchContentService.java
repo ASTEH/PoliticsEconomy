@@ -132,20 +132,4 @@ public final class CountryResearchContentService {
         }
     }
 
-    public static void onItemPickup(ItemEntityPickupEvent.Pre event) {
-        if (!(event.getPlayer() instanceof ServerPlayer player)) return;
-        if (creativeOperator(player)) return;
-
-        ResourceLocation contentId = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(
-            event.getItemEntity().getItem().getItem()
-        );
-        Country country = playerCountry(player);
-        if (country == null) return;
-
-        CountryResearch technology = requiredTechnology(contentId);
-        if (technology != null && !unlocked(player.getServer(), country.getName(), contentId)) {
-            event.setCanceled(true);
-            deny(player, contentId, technology);
-        }
-    }
 }
