@@ -112,7 +112,10 @@ public final class TaxBlockShopService {
         }
 
         country.balance -= (int) totalCost;
-        player.addItem(new ItemStack(item, amount));
+        ItemStack purchased = new ItemStack(item, amount);
+        if (!player.addItem(purchased) && !purchased.isEmpty()) {
+            player.drop(purchased, false);
+        }
         var manager = ru.krona.politicsmod.PoliticsManager.get(player.serverLevel());
         if (manager != null) {
             manager.setDirty();
