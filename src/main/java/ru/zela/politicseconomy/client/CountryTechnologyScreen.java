@@ -308,7 +308,7 @@ public final class CountryTechnologyScreen extends Screen {
         g.drawCenteredString(font, buttonText, (left + right) / 2, buttonTop + 12,
             available ? TEXT : MUTED);
         if (available && mouseX >= left + 14 && mouseX <= right - 14 && mouseY >= buttonTop && mouseY <= buttonTop + 36) {
-            g.fill(left + 15, buttonTop + 1, right - 15, buttonTop + 35, 0x223FFFFFF);
+            g.fill(left + 15, buttonTop + 1, right - 15, buttonTop + 35, 0x22FFFFFF);
         }
     }
 
