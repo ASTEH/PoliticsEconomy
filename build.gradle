@@ -47,8 +47,9 @@ dependencies {
     implementation("net.createmod.ponder:ponder-neoforge:${ponder_version}")
 
     // OpenUI MC 0.0.11 for Minecraft 1.21.1 / NeoForge.
-    // CurseMaven is not used here because some environments cannot resolve cursemaven.com.
-    // The official CurseForge file is downloaded into build/deps before compilation.
+    // CurseMaven and the CurseForge API are avoided here because some environments
+    // receive DNS/403 responses from those endpoints. The official CurseForge CDN
+    // hosts the same published jar directly.
     def openUiJar = layout.buildDirectory.file(
         'deps/openui-mc-neoforge-1.21.1-0.0.11.jar'
     )
@@ -66,14 +67,15 @@ dependencies {
             target.parentFile.mkdirs()
 
             def url = new URL(
-                'https://www.curseforge.com/api/v1/mods/1661978/files/8947294/download'
+                'https://edge.forgecdn.net/files/8947/294/openui-mc-neoforge-1.21.1-0.0.11.jar'
             )
             def connection = url.openConnection()
             connection.setConnectTimeout(30_000)
             connection.setReadTimeout(60_000)
             connection.setUseCaches(false)
+            connection.setRequestProperty('User-Agent', 'Gradle/PoliticsEconomy')
 
-            println("Downloading OpenUI MC 0.0.11 from CurseForge...")
+            println("Downloading OpenUI MC 0.0.11 from CurseForge CDN...")
             connection.getInputStream().withCloseable { input ->
                 target.withOutputStream { output ->
                     input.transferTo(output)
