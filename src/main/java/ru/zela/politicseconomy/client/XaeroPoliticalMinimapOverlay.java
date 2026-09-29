@@ -329,6 +329,54 @@ public final class XaeroPoliticalMinimapOverlay {
         );
     }
 
+    private static void addLineQuad(
+        BufferBuilder builder,
+        Matrix4f matrix,
+        Segment segment,
+        float thickness,
+        int color
+    ) {
+        double dx = segment.b.x - segment.a.x;
+        double dy = segment.b.y - segment.a.y;
+        double length = Math.sqrt(dx * dx + dy * dy);
+
+        if (length < 0.001D) {
+            return;
+        }
+
+        double half = thickness * 0.5D;
+        double nx = -dy / length * half;
+        double ny = dx / length * half;
+
+        builder.addVertex(
+            matrix,
+            (float) (segment.a.x + nx),
+            (float) (segment.a.y + ny),
+            0.0F
+        ).setColor(color);
+
+        builder.addVertex(
+            matrix,
+            (float) (segment.a.x - nx),
+            (float) (segment.a.y - ny),
+            0.0F
+        ).setColor(color);
+
+        builder.addVertex(
+            matrix,
+            (float) (segment.b.x - nx),
+            (float) (segment.b.y - ny),
+            0.0F
+        ).setColor(color);
+
+        builder.addVertex(
+            matrix,
+            (float) (segment.b.x + nx),
+            (float) (segment.b.y + ny),
+            0.0F
+        ).setColor(color);
+    }
+
     private static long chunkKey(int x, int z) {
         return ((long) x & 0xFFFFFFFFL) | (((long) z & 0xFFFFFFFFL) << 32);
     }
