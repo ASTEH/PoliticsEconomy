@@ -45,8 +45,7 @@ public final class EconomyNetwork {
                         CountryWorkforceService.apply(player, payload.value(), player.isCreative() && player.hasPermissions(2));
                     player.sendSystemMessage(net.minecraft.network.chat.Component.literal(result.message())
                         .withStyle(result.success() ? net.minecraft.ChatFormatting.GREEN : net.minecraft.ChatFormatting.RED));
-                    var country = ru.zela.politicseconomy.integration.PoliticsModIntegration.playerCountry(player).orElse(null);
-                    if (country != null) send(player, EconomyMenu.buildSnapshot(player, country));
+                    refreshPlayerEconomy(player);
                     return;
                 }
 
@@ -60,8 +59,7 @@ public final class EconomyNetwork {
                         ru.zela.politicseconomy.research.CountryResearchService.research(player, payload.value());
                     player.sendSystemMessage(net.minecraft.network.chat.Component.literal(result.message())
                         .withStyle(result.success() ? net.minecraft.ChatFormatting.GREEN : net.minecraft.ChatFormatting.RED));
-                    var country = ru.zela.politicseconomy.integration.PoliticsModIntegration.playerCountry(player).orElse(null);
-                    if (country != null) send(player, EconomyMenu.buildSnapshot(player, country));
+                    refreshPlayerEconomy(player);
                     return;
                 }
 
@@ -71,8 +69,7 @@ public final class EconomyNetwork {
                             player, payload.value()
                         );
                     ru.zela.politicseconomy.economy.NationalMaterialInventoryService.tellResult(player, deposit);
-                    var country = ru.zela.politicseconomy.integration.PoliticsModIntegration.playerCountry(player).orElse(null);
-                    if (country != null) send(player, EconomyMenu.buildSnapshot(player, country));
+                    refreshPlayerEconomy(player);
                     return;
                 }
 
@@ -80,8 +77,7 @@ public final class EconomyNetwork {
                     ru.zela.politicseconomy.economy.NationalMaterialInventoryService.DepositResult deposit =
                         ru.zela.politicseconomy.economy.NationalMaterialInventoryService.deposit(player, null);
                     ru.zela.politicseconomy.economy.NationalMaterialInventoryService.tellResult(player, deposit);
-                    var country = ru.zela.politicseconomy.integration.PoliticsModIntegration.playerCountry(player).orElse(null);
-                    if (country != null) send(player, EconomyMenu.buildSnapshot(player, country));
+                    refreshPlayerEconomy(player);
                     return;
                 }
 
@@ -105,8 +101,7 @@ public final class EconomyNetwork {
                                 .withStyle(net.minecraft.ChatFormatting.RED));
                         }
                     }
-                    var country = ru.zela.politicseconomy.integration.PoliticsModIntegration.playerCountry(player).orElse(null);
-                    if (country != null) send(player, EconomyMenu.buildSnapshot(player, country));
+                    refreshPlayerEconomy(player);
                     return;
                 }
 
@@ -190,12 +185,23 @@ public final class EconomyNetwork {
         refreshAllOnlinePlayers(player.getServer());
     }
 
+    public static void refreshPlayerEconomy(ServerPlayer player) {
+        var country = PoliticsModIntegration.playerCountry(player).orElse(null);
+        if (country != null) {
+            send(player, EconomyMenu.buildSnapshot(player, country));
+            return;
+        }
+
+        EconomySnapshotPayload millenaire =
+            EconomyMenu.buildMillenaireSnapshot(player);
+        if (millenaire != null) {
+            send(player, millenaire);
+        }
+    }
+
     public static void refreshAllOnlinePlayers(net.minecraft.server.MinecraftServer server) {
         for (ServerPlayer online : server.getPlayerList().getPlayers()) {
-            var country = PoliticsModIntegration.playerCountry(online).orElse(null);
-            if (country != null) {
-                send(online, EconomyMenu.buildSnapshot(online, country));
-            }
+            refreshPlayerEconomy(online);
         }
     }
 
