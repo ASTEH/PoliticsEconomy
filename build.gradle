@@ -68,7 +68,7 @@ dependencies {
             target.parentFile.mkdirs()
 
             def url = new URL(
-                'https://edge.forgecdn.net/files/8947/294/openui-mc-neoforge-1.21.1-0.0.11.jar'
+                'https://github.com/UpperMoon0/OpenUI-MC/releases/download/v0.0.11/openui-mc-neoforge-1.21.1-0.0.11.jar'
             )
             def connection = url.openConnection()
             connection.setConnectTimeout(30_000)
@@ -76,7 +76,7 @@ dependencies {
             connection.setUseCaches(false)
             connection.setRequestProperty('User-Agent', 'Gradle/PoliticsEconomy')
 
-            println("Downloading OpenUI MC 0.0.11 from CurseForge CDN...")
+            println("Downloading OpenUI MC 0.0.11 from the OpenUI GitHub release...")
             connection.getInputStream().withCloseable { input ->
                 target.withOutputStream { output ->
                     input.transferTo(output)
