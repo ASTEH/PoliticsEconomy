@@ -460,6 +460,18 @@ public final class TradeService {
         shipment.delivered();
         clearShipmentTagAt(server, shipment.destinationPos(), shipment.id());
 
+        boolean allShipmentsDelivered = data.shipments().values().stream()
+            .filter(existing -> existing.orderId() == shipment.orderId())
+            .allMatch(existing -> existing.status() == TradeSavedData.ShipmentStatus.DELIVERED);
+
+        if (order.remaining() <= 0 && allShipmentsDelivered) {
+            if (order.reservedFunds() > 0) {
+                buyer.balance = safeAddInt(buyer.balance, order.reservedFunds());
+                order.spendReserved(order.reservedFunds());
+            }
+            order.complete();
+        }
+
         politics.setDirty();
         data.setDirty();
     }
