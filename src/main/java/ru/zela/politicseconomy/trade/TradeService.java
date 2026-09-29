@@ -206,7 +206,17 @@ public final class TradeService {
             .toList();
     }
 
-    public static TradeResult cancelOrder(ServerPlayer player, int orderId) {
+    public static List<TradeSavedData.Order> countryHistory(MinecraftServer server, String country) {
+        return get(server).orders().values().stream()
+            .filter(order -> country.equals(order.buyerCountry())
+                || country.equals(order.sellerCountry()))
+            .filter(order -> order.status() == TradeSavedData.OrderStatus.COMPLETE
+                || order.status() == TradeSavedData.OrderStatus.CANCELLED)
+            .sorted(Comparator.comparingInt(TradeSavedData.Order::id).reversed())
+            .toList();
+    }
+
+    public static TradeResult cancelOrder(ServerPlayer player, int orderId, String reason) {
         String countryName = country(player);
         if (countryName == null) return TradeResult.fail("Ты не состоишь ни в одной стране.");
 
@@ -221,6 +231,14 @@ public final class TradeService {
             return TradeResult.fail("Этот заказ уже закрыт.");
         }
 
+        String cleanReason = reason == null ? "" : reason.trim().replace("\n", " ");
+        if (cleanReason.isBlank()) {
+            return TradeResult.fail("Укажи причину отмены заказа.");
+        }
+        if (cleanReason.length() > 160) {
+            cleanReason = cleanReason.substring(0, 160);
+        }
+
         boolean hasActiveShipment = data.shipments().values().stream()
             .anyMatch(shipment -> shipment.orderId() == orderId
                 && shipment.status() != TradeSavedData.ShipmentStatus.DELIVERED);
@@ -230,10 +248,10 @@ public final class TradeService {
         }
 
         refundBuyer(player.getServer(), order.buyerCountry(), order.reservedFunds());
-        order.cancel();
+        order.cancel(cleanReason);
         data.setDirty();
 
-        return TradeResult.ok("Заказ #" + orderId + " отменён. Зарезервированные деньги возвращены.");
+        return TradeResult.ok("Заказ #" + orderId + " отменён. Деньги возвращены. Причина: " + cleanReason);
     }
 
     public static TradeResult acceptOrder(
