@@ -7,12 +7,13 @@ import net.neoforged.fml.common.Mod;
 import net.neoforged.neoforge.common.NeoForge;
 import org.slf4j.Logger;
 import ru.zela.politicseconomy.command.PoliticsEconomyCommands;
-import ru.zela.politicseconomy.infrastructure.InfrastructureEvents;
-import ru.zela.politicseconomy.infrastructure.EconomyCycleEvents;
-import ru.zela.politicseconomy.economy.ResourceExtractionEvents;
-import ru.zela.politicseconomy.economy.NationalMaterialConsumptionService;
-import ru.zela.politicseconomy.network.EconomyNetwork;
+import ru.zela.politicseconomy.country.CountryPopulationService;
 import ru.zela.politicseconomy.country.CountryWorkforceCycleService;
+import ru.zela.politicseconomy.economy.NationalMaterialConsumptionService;
+import ru.zela.politicseconomy.economy.ResourceExtractionEvents;
+import ru.zela.politicseconomy.infrastructure.EconomyCycleEvents;
+import ru.zela.politicseconomy.infrastructure.InfrastructureEvents;
+import ru.zela.politicseconomy.network.EconomyNetwork;
 import ru.zela.politicseconomy.starter.StarterKitService;
 
 @Mod(PoliticsEconomy.MOD_ID)
@@ -26,6 +27,7 @@ public final class PoliticsEconomy {
         NeoForge.EVENT_BUS.addListener(PoliticsEconomyCommands::register);
         NeoForge.EVENT_BUS.addListener(InfrastructureEvents::onPlace);
         NeoForge.EVENT_BUS.addListener(InfrastructureEvents::onBreak);
+        NeoForge.EVENT_BUS.addListener(CountryPopulationService::onChunkLoad);
         NeoForge.EVENT_BUS.addListener(EconomyCycleEvents::onServerTick);
         NeoForge.EVENT_BUS.addListener(NationalMaterialConsumptionService::onServerTick);
         NeoForge.EVENT_BUS.addListener(ResourceExtractionEvents::onBlockDrops);
