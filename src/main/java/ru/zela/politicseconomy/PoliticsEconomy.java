@@ -19,6 +19,7 @@ import ru.zela.politicseconomy.network.EconomyNetwork;
 import ru.zela.politicseconomy.starter.StarterKitService;
 import ru.zela.politicseconomy.trade.TradeService;
 import ru.zela.politicseconomy.territory.TerritoryService;
+import ru.zela.politicseconomy.territory.TerritoryBorderVisualService;
 
 @Mod(PoliticsEconomy.MOD_ID)
 public final class PoliticsEconomy {
@@ -37,6 +38,7 @@ public final class PoliticsEconomy {
         NeoForge.EVENT_BUS.addListener(PopulationMarketService::onServerTick);
         NeoForge.EVENT_BUS.addListener(TradeService::onServerTick);
         NeoForge.EVENT_BUS.addListener(TerritoryService::onServerTick);
+        NeoForge.EVENT_BUS.addListener(TerritoryBorderVisualService::onServerTick);
         NeoForge.EVENT_BUS.addListener(ResourceExtractionEvents::onBlockDrops);
         NeoForge.EVENT_BUS.addListener(CountryWorkforceCycleService::onServerTick);
         NeoForge.EVENT_BUS.addListener(StarterKitService::onPlayerLoggedIn);
