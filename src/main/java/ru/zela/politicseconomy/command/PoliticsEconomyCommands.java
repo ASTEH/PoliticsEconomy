@@ -1435,6 +1435,75 @@ public final class PoliticsEconomyCommands {
 
         Optional<Country> playerCountry = PoliticsModIntegration.playerCountry(player);
         if (playerCountry.isEmpty()) {
+            MillenaireIntegration.VillageSnapshot millenaire =
+                MillenaireIntegration.snapshotAtChunk(
+                    player.getServer(),
+                    player.chunkPosition()
+                );
+            if (millenaire != null) {
+                MillenaireStateSavedData saved =
+                    MillenaireStateSavedData.get(player.getServer());
+                saved.ensureState(
+                    millenaire.villageId(),
+                    millenaire.name(),
+                    player.getServer().getTickCount()
+                );
+
+                String stateKey = millenaire.stateKey();
+                var direction =
+                    CountryDirectionManager.getDirection(player.getServer(), stateKey);
+                var government =
+                    CountryPolicyManager.getGovernment(player.getServer(), stateKey);
+                var religion =
+                    CountryPolicyManager.getReligion(player.getServer(), stateKey);
+                double maintenance =
+                    MillenaireIntegration.maintenanceCost(player.getServer(), millenaire);
+                var materialLedger =
+                    NationalMaterialConsumptionService.getLedger(player.getServer());
+                int materialDebt = materialLedger.totalDebt(stateKey);
+
+                source.sendSuccess(
+                    () -> Component.literal("=== Экономика государства Millénaire ===")
+                        .withStyle(ChatFormatting.GOLD),
+                    false
+                );
+                source.sendSuccess(
+                    () -> Component.literal(
+                        "Государство: " + millenaire.name()
+                            + " | казна: $" + saved.treasury(millenaire.villageId())
+                    ).withStyle(ChatFormatting.AQUA),
+                    false
+                );
+                source.sendSuccess(
+                    () -> Component.literal(
+                        "Население: " + millenaire.population()
+                            + " | территория: " + millenaire.territory().size() + " чанков"
+                    ).withStyle(ChatFormatting.GREEN),
+                    false
+                );
+                source.sendSuccess(
+                    () -> Component.literal(
+                        "Содержание: "
+                            + String.format(java.util.Locale.ROOT, "%.2f $/цикл", maintenance)
+                            + " | материальный долг: " + materialDebt
+                    ).withStyle(materialDebt > 0
+                        ? ChatFormatting.RED
+                        : ChatFormatting.YELLOW),
+                    false
+                );
+                source.sendSuccess(
+                    () -> Component.literal(
+                        "Направление: " + (direction == null ? "не выбрано" : direction.displayName())
+                            + " | правительство: "
+                            + (government == null ? "не выбрано" : government.displayName())
+                            + " | религия: "
+                            + (religion == null ? "не выбрано" : religion.displayName())
+                    ).withStyle(ChatFormatting.LIGHT_PURPLE),
+                    false
+                );
+                return 1;
+            }
+
             source.sendFailure(Component.literal("Ты не состоишь ни в одной стране."));
             return 0;
         }
@@ -1712,6 +1781,54 @@ public final class PoliticsEconomyCommands {
         }
         Optional<Country> playerCountry = PoliticsModIntegration.playerCountry(player);
         if (playerCountry.isEmpty()) {
+            MillenaireIntegration.VillageSnapshot millenaire =
+                MillenaireIntegration.snapshotAtChunk(
+                    player.getServer(),
+                    player.chunkPosition()
+                );
+            if (millenaire != null) {
+                source.sendSuccess(
+                    () -> Component.literal(
+                        "=== Государственный склад Millénaire: " + millenaire.name() + " ==="
+                    ).withStyle(ChatFormatting.GOLD),
+                    false
+                );
+
+                Map<String, Integer> stock = millenaire.warehouse();
+                if (stock.isEmpty()) {
+                    source.sendSuccess(
+                        () -> Component.literal("Склад пуст.")
+                            .withStyle(ChatFormatting.GRAY),
+                        false
+                    );
+                } else {
+                    stock.entrySet().stream()
+                        .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
+                        .limit(32)
+                        .forEach(entry -> source.sendSuccess(
+                            () -> Component.literal(
+                                NationalMaterialDemandService.itemDisplayName(
+                                    player.serverLevel(), entry.getKey()
+                                ) + " × " + entry.getValue()
+                            ).withStyle(ChatFormatting.AQUA),
+                            false
+                        ));
+                }
+
+                var materialLedger =
+                    NationalMaterialConsumptionService.getLedger(player.getServer());
+                materialLedger.initializeCountry(millenaire.stateKey());
+                int debt = materialLedger.totalDebt(millenaire.stateKey());
+                source.sendSuccess(
+                    () -> Component.literal("Материальный долг: " + debt)
+                        .withStyle(debt > 0
+                            ? ChatFormatting.RED
+                            : ChatFormatting.GREEN),
+                    false
+                );
+                return 1;
+            }
+
             source.sendFailure(Component.literal("Ты не состоишь ни в одной стране."));
             return 0;
         }
