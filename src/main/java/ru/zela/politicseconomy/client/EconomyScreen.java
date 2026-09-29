@@ -213,7 +213,7 @@ public final class EconomyScreen extends UiScreen {
             ).gap(2),
             Ui.spacer(),
             Ui.badge(Component.literal("◆  ВНУТРЕННИЙ РЫНОК")),
-            Ui.badge(Component.literal(walletText.get()))
+            Ui.text(walletText).nowrap()
         ).gap(8).fillWidth();
     }
 
@@ -294,9 +294,7 @@ public final class EconomyScreen extends UiScreen {
             Ui.column(
                 Ui.row(
                     Ui.column(
-                        Ui.heading(textSignal(s ->
-                            "РАЗВИТИЕ  •  " + s.developmentLevel() + "/5"
-                        )),
+                        Ui.heading("РАЗВИТИЕ"),
                         Ui.text(textSignal(s ->
                             s.developmentLevel() >= 5
                                 ? "Максимальный уровень"
