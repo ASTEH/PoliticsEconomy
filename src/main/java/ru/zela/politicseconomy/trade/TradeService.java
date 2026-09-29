@@ -18,6 +18,7 @@ import net.neoforged.neoforge.items.IItemHandler;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import ru.zela.politicseconomy.infrastructure.InfrastructureManager;
 import ru.zela.politicseconomy.integration.PoliticsModIntegration;
+import ru.zela.politicseconomy.network.EconomyNetwork;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -72,6 +73,7 @@ public final class TradeService {
             }
 
             settleShipment(server, data, shipment);
+            EconomyNetwork.refreshAllOnlinePlayers(server);
         }
     }
 
