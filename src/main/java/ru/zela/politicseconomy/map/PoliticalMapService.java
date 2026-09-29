@@ -12,9 +12,11 @@ import ru.zela.politicseconomy.network.EconomyNetwork;
 import ru.zela.politicseconomy.network.PoliticalClaimsPayload;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Server-side synchronization of PoliticsMod country claims to clients.
@@ -75,6 +77,7 @@ public final class PoliticalMapService {
         List<String> countries = new ArrayList<>();
         List<Long> chunks = new ArrayList<>();
         List<Integer> owners = new ArrayList<>();
+        Set<Long> occupiedChunks = new HashSet<>();
 
         // PoliticsMod already exposes its complete persisted claim set.
         // Send all known claims so every player can see every country's territory,
@@ -92,7 +95,29 @@ public final class PoliticalMapService {
 
             chunks.add(pos.toLong());
             owners.add(index);
+            occupiedChunks.add(pos.toLong());
         });
+
+        // Millénaire villages are autonomous states. Their own territory is
+        // appended only where PoliticsMod has no claim, preserving the player
+        // country's existing political ownership on overlapping chunks.
+        for (ru.zela.politicseconomy.integration.MillenaireIntegration.VillageSnapshot village
+            : ru.zela.politicseconomy.integration.MillenaireIntegration.snapshots(player.getServer())) {
+            String stateName = "Millénaire: " + village.name();
+            Integer index = countryIndices.get(stateName);
+            if (index == null) {
+                index = countries.size();
+                countryIndices.put(stateName, index);
+                countries.add(stateName);
+            }
+
+            for (ChunkPos chunk : village.territory()) {
+                long packed = chunk.toLong();
+                if (!occupiedChunks.add(packed)) continue;
+                chunks.add(packed);
+                owners.add(index);
+            }
+        }
 
         long[] chunkArray = new long[chunks.size()];
         int[] ownerArray = new int[owners.size()];
