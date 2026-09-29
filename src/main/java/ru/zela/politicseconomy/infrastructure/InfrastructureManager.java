@@ -40,6 +40,10 @@ public final class InfrastructureManager {
         get(level.getServer()).add(level, pos, state, ownerCountry);
     }
 
+    public static void reassignChunkOwner(ServerLevel level, ChunkPos chunk, String ownerCountry) {
+        get(level.getServer()).reassignChunkOwner(level, chunk, ownerCountry);
+    }
+
     public static String getPlacedOwnerCountry(ServerLevel level, net.minecraft.core.BlockPos pos) {
         return get(level.getServer()).getOwnerCountry(level, pos);
     }
