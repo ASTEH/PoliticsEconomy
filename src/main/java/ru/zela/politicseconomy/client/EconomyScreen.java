@@ -337,6 +337,10 @@ public final class EconomyScreen extends Screen {
             g.drawString(font, item.title, left + 36, y + 4, selected ? TEXT : MUTED, selected);
             Page next = item;
             target(left + 7, y - 3, right - 7, y + 22, () -> {
+                if (next == Page.RESEARCH) {
+                    Minecraft.getInstance().setScreen(new CountryTechnologyScreen(snapshot));
+                    return;
+                }
                 page = next;
                 scroll = 0;
                 updateTradeInputVisibility();
