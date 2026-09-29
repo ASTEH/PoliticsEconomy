@@ -85,7 +85,7 @@ public final class MaintenanceService {
             String countryName = state.stateKey();
             double maintenance =
                 ru.zela.politicseconomy.integration.MillenaireIntegration.maintenanceCost(
-                    server, country
+                    server, state
                 );
             chargeState(
                 server,
@@ -141,7 +141,7 @@ public final class MaintenanceService {
         int paid = Math.min(Math.max(0, balanceBefore), totalDue);
         int unpaid = totalDue - paid;
 
-        setBalance(Math.max(0, balanceBefore - paid));
+        setBalance.accept(Math.max(0, balanceBefore - paid));
         ledger.setDebt(stateKey, unpaid + debtFraction);
     }
 
