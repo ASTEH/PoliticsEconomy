@@ -39,7 +39,6 @@ public final class XaeroPoliticalMapOverlay {
 
         MapState state = readMapState(screen);
         if (state == null) return;
-        if (!"minecraft:overworld".equals(state.dimension())) return;
 
         Map<Long, String> claims = PoliticalClaimsClientState.snapshot();
         if (claims.isEmpty()) return;
