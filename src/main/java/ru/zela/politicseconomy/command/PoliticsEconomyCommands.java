@@ -33,6 +33,7 @@ import ru.zela.politicseconomy.economy.NationalMaterialConsumptionService;
 import ru.zela.politicseconomy.economy.NationalMaterialDemandService;
 import ru.zela.politicseconomy.economy.NationalMaterialInventoryService;
 import ru.zela.politicseconomy.economy.NationalMaterialLedgerSavedData;
+import ru.zela.politicseconomy.economy.TaxBlockShopService;
 import ru.zela.politicseconomy.economyui.EconomyMenu;
 import ru.zela.politicseconomy.integration.PoliticsModIntegration;
 import ru.zela.politicseconomy.infrastructure.InfrastructureManager;
@@ -85,6 +86,17 @@ public final class PoliticsEconomyCommands {
                             return builder.buildFuture();
                         })
                         .executes(context -> setReligion(context.getSource(), StringArgumentType.getString(context, "religion")))))
+                .then(Commands.literal("shop")
+                    .executes(context -> showTaxShop(context.getSource()))
+                    .then(Commands.literal("buy")
+                        .then(Commands.literal("tax_block")
+                            .executes(context -> buyTaxBlocks(context.getSource(), 1))
+                            .then(Commands.argument("amount", IntegerArgumentType.integer(1, TaxBlockShopService.maxBatch()))
+                                .executes(context -> buyTaxBlocks(
+                                    context.getSource(),
+                                    IntegerArgumentType.getInteger(context, "amount")
+                                )))))
+                )
                 .then(Commands.literal("infrastructure")
                     .executes(context -> showInfrastructure(context.getSource(), false))
                     .then(Commands.literal("country")
@@ -171,6 +183,76 @@ public final class PoliticsEconomyCommands {
     }
 
 
+
+    private static int showTaxShop(CommandSourceStack source) {
+        ServerPlayer player;
+        try {
+            player = source.getPlayerOrException();
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("Эта команда доступна только игроку."));
+            return 0;
+        }
+
+        Optional<Country> countryOptional = PoliticsModIntegration.playerCountry(player);
+        if (countryOptional.isEmpty()) {
+            source.sendFailure(Component.literal("Сначала вступи в государство."));
+            return 0;
+        }
+
+        Country country = countryOptional.get();
+        long nextPrice = TaxBlockShopService.priceForNextTaxBlock(country);
+
+        source.sendSuccess(
+            () -> Component.literal("=== Государственный магазин ===")
+                .withStyle(ChatFormatting.GOLD),
+            false
+        );
+        source.sendSuccess(
+            () -> Component.literal(
+                "Tax Block уже установлено: " + country.taxBlocks.size()
+                    + " | следующая единица: $" + nextPrice
+            ).withStyle(ChatFormatting.YELLOW),
+            false
+        );
+        source.sendSuccess(
+            () -> Component.literal(
+                "Купить: /pe shop buy tax_block [1-" + TaxBlockShopService.maxBatch() + "]"
+            ).withStyle(ChatFormatting.GRAY),
+            false
+        );
+        source.sendSuccess(
+            () -> Component.literal(
+                "Цена растёт с количеством налоговых блоков в стране."
+            ).withStyle(ChatFormatting.DARK_GRAY),
+            false
+        );
+        return 1;
+    }
+
+    private static int buyTaxBlocks(CommandSourceStack source, int amount) {
+        ServerPlayer player;
+        try {
+            player = source.getPlayerOrException();
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("Эта команда доступна только игроку."));
+            return 0;
+        }
+
+        TaxBlockShopService.PurchaseResult result =
+            TaxBlockShopService.buy(player, amount);
+
+        if (result.success()) {
+            source.sendSuccess(
+                () -> Component.literal(result.message())
+                    .withStyle(ChatFormatting.GREEN),
+                true
+            );
+            return 1;
+        }
+
+        source.sendFailure(Component.literal(result.message()));
+        return 0;
+    }
 
     private static int showCreateProduction(CommandSourceStack source) {
         ServerPlayer player;
