@@ -30,6 +30,7 @@ public final class PoliticsEconomy {
     public PoliticsEconomy(IEventBus modEventBus, ModContainer modContainer) {
         EconomyNetwork.register(modEventBus);
         NeoForge.EVENT_BUS.addListener(PoliticsEconomyCommands::register);
+        NeoForge.EVENT_BUS.addListener(ru.zela.politicseconomy.integration.MillenaireMilitaryDebugCommands::register);
         NeoForge.EVENT_BUS.addListener(InfrastructureEvents::onPlace);
         NeoForge.EVENT_BUS.addListener(InfrastructureEvents::onBreak);
         NeoForge.EVENT_BUS.addListener(CountryPopulationService::onChunkLoad);
