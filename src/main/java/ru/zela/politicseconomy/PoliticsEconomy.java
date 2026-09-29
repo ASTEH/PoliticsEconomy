@@ -10,6 +10,7 @@ import ru.zela.politicseconomy.command.PoliticsEconomyCommands;
 import ru.zela.politicseconomy.country.CountryPopulationService;
 import ru.zela.politicseconomy.country.CountryWorkforceCycleService;
 import ru.zela.politicseconomy.economy.NationalMaterialConsumptionService;
+import ru.zela.politicseconomy.economy.PopulationMarketService;
 import ru.zela.politicseconomy.economy.ResourceExtractionEvents;
 import ru.zela.politicseconomy.infrastructure.EconomyCycleEvents;
 import ru.zela.politicseconomy.infrastructure.InfrastructureEvents;
@@ -30,6 +31,7 @@ public final class PoliticsEconomy {
         NeoForge.EVENT_BUS.addListener(CountryPopulationService::onChunkLoad);
         NeoForge.EVENT_BUS.addListener(EconomyCycleEvents::onServerTick);
         NeoForge.EVENT_BUS.addListener(NationalMaterialConsumptionService::onServerTick);
+        NeoForge.EVENT_BUS.addListener(PopulationMarketService::onServerTick);
         NeoForge.EVENT_BUS.addListener(ResourceExtractionEvents::onBlockDrops);
         NeoForge.EVENT_BUS.addListener(CountryWorkforceCycleService::onServerTick);
         NeoForge.EVENT_BUS.addListener(StarterKitService::onPlayerLoggedIn);
