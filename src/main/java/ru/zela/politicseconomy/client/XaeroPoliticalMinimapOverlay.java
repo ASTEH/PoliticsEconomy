@@ -1,34 +1,47 @@
 package ru.zela.politicseconomy.client;
 
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.player.LocalPlayer;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.BufferUploader;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.VertexFormat;
+import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.util.Mth;
 import org.joml.Matrix4f;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.util.Map;
+import java.util.Objects;
 
 /**
- * Political chunk borders for Xaero's Minimap.
+ * Political borders rendered in Xaero's own minimap render space.
  *
- * <p>The integration intentionally avoids a hard compile-time dependency on
- * Xaero. The optional mixin supplies the live renderer instance and this
- * class discovers the HUD rectangle/zoom reflectively. If a particular Xaero
- * build does not expose those values, it falls back to Xaero's default
- * top-right minimap placement.</p>
+ * The minimap renderer already provides the exact map transform (rotation,
+ * zoom and visible half-size), so this code does not guess the HUD rectangle.
+ * Rendering here also means the overlay belongs to the minimap framebuffer
+ * instead of being drawn over the whole Minecraft HUD.
  */
 public final class XaeroPoliticalMinimapOverlay {
-    private static final int DEFAULT_SIZE = 128;
-    private static final int BORDER_THICKNESS = 2;
+    private static final int DARK_COLOR = 0xD9000000;
+    private static final float OUTER_THICKNESS = 3.0F;
+    private static final float INNER_THICKNESS = 1.6F;
 
     private XaeroPoliticalMinimapOverlay() {}
 
-    public static void render(GuiGraphics graphics, Object renderer) {
-        Minecraft mc = Minecraft.getInstance();
-        LocalPlayer player = mc.player;
-        if (player == null || mc.level == null) {
+    public static void renderBorders(
+        PoseStack poseStack,
+        double renderX,
+        double renderZ,
+        double ps,
+        double pc,
+        double zoom,
+        int specW,
+        int specH,
+        boolean circle
+    ) {
+        if (specW <= 0 || specH <= 0 || zoom <= 0.0D) {
             return;
         }
 
@@ -37,321 +50,325 @@ public final class XaeroPoliticalMinimapOverlay {
             return;
         }
 
-        Layout layout = readLayout(renderer, mc);
-        if (layout == null || layout.size <= 0) {
+        int radiusChunks = calculateChunkRadius(zoom, specW, specH);
+        int centerChunkX = Mth.floor(renderX) >> 4;
+        int centerChunkZ = Mth.floor(renderZ) >> 4;
+
+        BufferBuilder outer = Tesselator.getInstance().begin(
+            VertexFormat.Mode.QUADS,
+            DefaultVertexFormat.POSITION_COLOR
+        );
+        BufferBuilder inner = Tesselator.getInstance().begin(
+            VertexFormat.Mode.QUADS,
+            DefaultVertexFormat.POSITION_COLOR
+        );
+
+        Matrix4f matrix = poseStack.last().pose();
+        poseStack.pushPose();
+        poseStack.translate(0.0D, 0.0D, -980.0D);
+
+        boolean drew = false;
+
+        int minX = centerChunkX - radiusChunks;
+        int maxX = centerChunkX + radiusChunks;
+        int minZ = centerChunkZ - radiusChunks;
+        int maxZ = centerChunkZ + radiusChunks;
+
+        // Vertical chunk edges. Each edge is processed exactly once.
+        for (int chunkX = minX; chunkX <= maxX; chunkX++) {
+            for (int chunkZ = minZ; chunkZ <= maxZ; chunkZ++) {
+                String leftOwner = claims.get(chunkKey(chunkX, chunkZ));
+                String rightOwner = claims.get(chunkKey(chunkX + 1, chunkZ));
+
+                if (Objects.equals(leftOwner, rightOwner)
+                    || (leftOwner == null && rightOwner == null)) {
+                    continue;
+                }
+
+                String owner = leftOwner != null ? leftOwner : rightOwner;
+                double worldX = chunkX * 16.0D;
+                double worldZ1 = chunkZ * 16.0D;
+                double worldZ2 = worldZ1 + 16.0D;
+
+                Segment segment = transformSegment(
+                    worldX, worldZ1,
+                    worldX, worldZ2,
+                    renderX, renderZ,
+                    ps, pc, zoom,
+                    specW, specH,
+                    circle
+                );
+
+                if (segment != null) {
+                    int color = countryColor(owner, 0xF0);
+                    addLineQuad(outer, matrix, segment, OUTER_THICKNESS, DARK_COLOR);
+                    addLineQuad(inner, matrix, segment, INNER_THICKNESS, color);
+                    drew = true;
+                }
+            }
+        }
+
+        // Horizontal chunk edges.
+        for (int chunkX = minX; chunkX <= maxX; chunkX++) {
+            for (int chunkZ = minZ; chunkZ <= maxZ; chunkZ++) {
+                String topOwner = claims.get(chunkKey(chunkX, chunkZ));
+                String bottomOwner = claims.get(chunkKey(chunkX, chunkZ + 1));
+
+                if (Objects.equals(topOwner, bottomOwner)
+                    || (topOwner == null && bottomOwner == null)) {
+                    continue;
+                }
+
+                String owner = topOwner != null ? topOwner : bottomOwner;
+                double worldZ = chunkZ * 16.0D;
+                double worldX1 = chunkX * 16.0D;
+                double worldX2 = worldX1 + 16.0D;
+
+                Segment segment = transformSegment(
+                    worldX1, worldZ,
+                    worldX2, worldZ,
+                    renderX, renderZ,
+                    ps, pc, zoom,
+                    specW, specH,
+                    circle
+                );
+
+                if (segment != null) {
+                    int color = countryColor(owner, 0xF0);
+                    addLineQuad(outer, matrix, segment, OUTER_THICKNESS, DARK_COLOR);
+                    addLineQuad(inner, matrix, segment, INNER_THICKNESS, color);
+                    drew = true;
+                }
+            }
+        }
+
+        poseStack.popPose();
+
+        if (!drew) {
             return;
         }
 
-        long currentChunk = player.chunkPosition().toLong();
-        String currentOwner = claims.get(currentChunk);
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        RenderSystem.disableDepthTest();
+        RenderSystem.depthMask(false);
+        RenderSystem.setShader(GameRenderer::getPositionColorShader);
+        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
 
-        graphics.pose().pushPose();
-        graphics.pose().translate(layout.centerX, layout.centerY, 0.0F);
-
-        // Xaero's default orientation follows the player. Rotating the political
-        // layer by the player's yaw keeps the chunk square aligned with the map.
-        graphics.pose().mulPose(new Matrix4f().rotateZ((float) Math.toRadians(-player.getYRot())));
-
-        drawVisibleBorders(
-            graphics,
-            claims,
-            player.chunkPosition().x,
-            player.chunkPosition().z,
-            currentOwner,
-            layout.pixelsPerBlock,
-            layout.size / 2
-        );
-
-        graphics.pose().popPose();
+        try {
+            BufferUploader.drawWithShader(outer.buildOrThrow());
+            BufferUploader.drawWithShader(inner.buildOrThrow());
+        } finally {
+            RenderSystem.depthMask(true);
+            RenderSystem.enableDepthTest();
+            RenderSystem.disableBlend();
+        }
     }
 
-    private static void drawVisibleBorders(
-        GuiGraphics graphics,
-        Map<Long, String> claims,
-        int centerChunkX,
-        int centerChunkZ,
-        String currentOwner,
-        double pixelsPerBlock,
-        int minimapHalfSize
+    private static int calculateChunkRadius(double zoom, int specW, int specH) {
+        double visibleBlocksX = specW / zoom;
+        double visibleBlocksZ = specH / zoom;
+        double maxVisibleBlocks = Math.max(visibleBlocksX, visibleBlocksZ);
+
+        return Mth.clamp((int) Math.ceil(maxVisibleBlocks / 16.0D) + 2, 2, 32);
+    }
+
+    private static Segment transformSegment(
+        double worldX1,
+        double worldZ1,
+        double worldX2,
+        double worldZ2,
+        double renderX,
+        double renderZ,
+        double ps,
+        double pc,
+        double zoom,
+        double specW,
+        double specH,
+        boolean circle
     ) {
-        minimapHalfSize = Math.max(32, minimapHalfSize);
-        int cell = Math.max(2, (int) Math.round(16.0D * pixelsPerBlock));
-        int radius = Math.max(2, (int) Math.ceil(minimapHalfSize / (double) cell) + 1);
-        radius = Math.min(radius, 8);
+        Point a = transformPoint(
+            worldX1, worldZ1, renderX, renderZ, ps, pc, zoom
+        );
+        Point b = transformPoint(
+            worldX2, worldZ2, renderX, renderZ, ps, pc, zoom
+        );
 
-        for (int chunkX = centerChunkX - radius; chunkX <= centerChunkX + radius; chunkX++) {
-            for (int chunkZ = centerChunkZ - radius; chunkZ <= centerChunkZ + radius; chunkZ++) {
-                long key = chunkKey(chunkX, chunkZ);
-                String owner = claims.get(key);
-                if (owner == null) {
-                    continue;
-                }
+        double radiusX = Math.max(1.0D, specW);
+        double radiusZ = Math.max(1.0D, specH);
 
-                int left = (chunkX - centerChunkX) * cell;
-                int top = (chunkZ - centerChunkZ) * cell;
-                int right = left + cell;
-                int bottom = top + cell;
-                int color = countryBorder(owner);
-
-                if (!owner.equals(claims.get(chunkKey(chunkX - 1, chunkZ)))) {
-                    drawVertical(graphics, left, top, bottom, color, minimapHalfSize);
-                }
-                if (!owner.equals(claims.get(chunkKey(chunkX + 1, chunkZ)))) {
-                    drawVertical(graphics, right - BORDER_THICKNESS, top, bottom, color, minimapHalfSize);
-                }
-                if (!owner.equals(claims.get(chunkKey(chunkX, chunkZ - 1)))) {
-                    drawHorizontal(graphics, left, right, top, color, minimapHalfSize);
-                }
-                if (!owner.equals(claims.get(chunkKey(chunkX, chunkZ + 1)))) {
-                    drawHorizontal(graphics, left, right, bottom - BORDER_THICKNESS, color, minimapHalfSize);
-                }
+        if (circle) {
+            double radius = Math.min(radiusX, radiusZ);
+            Segment clipped = clipToCircle(a, b, radius);
+            if (clipped == null) {
+                return null;
             }
+            return clipped;
         }
 
-        // Make the currently occupied country's border slightly brighter so the
-        // player can immediately distinguish their own frontier on the minimap.
-        if (currentOwner != null) {
-            int highlight = countryHighlight(currentOwner);
-            int currentLeft = -cell / 2;
-            int currentTop = -cell / 2;
-            int currentRight = currentLeft + cell;
-            int currentBottom = currentTop + cell;
-
-            if (!currentOwner.equals(claims.get(chunkKey(centerChunkX - 1, centerChunkZ)))) {
-                drawVertical(graphics, currentLeft, currentTop, currentBottom, highlight, minimapHalfSize);
-            }
-            if (!currentOwner.equals(claims.get(chunkKey(centerChunkX + 1, centerChunkZ)))) {
-                drawVertical(graphics, currentRight - BORDER_THICKNESS, currentTop, currentBottom, highlight, minimapHalfSize);
-            }
-            if (!currentOwner.equals(claims.get(chunkKey(centerChunkX, centerChunkZ - 1)))) {
-                drawHorizontal(graphics, currentLeft, currentRight, currentTop, highlight, minimapHalfSize);
-            }
-            if (!currentOwner.equals(claims.get(chunkKey(centerChunkX, centerChunkZ + 1)))) {
-                drawHorizontal(graphics, currentLeft, currentRight, currentBottom - BORDER_THICKNESS, highlight, minimapHalfSize);
-            }
-        }
+        return clipToRectangle(a, b, -radiusX, radiusX, -radiusZ, radiusZ);
     }
 
-    private static void drawVertical(
-        GuiGraphics graphics,
-        int x,
-        int top,
-        int bottom,
-        int color,
-        int limit
+    private static Point transformPoint(
+        double worldX,
+        double worldZ,
+        double renderX,
+        double renderZ,
+        double ps,
+        double pc,
+        double zoom
     ) {
-        int clippedTop = Mth.clamp(top, -limit, limit);
-        int clippedBottom = Mth.clamp(bottom, -limit, limit);
-        if (clippedBottom > clippedTop) {
-            graphics.fill(x, clippedTop, x + BORDER_THICKNESS, clippedBottom, color);
-        }
+        double offX = worldX - renderX;
+        double offZ = worldZ - renderZ;
+
+        double y = (pc * offX + ps * offZ) * zoom;
+        double x = (ps * offX - pc * offZ) * zoom;
+
+        return new Point(x, y);
     }
 
-    private static void drawHorizontal(
-        GuiGraphics graphics,
-        int left,
-        int right,
-        int y,
-        int color,
-        int limit
+    private static Segment clipToRectangle(
+        Point a,
+        Point b,
+        double minX,
+        double maxX,
+        double minY,
+        double maxY
     ) {
-        int clippedLeft = Mth.clamp(left, -limit, limit);
-        int clippedRight = Mth.clamp(right, -limit, limit);
-        if (clippedRight > clippedLeft) {
-            graphics.fill(clippedLeft, y, clippedRight, y + BORDER_THICKNESS, color);
+        double dx = b.x - a.x;
+        double dy = b.y - a.y;
+        double t0 = 0.0D;
+        double t1 = 1.0D;
+
+        double[] p = {-dx, dx, -dy, dy};
+        double[] q = {a.x - minX, maxX - a.x, a.y - minY, maxY - a.y};
+
+        for (int i = 0; i < 4; i++) {
+            if (Math.abs(p[i]) < 1.0E-9D) {
+                if (q[i] < 0.0D) {
+                    return null;
+                }
+                continue;
+            }
+
+            double r = q[i] / p[i];
+
+            if (p[i] < 0.0D) {
+                if (r > t1) return null;
+                if (r > t0) t0 = r;
+            } else {
+                if (r < t0) return null;
+                if (r < t1) t1 = r;
+            }
         }
+
+        return segmentAt(a, b, t0, t1);
     }
 
-    private static Layout readLayout(Object renderer, Minecraft mc) {
-        Object minimap = findMinimap(renderer);
-        int size = firstInt(
-            minimap, renderer,
-            "getEffectiveMinimapSize",
-            "getMinimapSize",
-            "getSize"
-        );
-        if (size <= 0) {
-            size = DEFAULT_SIZE;
-        }
-        size = Mth.clamp(size, 64, 512);
+    private static Segment clipToCircle(Point a, Point b, double radius) {
+        double dx = b.x - a.x;
+        double dy = b.y - a.y;
 
-        Integer centerX = firstIntNullable(
-            minimap, renderer,
-            "getCenterX",
-            "getMinimapCenterX",
-            "getScreenCenterX"
-        );
-        Integer centerY = firstIntNullable(
-            minimap, renderer,
-            "getCenterY",
-            "getMinimapCenterY",
-            "getScreenCenterY"
-        );
+        double aa = dx * dx + dy * dy;
+        double bb = 2.0D * (a.x * dx + a.y * dy);
+        double cc = a.x * a.x + a.y * a.y - radius * radius;
 
-        if (centerX == null) {
-            Integer x = firstIntNullable(minimap, renderer, "getX", "getLeft", "getScreenX", "getMinimapX");
-            centerX = x == null ? mc.getWindow().getGuiScaledWidth() - size / 2 - 4 : x + size / 2;
-        }
-        if (centerY == null) {
-            Integer y = firstIntNullable(minimap, renderer, "getY", "getTop", "getScreenY", "getMinimapY");
-            centerY = y == null ? size / 2 + 4 : y + size / 2;
+        if (cc <= 0.0D && distanceSquared(b) <= radius * radius) {
+            return new Segment(a, b);
         }
 
-        double zoom = firstDouble(
-            minimap, renderer,
-            "getZoom",
-            "getMinimapZoom",
-            "getScale"
-        );
-        if (!(zoom > 0.0D)) {
-            zoom = 1.0D;
+        if (aa < 1.0E-9D) {
+            return cc <= 0.0D ? new Segment(a, b) : null;
         }
 
-        // Xaero zoom values are scale-like; clamp pathological reflection hits.
-        zoom = Mth.clamp((float) zoom, 0.25F, 4.0F);
+        double discriminant = bb * bb - 4.0D * aa * cc;
+        double t0 = 0.0D;
+        double t1 = 1.0D;
 
-        return new Layout(centerX, centerY, size, zoom);
-    }
+        if (discriminant < 0.0D) {
+            if (distanceSquared(a) > radius * radius || distanceSquared(b) > radius * radius) {
+                return null;
+            }
+        } else {
+            double root = Math.sqrt(discriminant);
+            double r0 = (-bb - root) / (2.0D * aa);
+            double r1 = (-bb + root) / (2.0D * aa);
 
-    private static Object findMinimap(Object renderer) {
-        if (renderer == null) {
+            if (r0 > r1) {
+                double tmp = r0;
+                r0 = r1;
+                r1 = tmp;
+            }
+
+            if (r0 > t0) t0 = r0;
+            if (r1 < t1) t1 = r1;
+        }
+
+        if (t1 < 0.0D || t0 > 1.0D) {
             return null;
         }
 
-        Class<?> type = renderer.getClass();
-        while (type != null) {
-            for (Field field : type.getDeclaredFields()) {
-                if (field.getType().getName().equals("xaero.hud.minimap.Minimap")) {
-                    try {
-                        field.setAccessible(true);
-                        return field.get(renderer);
-                    } catch (ReflectiveOperationException ignored) {
-                        return null;
-                    }
-                }
-            }
-            type = type.getSuperclass();
+        t0 = Mth.clamp((float) t0, 0.0F, 1.0F);
+        t1 = Mth.clamp((float) t1, 0.0F, 1.0F);
+
+        return segmentAt(a, b, t0, t1);
+    }
+
+    private static double distanceSquared(Point point) {
+        return point.x * point.x + point.y * point.y;
+    }
+
+    private static Segment segmentAt(Point a, Point b, double t0, double t1) {
+        if (t1 < t0) {
+            return null;
         }
 
-        return null;
+        return new Segment(
+            new Point(
+                Mth.lerp((float) t0, (float) a.x, (float) b.x),
+                Mth.lerp((float) t0, (float) a.y, (float) b.y)
+            ),
+            new Point(
+                Mth.lerp((float) t1, (float) a.x, (float) b.x),
+                Mth.lerp((float) t1, (float) a.y, (float) b.y)
+            )
+        );
     }
 
-    private static int firstInt(Object primary, Object secondary, String... names) {
-        Integer value = firstIntNullable(primary, secondary, names);
-        return value == null ? 0 : value;
-    }
+    private static void addLineQuad(
+        BufferBuilder builder,
+        Matrix4f matrix,
+        Segment segment,
+        float thickness,
+        int color
+    ) {
+        double dx = segment.b.x - segment.a.x;
+        double dy = segment.b.y - segment.a.y;
+        double length = Math.sqrt(dx * dx + dy * dy);
 
-    private static Integer firstIntNullable(Object primary, Object secondary, String... names) {
-        for (String name : names) {
-            Integer a = invokeInt(primary, name);
-            if (a != null) return a;
-            Integer b = invokeInt(secondary, name);
-            if (b != null) return b;
-            a = fieldInt(primary, name);
-            if (a != null) return a;
-            b = fieldInt(secondary, name);
-            if (b != null) return b;
+        if (length < 0.001D) {
+            return;
         }
-        return null;
-    }
 
-    private static double firstDouble(Object primary, Object secondary, String... names) {
-        for (String name : names) {
-            Double a = invokeDouble(primary, name);
-            if (a != null) return a;
-            Double b = invokeDouble(secondary, name);
-            if (b != null) return b;
-            a = fieldDouble(primary, name);
-            if (a != null) return a;
-            b = fieldDouble(secondary, name);
-            if (b != null) return b;
-        }
-        return 0.0D;
-    }
+        double half = thickness * 0.5D;
+        double nx = -dy / length * half;
+        double ny = dx / length * half;
 
-    private static Integer invokeInt(Object target, String name) {
-        if (target == null) return null;
-        try {
-            Method method = target.getClass().getMethod(name);
-            if (method.getReturnType() == int.class || method.getReturnType() == Integer.class) {
-                method.setAccessible(true);
-                return ((Number) method.invoke(target)).intValue();
-            }
-        } catch (ReflectiveOperationException ignored) {}
-        return null;
-    }
-
-    private static Double invokeDouble(Object target, String name) {
-        if (target == null) return null;
-        try {
-            Method method = target.getClass().getMethod(name);
-            if (method.getReturnType() == double.class
-                || method.getReturnType() == float.class
-                || method.getReturnType() == Double.class
-                || method.getReturnType() == Float.class) {
-                method.setAccessible(true);
-                return ((Number) method.invoke(target)).doubleValue();
-            }
-        } catch (ReflectiveOperationException ignored) {}
-        return null;
-    }
-
-    private static Integer fieldInt(Object target, String name) {
-        if (target == null) return null;
-        Class<?> type = target.getClass();
-        while (type != null) {
-            try {
-                Field field = type.getDeclaredField(name);
-                if (field.getType() != int.class && field.getType() != Integer.class) {
-                    type = type.getSuperclass();
-                    continue;
-                }
-                field.setAccessible(true);
-                Object value = field.get(target);
-                return value instanceof Number number ? number.intValue() : null;
-            } catch (ReflectiveOperationException ignored) {
-                type = type.getSuperclass();
-            }
-        }
-        return null;
-    }
-
-    private static Double fieldDouble(Object target, String name) {
-        if (target == null) return null;
-        Class<?> type = target.getClass();
-        while (type != null) {
-            try {
-                Field field = type.getDeclaredField(name);
-                if (!(field.getType() == double.class
-                    || field.getType() == float.class
-                    || field.getType() == Double.class
-                    || field.getType() == Float.class)) {
-                    type = type.getSuperclass();
-                    continue;
-                }
-                field.setAccessible(true);
-                Object value = field.get(target);
-                return value instanceof Number number ? number.doubleValue() : null;
-            } catch (ReflectiveOperationException ignored) {
-                type = type.getSuperclass();
-            }
-        }
-        return null;
+        builder.addVertex(matrix, (float) (segment.a.x + nx), (float) (segment.a.y + ny), 0.0F)
+            .setColor(color);
+        builder.addVertex(matrix, (float) (segment.a.x - nx), (float) (segment.a.y - ny), 0.0F)
+            .setColor(color);
+        builder.addVertex(matrix, (float) (segment.b.x - nx), (float) (segment.b.y - ny), 0.0F)
+            .setColor(color);
+        builder.addVertex(matrix, (float) (segment.b.x + nx), (float) (segment.b.y + ny), 0.0F)
+            .setColor(color);
     }
 
     private static long chunkKey(int x, int z) {
         return ((long) x & 0xFFFFFFFFL) | (((long) z & 0xFFFFFFFFL) << 32);
     }
 
-    private static int countryBorder(String country) {
-        return palette(country, 0xE8);
-    }
-
-    private static int countryHighlight(String country) {
-        return palette(country, 0xFF);
-    }
-
-    private static int palette(String country, int alpha) {
+    private static int countryColor(String country, int alpha) {
         int[] colors = {
             0x4A90E2,
             0xE05656,
@@ -370,8 +387,9 @@ public final class XaeroPoliticalMinimapOverlay {
         int hash = country == null ? 0 : country.hashCode();
         hash ^= hash >>> 16;
         int rgb = colors[Math.floorMod(hash, colors.length)];
-        return (alpha << 24) | (rgb & 0xFFFFFF);
+        return (alpha << 24) | rgb;
     }
 
-    private record Layout(int centerX, int centerY, int size, double pixelsPerBlock) {}
+    private record Point(double x, double y) {}
+    private record Segment(Point a, Point b) {}
 }
