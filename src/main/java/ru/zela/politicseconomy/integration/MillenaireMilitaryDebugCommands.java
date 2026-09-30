@@ -35,7 +35,12 @@ public final class MillenaireMilitaryDebugCommands {
                         .then(Commands.literal("status")
                             .executes(context -> showStatus(context.getSource())))
                         .then(Commands.literal("army")
-                            .executes(context -> showArmy(context.getSource())))
+                            .executes(context -> showArmy(context.getSource()))
+                            .then(Commands.argument("count", com.mojang.brigadier.arguments.IntegerArgumentType.integer(1, 12))
+                                .executes(context -> mobilize(
+                                    context.getSource(),
+                                    com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(context, "count")
+                                ))))
                         .then(Commands.literal("combatapi")
                             .executes(context -> showCombatApi(context.getSource())))
                         .then(Commands.literal("raidstatus")
@@ -316,6 +321,36 @@ public final class MillenaireMilitaryDebugCommands {
         } catch (Exception e) {
             source.sendFailure(Component.literal(
                 "Не удалось получить состав армии."
+            ));
+            return 0;
+        }
+    }
+
+    private static int mobilize(CommandSourceStack source, int count) {
+        try {
+            ServerPlayer player = source.getPlayerOrException();
+            MillenaireIntegration.VillageSnapshot current = currentVillage(player);
+            if (current == null) {
+                source.sendFailure(Component.literal(
+                    "Ты должен находиться на территории поселения Millénaire."
+                ));
+                return 0;
+            }
+
+            int spawned = MillenaireCombatBridge.mobilizeForWar(
+                player.server,
+                current,
+                count
+            );
+
+            source.sendSuccess(() -> Component.literal(
+                "§aМобилизация: §fсоздано бойцов " + spawned
+                    + "§a из запрошенных §f" + count
+            ), true);
+            return spawned > 0 ? 1 : 0;
+        } catch (Exception e) {
+            source.sendFailure(Component.literal(
+                "Не удалось мобилизовать бойцов."
             ));
             return 0;
         }
