@@ -10,6 +10,9 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.ChunkPos;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
+import ru.zela.politicseconomy.country.CountryWorkforceService;
+import ru.zela.politicseconomy.country.WorkforceSector;
+import ru.zela.politicseconomy.economy.NationalMaterialConsumptionService;
 
 import java.util.List;
 
