@@ -503,10 +503,23 @@ public final class MillenaireMilitaryDebugCommands {
                 return 0;
             }
 
+            MillenaireCombatBridge.Result nativeResult =
+                MillenaireCombatBridge.startWar(
+                    player.server,
+                    attacker.stateKey(),
+                    defender.stateKey()
+                );
+
             source.sendSuccess(() -> Component.literal(
                 "§cDebug-война начата: §f"
                     + attacker.name() + " §c→ §f" + defender.name()
             ), true);
+            source.sendSuccess(() -> Component.literal(
+                "§7Millénaire raid: §f"
+                    + nativeResult.detail()
+                    + " §8(relation=" + nativeResult.relationChanged()
+                    + ", raid=" + nativeResult.raidTriggered() + ")"
+            ), false);
             return 1;
         } catch (Exception e) {
             source.sendFailure(Component.literal("Не удалось начать debug-войну."));
