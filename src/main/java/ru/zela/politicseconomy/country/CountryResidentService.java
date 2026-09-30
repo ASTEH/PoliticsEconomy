@@ -14,7 +14,7 @@ import net.minecraft.world.entity.npc.VillagerData;
 import net.minecraft.world.entity.npc.VillagerProfession;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.level.ChunkPos;
-import net.minecraft.world.level.Heightmap;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
@@ -159,10 +159,10 @@ public final class CountryResidentService {
 
         MinecraftServer server = level.getServer();
         CountryResidentSavedData data = get(server);
+        String countryName = data.findCountry(villager.getUUID());
         data.removeResidentEverywhere(villager.getUUID());
         data.setDirty();
 
-        String countryName = data.findCountry(villager.getUUID());
         if (countryName != null) {
             ru.zela.politicseconomy.event.NewsService.add(
                 server,
@@ -308,7 +308,19 @@ public final class CountryResidentService {
             return;
         }
 
+        String currentCountry = data.findCountry(villager.getUUID());
+
         if (!targetCountry.equals(homeCountry)) {
+            if (targetCountry.equals(currentCountry)) {
+                data.setResidentBed(targetCountry, villager.getUUID(), null);
+            }
+
+            if (homeCountry != null
+                && targetCountry.equals(
+                    politics.getCountryNameAt(villager.chunkPosition())
+                )) {
+                villager.releasePoi(MemoryModuleType.HOME);
+            }
             return;
         }
 
@@ -472,13 +484,12 @@ public final class CountryResidentService {
     }
 
     private static String roleFromVillager(Villager villager) {
-        return switch (villager.getVillagerData().profession().toString()) {
-            case "minecraft:farmer" -> "FARMER";
-            case "minecraft:toolsmith" -> "TOOLSMITH";
-            case "minecraft:librarian" -> "LIBRARIAN";
-            case "minecraft:armorer" -> "ARMORER";
-            default -> "CITIZEN";
-        };
+        VillagerProfession profession = villager.getVillagerData().getProfession();
+        if (profession == VillagerProfession.FARMER) return "FARMER";
+        if (profession == VillagerProfession.TOOLSMITH) return "TOOLSMITH";
+        if (profession == VillagerProfession.LIBRARIAN) return "LIBRARIAN";
+        if (profession == VillagerProfession.ARMORER) return "ARMORER";
+        return "CITIZEN";
     }
 
     private static String roleDisplayName(String role) {
