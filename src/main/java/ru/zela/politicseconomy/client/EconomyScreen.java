@@ -26,7 +26,8 @@ public final class EconomyScreen extends Screen {
         OVERVIEW("Обзор", "minecraft:emerald"),
         COUNTRY("Государство", "minecraft:compass"),
         EFFECTS("Эффекты", "minecraft:redstone"),
-        CITIES("Города", "minecraft:bricks"),
+        CITIES("Страны", "minecraft:globe"),
+        NEWS("Новости", "minecraft:writable_book"),
         MARKET("Рынок", "minecraft:emerald"),
         TRADE("Торговля", "minecraft:chest"),
         TRADE_HISTORY("История заказов", "minecraft:written_book"),
@@ -63,6 +64,8 @@ public final class EconomyScreen extends Screen {
     private EditBox tradeCancelReason;
     private Integer cancelOrderId;
     private String selectedTradeItemId = "minecraft:iron_ingot";
+    private int selectedCountryIndex;
+    private boolean countryDropdownOpen;
     private List<TradeItemOption> tradeItemOptions = List.of();
 
     // Coordinates are calculated from the actual trade cards every frame.
@@ -249,7 +252,8 @@ public final class EconomyScreen extends Screen {
             case OVERVIEW -> end = drawOverview(graphics, end, left, right, mouseX, mouseY);
             case COUNTRY -> end = drawCountry(graphics, end, left, right, mouseX, mouseY);
             case EFFECTS -> end = drawEffects(graphics, end, left, right);
-            case CITIES -> end = drawCities(graphics, end, left, right);
+            case CITIES -> end = drawCities(graphics, end, left, right, mouseX, mouseY);
+            case NEWS -> end = drawNews(graphics, end, left, right);
             case MARKET -> end = drawMarket(graphics, end, left, right, mouseX, mouseY);
             case TRADE -> end = drawTrade(graphics, end, left, right, mouseX, mouseY);
             case TRADE_HISTORY -> end = drawTradeHistory(graphics, end, left, right, mouseX, mouseY);
@@ -818,48 +822,151 @@ public final class EconomyScreen extends Screen {
         }
     }
 
-    private int drawCities(GuiGraphics g, int y, int left, int right) {
-        y = title(g, left, y, "ГОРОДА", "Экономические показатели зарегистрированных городов");
+    private int drawCities(GuiGraphics g, int y, int left, int right, int mouseX, int mouseY) {
+        y = title(g, left, y, "ТОП СТРАН", "Единый рейтинг PoliticsMod и автономных государств Millénaire");
 
-        for (int i = 0; i < snapshot.cityNames().length; i++) {
-            int bottom = y + 94;
-            panel(g, left, y, right, bottom);
-
-            String name = (valueAt(snapshot.cityCapitals(), i) ? "СТОЛИЦА • " : "")
-                + valueAt(snapshot.cityNames(), i)
-                + (valueAt(snapshot.cityMine(), i) ? " • ВАША" : "");
-
-            int sx = right - 300;
-            ItemStack cityIcon = itemStack(valueAt(snapshot.cityMine(), i) ? "minecraft:gold_block" : "minecraft:bricks");
-            if (!cityIcon.isEmpty()) g.renderItem(cityIcon, left + 10, y + 8);
-            int cityTextRight = sx - 12;
-            g.drawString(font, clipToWidth(name, Math.max(120, cityTextRight - (left + 34))),
-                left + 34, y + 12, TEXT, true);
-            g.drawString(font,
-                "Государство: " + clipToWidth(valueAt(snapshot.cityCountries(), i), Math.max(100, cityTextRight - (left + 34))),
-                left + 34, y + 31, MUTED, false);
-            g.drawString(font,
-                "Мэр: " + clipToWidth(valueAt(snapshot.cityMayors(), i), Math.max(100, cityTextRight - (left + 34))),
-                left + 34, y + 50, MUTED, false);
-            miniStatIcon(g, sx, y + 12, "Казна", "$" + format(valueAt(snapshot.cityTreasuries(), i)), "minecraft:emerald", GOLD);
-            miniStatIcon(g, sx + 96, y + 12, "Доход", "$" + format(valueAt(snapshot.cityIncome(), i)), "minecraft:paper", POSITIVE);
-            miniStatIcon(g, sx + 192, y + 12, "Насел.", format(valueAt(snapshot.cityPopulation(), i)), "minecraft:player_head", ACCENT);
-            g.drawString(font,
-                "Инфра " + format(valueAt(snapshot.cityInfrastructure(), i)) +
-                    "  •  Налоговые блоки " + format(valueAt(snapshot.cityTaxBlocks(), i)),
-                sx, y + 53, MUTED, false);
-
-            y = bottom + 8;
+        int rows = snapshot.cityNames().length;
+        if (rows == 0) {
+            panel(g, left, y, right, y + 62);
+            g.drawString(font, "Государств пока нет.", left + 14, y + 22, MUTED, false);
+            return y + 70;
         }
 
-        if (snapshot.cityNames().length == 0) {
-            panel(g, left, y, right, y + 60);
-            g.drawString(font, "Зарегистрированных городов нет.", left + 14, y + 22, MUTED, false);
-            y += 68;
+        int dropdownBottom = y + 31;
+        panel(g, left, y, right, dropdownBottom);
+        g.drawString(font, "СТРАНА", left + 14, y + 10, MUTED, true);
+
+        int selected = Math.max(0, Math.min(selectedCountryIndex, rows - 1));
+        selectedCountryIndex = selected;
+        String selectedName = valueAt(snapshot.cityNames(), selected);
+        String selectedType = valueAt(snapshot.cityCountries(), selected);
+
+        drawButton(
+            g,
+            left + 96,
+            y + 3,
+            right - 14,
+            y + 27,
+            selectedName + " • " + selectedType,
+            PANEL_3,
+            ACCENT,
+            mouseX,
+            mouseY,
+            () -> countryDropdownOpen = !countryDropdownOpen
+        );
+
+        if (countryDropdownOpen) {
+            int optionH = 24;
+            int maxOptions = Math.min(rows, 10);
+            int boxBottom = dropdownBottom + maxOptions * optionH + 6;
+            panel(g, left + 96, dropdownBottom + 2, right - 14, boxBottom);
+            for (int i = 0; i < maxOptions; i++) {
+                int rowY = dropdownBottom + 6 + i * optionH;
+                final int index = i;
+                boolean hover = inside(mouseX, mouseY, left + 104, rowY, right - 22, rowY + 20);
+                if (hover) g.fill(left + 104, rowY, right - 22, rowY + 20, PANEL_2);
+                g.drawString(
+                    font,
+                    (i + 1) + ". " + clipToWidth(valueAt(snapshot.cityNames(), i) + " • " + valueAt(snapshot.cityCountries(), i), right - left - 150),
+                    left + 110,
+                    rowY + 5,
+                    i == selected ? TEXT : MUTED,
+                    i == selected
+                );
+                target(left + 104, rowY, right - 22, rowY + 20, () -> {
+                    selectedCountryIndex = index;
+                    countryDropdownOpen = false;
+                });
+            }
+            y = boxBottom + 10;
+        } else {
+            y += 42;
+        }
+
+        int rankY = y;
+        for (int i = 0; i < rows; i++) {
+            int bottom = rankY + 92;
+            panel(g, left, rankY, right, bottom);
+
+            boolean selectedRow = i == selected;
+            if (selectedRow) {
+                g.fill(left + 7, rankY + 7, right - 7, bottom - 7, ACCENT_DARK);
+                g.fill(left + 7, rankY + 7, left + 10, bottom - 7, ACCENT);
+            }
+
+            String rank = "#" + (i + 1);
+            String name = valueAt(snapshot.cityNames(), i);
+            String type = valueAt(snapshot.cityCountries(), i);
+            double score = parseDoubleSafe(valueAt(snapshot.cityMayors(), i));
+
+            g.drawString(font, rank, left + 15, rankY + 13, GOLD, true);
+            g.drawString(font, clipToWidth(name, 260), left + 50, rankY + 12, TEXT, true);
+            drawPill(g, type, left + 50, rankY + 31,
+                type.equals("Millénaire") ? 0xFF433056 : ACCENT_DARK,
+                type.equals("Millénaire") ? 0xFFC77DFF : ACCENT,
+                120);
+
+            miniStatIcon(g, right - 290, rankY + 12, "Индекс", formatDouble(score), "minecraft:diamond", GOLD);
+            miniStatIcon(g, right - 192, rankY + 12, "Насел.", format(valueAt(snapshot.cityPopulation(), i)), "minecraft:player_head", ACCENT);
+            miniStatIcon(g, right - 94, rankY + 12, "Развитие", format(valueAt(snapshot.cityInfrastructure(), i)), "minecraft:diamond_block", POSITIVE);
+
+            g.drawString(
+                font,
+                "$" + format(valueAt(snapshot.cityTreasuries(), i))
+                    + "  •  Военные: " + format(valueAt(snapshot.cityTaxBlocks(), i))
+                    + "  •  Готовность: " + formatDouble(
+                        score <= 0 ? 0.0D : 0.0D
+                    ),
+                right - 290,
+                rankY + 58,
+                MUTED,
+                false
+            );
+
+            rankY = bottom + 8;
+        }
+
+        return rankY + 4;
+    }
+
+    private int drawNews(GuiGraphics g, int y, int left, int right) {
+        y = title(g, left, y, "НОВОСТИ", "Последние события мира PoliticsEconomy");
+
+        if (snapshot.newsRows().length == 0) {
+            panel(g, left, y, right, y + 72);
+            g.drawString(font, "Новостей пока нет.", left + 14, y + 24, MUTED, false);
+            g.drawString(font, "Когда произойдут события, они появятся здесь.", left + 14, y + 43, TEXT, false);
+            return y + 82;
+        }
+
+        for (String raw : snapshot.newsRows()) {
+            String[] parts = raw.split("\\|", -1);
+            if (parts.length < 4) continue;
+
+            String category = parts[1];
+            String title = parts[2];
+            String body = parts[3];
+
+            int bottom = y + 78;
+            panel(g, left, y, right, bottom);
+
+            int categoryColor = switch (category) {
+                case "БЕДСТВИЕ" -> NEGATIVE;
+                case "ЭКОНОМИКА" -> POSITIVE;
+                case "ОБЩЕСТВО" -> GOLD;
+                case "ВОЙНА" -> NEGATIVE;
+                default -> ACCENT;
+            };
+
+            drawPill(g, category, left + 12, y + 9, PANEL_3, categoryColor, 110);
+            g.drawString(font, clipToWidth(title, right - left - 150), left + 134, y + 12, TEXT, true);
+            g.drawString(font, clipToWidth(body, right - left - 28), left + 14, y + 39, MUTED, false);
+            y = bottom + 8;
         }
 
         return y + 4;
     }
+
 
     private int drawMarket(GuiGraphics g, int y, int left, int right, int mouseX, int mouseY) {
         y = title(g, left, y, "РЫНОК", "Население покупает реальные предметы; здесь можно продавать им товары");
@@ -2002,6 +2109,14 @@ public final class EconomyScreen extends Screen {
 
     private static String format(int value) {
         return String.format(Locale.ROOT, "%,d", value);
+    }
+
+    private static double parseDoubleSafe(String value) {
+        try {
+            return Double.parseDouble(value);
+        } catch (NumberFormatException ignored) {
+            return 0.0D;
+        }
     }
 
     private static String formatLong(long value) {
