@@ -306,11 +306,15 @@ public final class GroundWarService {
     }
 
     private static boolean isAdult(LivingEntity entity) {
-        if (entity instanceof net.minecraft.world.entity.Ageable ageable) {
-            return !ageable.isBaby();
+        Object baby = invoke(entity, "isBaby");
+        if (baby instanceof Boolean) {
+            return !((Boolean) baby);
         }
+
         String value = entity.getClass().getName().toLowerCase(java.util.Locale.ROOT);
-        return !value.contains("child") && !value.contains("boy") && !value.contains("girl");
+        return !value.contains("child")
+            && !value.contains("boy")
+            && !value.contains("girl");
     }
 
     private static Object invoke(Object target, String name, Object... args) {
