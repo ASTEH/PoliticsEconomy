@@ -477,7 +477,25 @@ public final class MillenaireCombatBridge {
                             if (villager != null && navManager != null && target != null) {
                                 net.minecraft.core.BlockPos destination =
                                     net.minecraft.core.BlockPos.containing(target);
-                                MillenaireCombatBridge.invoke(navManager, "navigateTo", villager, destination, speed);
+                                Object currentDestination =
+                                    MillenaireCombatBridge.invoke(navManager, "getDestination");
+                                Object abandoned =
+                                    MillenaireCombatBridge.invoke(navManager, "isAbandoned");
+
+                                boolean needsNewRoute =
+                                    !(currentDestination instanceof net.minecraft.core.BlockPos current)
+                                        || current.distSqr(destination) > 4.0D
+                                        || Boolean.TRUE.equals(abandoned);
+
+                                if (needsNewRoute) {
+                                    MillenaireCombatBridge.invoke(
+                                        navManager,
+                                        "navigateTo",
+                                        villager,
+                                        destination,
+                                        speed
+                                    );
+                                }
                             }
                         }
                         yield null;
