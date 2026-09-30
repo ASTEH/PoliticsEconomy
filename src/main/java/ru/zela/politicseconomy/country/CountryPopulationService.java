@@ -25,9 +25,9 @@ import java.util.WeakHashMap;
 /**
  * Country population model.
  *
- * Beds are housing capacity only. Actual population is an independent
- * persisted resident count that grows from food, housing and successful
- * economic cycles. Legacy worlds migrate their old bed-derived population once.
+ * For PoliticsMod countries the authoritative population is the number of
+ * unique beds currently selected by villagers through their HOME memory.
+ * Placed-but-unclaimed beds are housing capacity, not population.
  */
 public final class CountryPopulationService {
     private static final int RESIDENTS_PER_BED_LEGACY = 2;
