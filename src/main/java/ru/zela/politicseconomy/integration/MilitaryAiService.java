@@ -91,6 +91,13 @@ public final class MilitaryAiService {
             attacker.name(),
             defender.name()
         );
+        ru.zela.politicseconomy.event.NewsService.add(
+            server,
+            now,
+            "ВОЙНА",
+            attacker.name() + " объявляет войну " + defender.name(),
+            "Вооружённый конфликт между двумя государствами начался."
+        );
         return true;
     }
 
@@ -187,6 +194,13 @@ public final class MilitaryAiService {
             selected.stateKey()
         );
         notifyInvolvedPlayers(server, attackerKey, selected.stateKey(), attacker.name(), selected.name());
+        ru.zela.politicseconomy.event.NewsService.add(
+            server,
+            now,
+            "ВОЙНА",
+            attacker.name() + " объявляет войну " + selected.name(),
+            "Военный ИИ начал новый конфликт после оценки экономики и военной готовности."
+        );
     }
 
     private static Candidate selectTarget(
