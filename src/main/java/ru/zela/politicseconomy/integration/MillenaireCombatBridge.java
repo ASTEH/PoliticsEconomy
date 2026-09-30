@@ -153,6 +153,116 @@ public final class MillenaireCombatBridge {
         );
     }
 
+    public static int mobilizeForWar(
+        MinecraftServer server,
+        MillenaireIntegration.VillageSnapshot state,
+        int requested
+    ) {
+        if (server == null || state == null || requested <= 0) return 0;
+
+        int target = Math.min(6, requested);
+        int existing = armyReport(server, state).liveMilitary();
+        int needed = Math.max(0, target - existing);
+        if (needed <= 0) return 0;
+
+        MillenaireStateSavedData finances =
+            MillenaireStateSavedData.get(server);
+        long costPerFighter = 64L;
+        int affordable = (int)Math.min(
+            needed,
+            finances.treasury(state.villageId()) / costPerFighter
+        );
+        if (affordable <= 0) return 0;
+
+        try {
+            Class<?> culturesClass =
+                Class.forName("org.millenaire.culture.ModCultures");
+            Method getAll = culturesClass.getMethod("getAllVillagerTypes");
+            Object all = getAll.invoke(null);
+            if (!(all instanceof Map<?, ?> map)) return 0;
+
+            String culture = state.culture();
+            Object selectedId = null;
+
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                if (!(entry.getKey() instanceof net.minecraft.resources.ResourceLocation id)) {
+                    continue;
+                }
+                Object type = entry.getValue();
+                if (type == null) continue;
+
+                String idText = id.toString();
+                if (!culture.isBlank()
+                    && !idText.startsWith(culture + "/")) {
+                    continue;
+                }
+
+                boolean raider = booleanResult(type, "hasTag", "isRaider");
+                boolean defender = booleanResult(type, "hasTag", "helpInAttacks");
+                if (raider || defender) {
+                    selectedId = id;
+                    if (raider) break;
+                }
+            }
+
+            if (!(selectedId instanceof net.minecraft.resources.ResourceLocation villagerTypeId)) {
+                return 0;
+            }
+
+            Object village =
+                MillenaireIntegration.liveVillage(server, state.stateKey());
+            if (village == null) return 0;
+
+            Class<?> factory =
+                Class.forName("org.millenaire.entity.VillagerSpawnFactory");
+            Method spawn = null;
+
+            for (Method method : factory.getMethods()) {
+                if (!method.getName().equals("spawnInVillage")
+                    || method.getParameterCount() != 5) {
+                    continue;
+                }
+
+                Class<?>[] params = method.getParameterTypes();
+                if (!ServerLevel.class.isAssignableFrom(params[0])) continue;
+                if (!params[1].isInstance(village)) continue;
+                if (!params[2].isInstance(villagerTypeId)) continue;
+                if (!params[3].isInstance(state.center())) continue;
+
+                spawn = method;
+                break;
+            }
+
+            if (spawn == null) return 0;
+
+            int spawned = 0;
+            for (int i = 0; i < affordable; i++) {
+                Object villager = spawn.invoke(
+                    null,
+                    server.overworld(),
+                    village,
+                    villagerTypeId,
+                    state.center(),
+                    null
+                );
+
+                if (villager == null) break;
+                spawned++;
+            }
+
+            if (spawned > 0) {
+                finances.addTreasury(
+                    state.villageId(),
+                    -(spawned * costPerFighter)
+                );
+            }
+
+            return spawned;
+        } catch (Throwable ignored) {
+            return 0;
+        }
+    }
+
     public static List<String> discoverCombatApi(
         MinecraftServer server,
         String stateKey
@@ -246,6 +356,27 @@ public final class MillenaireCombatBridge {
         } catch (Throwable ignored) {
             return false;
         }
+    }
+
+    private static boolean booleanResult(
+        Object target,
+        String methodName,
+        Object argument
+    ) {
+        if (target == null) return false;
+        for (Method method : target.getClass().getMethods()) {
+            if (!method.getName().equals(methodName)
+                || method.getParameterCount() != 1) {
+                continue;
+            }
+            try {
+                Object value = method.invoke(target, argument);
+                return value instanceof Boolean && (Boolean)value;
+            } catch (Throwable ignored) {
+                return false;
+            }
+        }
+        return false;
     }
 
     private static boolean isMillenaireEntity(LivingEntity entity) {
