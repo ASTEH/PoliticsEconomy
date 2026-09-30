@@ -14,6 +14,20 @@ import java.util.Map;
 
 /** Moves concrete material items from a player inventory into the national warehouse. */
 public final class NationalMaterialInventoryService {
+    private static final List<String> POPULATION_FOOD = List.of(
+        "minecraft:bread",
+        "minecraft:baked_potato",
+        "minecraft:potato",
+        "minecraft:carrot",
+        "minecraft:beetroot",
+        "minecraft:wheat",
+        "minecraft:cooked_beef",
+        "minecraft:cooked_chicken",
+        "minecraft:cooked_porkchop",
+        "minecraft:cooked_cod",
+        "minecraft:cooked_salmon"
+    );
+
     private NationalMaterialInventoryService() {}
 
     public record DepositResult(int itemCount, Map<String, Integer> byItem) {}
@@ -28,10 +42,17 @@ public final class NationalMaterialInventoryService {
 
         NationalMaterialDemandService.CountryDemand demand =
             NationalMaterialDemandService.calculate(player.serverLevel(), countryName);
-        List<String> accepted = demand.materials().stream()
-            .flatMap(material -> material.acceptedItemIds().stream())
-            .distinct()
-            .toList();
+        List<String> accepted = new ArrayList<>(
+            demand.materials().stream()
+                .flatMap(material -> material.acceptedItemIds().stream())
+                .distinct()
+                .toList()
+        );
+        for (String food : POPULATION_FOOD) {
+            if (!accepted.contains(food)) {
+                accepted.add(food);
+            }
+        }
 
         if (exactItemId != null && !accepted.contains(exactItemId)) {
             return new DepositResult(0, Map.of());
@@ -85,7 +106,7 @@ public final class NationalMaterialInventoryService {
     public static void tellResult(ServerPlayer player, DepositResult result) {
         if (result.itemCount() <= 0) {
             player.sendSystemMessage(Component.literal(
-                "На складе нужны другие материалы: сдавать можно только предметы, входящие в рецепты сооружений твоей страны."
+                "На складе сейчас нет подходящих материалов или еды для населения."
             ));
             return;
         }
