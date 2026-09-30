@@ -1135,18 +1135,7 @@ public final class EconomyScreen extends Screen {
     }
 
     private void openWarDialog() {
-        modalAction = "war_declare";
-        modalCommand = null;
-        modalTitle = "Выберите государство";
-        warTargetName = null;
-        warTargetType = null;
-        warDropdownOpen = false;
-        if (warSearch != null) {
-            warSearch.setValue("");
-            warSearch.setFocused(true);
-            warSearch.visible = true;
-        }
-        updateTradeInputVisibility();
+        Minecraft.getInstance().setScreen(new WarDeclarationScreen(snapshot, this));
     }
 
     private void drawWarDialog(
