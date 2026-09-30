@@ -13,9 +13,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 /** Player-facing declaration of war. War creation is intentionally centralized here. */
 public final class MilitaryWarDeclarationService {
-    private static final long WAR_DECLARATION_READINESS_COST = 7L;
-    private static final long MILLENAIRE_WAR_COST = 150L;
-    private static final double MIN_READINESS = 35.0D;
 
     private MilitaryWarDeclarationService() {}
 
@@ -54,31 +51,6 @@ public final class MilitaryWarDeclarationService {
             return fail("Эти государства уже находятся в состоянии войны.");
         }
 
-        if (MilitaryEconomyService.readiness(server, attacker) < MIN_READINESS) {
-            return fail("Недостаточная военная готовность. Нужно не менее "
-                + (int) MIN_READINESS + "%.");
-        }
-
-        if (ru.zela.politicseconomy.economy.NationalMaterialConsumptionService
-            .getLedger(server).hasAnyDebt(attacker)) {
-            return fail("Нельзя начать войну при непогашенном материальном долге.");
-        }
-
-        if (MillenaireIntegration.isStateKey(attacker)) {
-            var snapshot = MillenaireIntegration.snapshotForStateKey(server, attacker);
-            if (snapshot == null) return fail("Государство Millénaire не найдено.");
-
-            long treasury = MillenaireStateSavedData.get(server)
-                .treasury(snapshot.villageId());
-
-            if (treasury < MILLENAIRE_WAR_COST) {
-                return fail("В казне недостаточно средств. Нужно $" + MILLENAIRE_WAR_COST + ".");
-            }
-
-            MillenaireStateSavedData.get(server)
-                .addTreasury(snapshot.villageId(), -MILLENAIRE_WAR_COST);
-        }
-
         long now = server.overworld().getGameTime();
         wars.startWar(
             attacker,
@@ -92,9 +64,6 @@ public final class MilitaryWarDeclarationService {
             attacker,
             now + 1200L
         );
-
-        MilitaryReadinessSavedData.get(server)
-            .reduceReadiness(attacker, WAR_DECLARATION_READINESS_COST);
 
         MilitaryDiplomacyBridge.setWar(server, attacker, defender);
 
@@ -118,7 +87,7 @@ public final class MilitaryWarDeclarationService {
             now,
             "ВОЙНА",
             attackerName + " объявляет войну " + defenderDisplayName,
-            "Война началась. Войсковое снабжение и военная готовность будут снижаться по мере боевых раундов."
+            "Война началась. Последствия, снабжение и потери будут формироваться уже в ходе боевых раундов."
         );
 
         return new Result(
