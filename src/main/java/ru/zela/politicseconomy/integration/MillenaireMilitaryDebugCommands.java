@@ -35,16 +35,7 @@ public final class MillenaireMilitaryDebugCommands {
                         .then(Commands.literal("status")
                             .executes(context -> showStatus(context.getSource())))
                         .then(Commands.literal("army")
-                            .executes(context -> showArmy(context.getSource()))
-                            .then(Commands.argument("count", com.mojang.brigadier.arguments.IntegerArgumentType.integer(1, 12))
-                                .executes(context -> mobilize(
-                                    context.getSource(),
-                                    com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(context, "count")
-                                ))))
-                        .then(Commands.literal("combatapi")
-                            .executes(context -> showCombatApi(context.getSource())))
-                        .then(Commands.literal("raidstatus")
-                            .executes(context -> showRaidStatus(context.getSource())))
+                            .executes(context -> showArmy(context.getSource())))
                         .then(Commands.literal("readiness")
                             .executes(context -> showReadiness(context.getSource()))
                             .then(Commands.argument("value", DoubleArgumentType.doubleArg(0.0D, 100.0D))
@@ -314,8 +305,7 @@ public final class MillenaireMilitaryDebugCommands {
                 "§7Всего найденных Millénaire NPC: §f" + report.liveEntities()
             ), false);
             source.sendSuccess(() -> Component.literal(
-                "§8Сначала используются реальные бойцы; мобилизация взрослых "
-                    + "включается только при нехватке бойцов."
+                "§8Millénaire остаётся источником военной статистики; бой ведёт PoliticsEconomy."
             ), false);
             return 1;
         } catch (Exception e) {
@@ -326,126 +316,7 @@ public final class MillenaireMilitaryDebugCommands {
         }
     }
 
-    private static int mobilize(CommandSourceStack source, int count) {
-        try {
-            ServerPlayer player = source.getPlayerOrException();
-            MillenaireIntegration.VillageSnapshot current = currentVillage(player);
-            if (current == null) {
-                source.sendFailure(Component.literal(
-                    "Ты должен находиться на территории поселения Millénaire."
-                ));
-                return 0;
-            }
 
-            int spawned = MillenaireCombatBridge.mobilizeForWar(
-                player.server,
-                current,
-                count
-            );
-
-            source.sendSuccess(() -> Component.literal(
-                "§aМобилизация: §fсоздано бойцов " + spawned
-                    + "§a из запрошенных §f" + count
-            ), true);
-            return spawned > 0 ? 1 : 0;
-        } catch (Exception e) {
-            source.sendFailure(Component.literal(
-                "Не удалось мобилизовать бойцов."
-            ));
-            return 0;
-        }
-    }
-
-    private static int showCombatApi(CommandSourceStack source) {
-        try {
-            ServerPlayer player = source.getPlayerOrException();
-            MillenaireIntegration.VillageSnapshot current = currentVillage(player);
-            if (current == null) {
-                source.sendFailure(Component.literal(
-                    "Ты должен находиться на территории поселения Millénaire."
-                ));
-                return 0;
-            }
-
-            List<String> methods = MillenaireCombatBridge.discoverCombatApi(
-                player.server,
-                current.stateKey()
-            );
-
-            source.sendSuccess(() -> Component.literal(
-                "§6=== Millénaire combat API ==="
-            ), false);
-
-            if (methods.isEmpty()) {
-                source.sendFailure(Component.literal(
-                    "В публичных методах Village не найдено raid/relation/combat API."
-                ));
-                return 0;
-            }
-
-            for (String method : methods) {
-                source.sendSuccess(
-                    () -> Component.literal("§7" + method),
-                    false
-                );
-            }
-            return 1;
-        } catch (Exception e) {
-            source.sendFailure(Component.literal(
-                "Не удалось прочитать combat API."
-            ));
-            return 0;
-        }
-    }
-
-    private static int showRaidStatus(CommandSourceStack source) {
-        try {
-            ServerPlayer player = source.getPlayerOrException();
-            MillenaireIntegration.VillageSnapshot current = currentVillage(player);
-            if (current == null) {
-                source.sendFailure(Component.literal(
-                    "Ты должен находиться на территории поселения Millénaire."
-                ));
-                return 0;
-            }
-
-            MillenaireCombatBridge.RaidStatus status =
-                MillenaireCombatBridge.raidStatus(
-                    player.server,
-                    current.stateKey()
-                );
-
-            source.sendSuccess(() -> Component.literal(
-                "§6=== Состояние рейда ==="
-            ), false);
-            source.sendSuccess(() -> Component.literal(
-                "§7Поселение: §f" + current.name()
-            ), false);
-            source.sendSuccess(() -> Component.literal(
-                "§7Отношение к цели: §f" + status.relation()
-            ), false);
-            source.sendSuccess(() -> Component.literal(
-                "§7Цель рейда: §f"
-                    + (status.target().isBlank() ? "нет" : status.target())
-            ), false);
-            source.sendSuccess(() -> Component.literal(
-                "§7Планирование рейда: §f" + status.planningStart()
-            ), false);
-            source.sendSuccess(() -> Component.literal(
-                "§7Начало рейда: §f" + status.start()
-                    + " §8(gameTime=" + status.startGameTime() + ")"
-            ), false);
-            source.sendSuccess(() -> Component.literal(
-                "§7Сила рейда: §f" + status.strength()
-            ), false);
-            return 1;
-        } catch (Exception e) {
-            source.sendFailure(Component.literal(
-                "Не удалось прочитать состояние рейда."
-            ));
-            return 0;
-        }
-    }
 
     private static int showReadiness(CommandSourceStack source) {
         try {
@@ -538,22 +409,12 @@ public final class MillenaireMilitaryDebugCommands {
                 return 0;
             }
 
-            MillenaireCombatBridge.Result nativeResult =
-                MillenaireCombatBridge.startWar(
-                    player.server,
-                    attacker.stateKey(),
-                    defender.stateKey()
-                );
-
             source.sendSuccess(() -> Component.literal(
                 "§cDebug-война начата: §f"
                     + attacker.name() + " §c→ §f" + defender.name()
             ), true);
             source.sendSuccess(() -> Component.literal(
-                "§7Millénaire raid: §f"
-                    + nativeResult.detail()
-                    + " §8(relation=" + nativeResult.relationChanged()
-                    + ", raid=" + nativeResult.raidTriggered() + ")"
+                "§7Система войны: §fPoliticsEconomy native"
             ), false);
             return 1;
         } catch (Exception e) {
