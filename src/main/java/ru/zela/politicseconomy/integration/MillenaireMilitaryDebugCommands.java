@@ -34,6 +34,10 @@ public final class MillenaireMilitaryDebugCommands {
                             .executes(context -> showNeighbors(context.getSource())))
                         .then(Commands.literal("status")
                             .executes(context -> showStatus(context.getSource())))
+                        .then(Commands.literal("army")
+                            .executes(context -> showArmy(context.getSource())))
+                        .then(Commands.literal("combatapi")
+                            .executes(context -> showCombatApi(context.getSource())))
                         .then(Commands.literal("readiness")
                             .executes(context -> showReadiness(context.getSource()))
                             .then(Commands.argument("value", DoubleArgumentType.doubleArg(0.0D, 100.0D))
@@ -266,6 +270,93 @@ public final class MillenaireMilitaryDebugCommands {
             return 1;
         } catch (Exception e) {
             source.sendFailure(Component.literal("Команда доступна только игроку."));
+            return 0;
+        }
+    }
+
+    private static int showArmy(CommandSourceStack source) {
+        try {
+            ServerPlayer player = source.getPlayerOrException();
+            MillenaireIntegration.VillageSnapshot current = currentVillage(player);
+            if (current == null) {
+                source.sendFailure(Component.literal(
+                    "Ты должен находиться на территории поселения Millénaire."
+                ));
+                return 0;
+            }
+
+            MillenaireCombatBridge.ArmyReport report =
+                MillenaireCombatBridge.armyReport(player.server, current);
+
+            source.sendSuccess(() -> Component.literal(
+                "§6=== Армия Millénaire ==="
+            ), false);
+            source.sendSuccess(() -> Component.literal(
+                "§7Поселение: §f" + current.name()
+            ), false);
+            source.sendSuccess(() -> Component.literal(
+                "§7Военные рабочие экономики: §f" + report.roleRecords()
+            ), false);
+            source.sendSuccess(() -> Component.literal(
+                "§7Живые военные NPC: §f" + report.liveMilitary()
+            ), false);
+            source.sendSuccess(() -> Component.literal(
+                "§7Живые взрослые NPC: §f" + report.liveAdults()
+            ), false);
+            source.sendSuccess(() -> Component.literal(
+                "§7Всего найденных Millénaire NPC: §f" + report.liveEntities()
+            ), false);
+            source.sendSuccess(() -> Component.literal(
+                "§8Сначала используются реальные бойцы; мобилизация взрослых "
+                    + "включается только при нехватке бойцов."
+            ), false);
+            return 1;
+        } catch (Exception e) {
+            source.sendFailure(Component.literal(
+                "Не удалось получить состав армии."
+            ));
+            return 0;
+        }
+    }
+
+    private static int showCombatApi(CommandSourceStack source) {
+        try {
+            ServerPlayer player = source.getPlayerOrException();
+            MillenaireIntegration.VillageSnapshot current = currentVillage(player);
+            if (current == null) {
+                source.sendFailure(Component.literal(
+                    "Ты должен находиться на территории поселения Millénaire."
+                ));
+                return 0;
+            }
+
+            List<String> methods = MillenaireCombatBridge.discoverCombatApi(
+                player.server,
+                current.stateKey()
+            );
+
+            source.sendSuccess(() -> Component.literal(
+                "§6=== Millénaire combat API ==="
+            ), false);
+
+            if (methods.isEmpty()) {
+                source.sendFailure(Component.literal(
+                    "В публичных методах Village не найдено raid/relation/combat API."
+                ));
+                return 0;
+            }
+
+            for (String method : methods) {
+                source.sendSuccess(
+                    () -> Component.literal("§7" + method),
+                    false
+                );
+            }
+            return 1;
+        } catch (Exception e) {
+            source.sendFailure(Component.literal(
+                "Не удалось прочитать combat API."
+            ));
             return 0;
         }
     }
