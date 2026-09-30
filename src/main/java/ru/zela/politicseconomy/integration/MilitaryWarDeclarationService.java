@@ -9,7 +9,6 @@ import net.minecraft.world.level.ChunkPos;
 import ru.zela.politicseconomy.economyui.CountryDirectoryService;
 import ru.zela.politicseconomy.event.NewsService;
 
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
 /** Player-facing declaration of war. War creation is intentionally centralized here. */
