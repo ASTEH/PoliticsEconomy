@@ -164,7 +164,7 @@ public final class GroundWarService {
         MilitaryWarSavedData.War war
     ) {
         String tag = partyTag(war, false);
-        Set<Mob> result = new HashSet<>();
+        Set<LivingEntity> result = new HashSet<>();
 
         for (Mob mob : candidates(
             level,
@@ -173,7 +173,7 @@ public final class GroundWarService {
             state.center().getZ(),
             RALLY_RADIUS
         )) {
-            if (!isMillenaireMob(mob) || !isInVillage(mob, state)) continue;
+            if (!isMillenaireLivingEntity(mob) || !isInVillage(mob, state)) continue;
             if (mob.getTags().contains(tag)) result.add(mob);
         }
 
