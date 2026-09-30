@@ -98,7 +98,7 @@ public final class WarDeclarationScreen extends Screen {
         int panelRight = panelLeft + panelWidth;
 
         int panelBottom = dropdownOpen
-            ? Math.min(height - 28, 540)
+            ? Math.min(height - 28, Math.max(520, height - 40))
             : Math.min(height - 28, 390);
 
         g.fill(panelLeft, panelTop, panelRight, panelBottom, PANEL);
@@ -117,7 +117,6 @@ public final class WarDeclarationScreen extends Screen {
         );
 
         g.drawString(font, "ПОИСК", panelLeft + 28, 92, MUTED, true);
-        search.render(g, mouseX, mouseY, partialTick);
 
         drawSelector(g, mouseX, mouseY, panelLeft, panelRight);
 
@@ -125,7 +124,13 @@ public final class WarDeclarationScreen extends Screen {
             drawDropdown(g, mouseX, mouseY, panelLeft, panelRight);
         }
 
-        int infoTop = dropdownOpen ? 400 : 235;
+        int infoTop;
+        if (dropdownOpen) {
+            int visibleRows = Math.min(8, Math.max(1, (height - 250) / 34));
+            infoTop = 190 + visibleRows * 34 + 14;
+        } else {
+            infoTop = 235;
+        }
         drawInfo(g, panelLeft + 28, infoTop, panelRight - 28);
 
         int buttonsY = panelBottom - 48;
@@ -379,7 +384,7 @@ public final class WarDeclarationScreen extends Screen {
         int right = left + panelWidth;
 
         int panelBottom = dropdownOpen
-            ? Math.min(height - 28, 540)
+            ? Math.min(height - 28, Math.max(520, height - 40))
             : Math.min(height - 28, 390);
 
         int buttonsY = panelBottom - 48;
