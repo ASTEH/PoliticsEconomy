@@ -73,7 +73,8 @@ public final class MaintenanceService {
             InfrastructureManager.CountryInfrastructureStats stats =
                 InfrastructureManager.getCountryStats(server, countryName);
 
-            double maintenance = Math.max(0.0, stats.adjustedMaintenance());
+            double developmentMultiplier = developmentMaintenanceMultiplier(server, countryName);
+            double maintenance = Math.max(0.0, stats.adjustedMaintenance() * developmentMultiplier);
             chargeState(server, ledger, countryName, maintenance, Math.max(0, country.balance),
                 amount -> country.balance = amount);
         }
@@ -110,6 +111,26 @@ public final class MaintenanceService {
 
         politics.saveData();
         ledger.setDirty();
+    }
+
+    /**
+     * New countries need room to accumulate capital before full infrastructure
+     * upkeep applies. Costs grow gradually with economic development.
+     */
+    private static double developmentMaintenanceMultiplier(
+        MinecraftServer server,
+        String countryName
+    ) {
+        int level = ru.zela.politicseconomy.country.CountryDevelopmentService
+            .level(server, countryName);
+
+        return switch (Math.max(1, Math.min(5, level))) {
+            case 1 -> 0.45D;
+            case 2 -> 0.65D;
+            case 3 -> 0.82D;
+            case 4 -> 0.95D;
+            default -> 1.00D;
+        };
     }
 
     private static void chargeState(
