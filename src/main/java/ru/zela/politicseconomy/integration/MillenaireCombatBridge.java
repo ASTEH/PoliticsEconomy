@@ -69,10 +69,12 @@ public final class MillenaireCombatBridge {
 
         Object existingTarget = invoke(attacker, "getRaidTarget");
         if (sameId(existingTarget, defenderId)) {
+            boolean active =
+                longValue(invoke(attacker, "getRaidStart")) > 0L;
             return new Result(
                 true,
-                true,
-                longValue(invoke(attacker, "getRaidStart")) > 0L
+                active,
+                active
                     ? "native_raid_already_active"
                     : "native_raid_planned"
             );
