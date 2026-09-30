@@ -138,7 +138,7 @@ public final class GroundWarService {
 
         int limit = partySize(state, level.getServer(), true);
         if (result.size() < limit) {
-            for (Mob mob : candidates(
+            for (LivingEntity mob : candidates(
                 level,
                 state.center().getX(),
                 state.center().getY(),
@@ -187,7 +187,7 @@ public final class GroundWarService {
                 RALLY_RADIUS
             )) {
                 if (result.size() >= limit) break;
-                if (!isMillenaireMob(mob) || !mob.isAlive()) continue;
+                if (!isMillenaireLivingEntity(mob) || !mob.isAlive()) continue;
                 if (!isInVillage(mob, state)) continue;
                 if (mob.getTags().stream().anyMatch(existing -> existing.startsWith(PARTY_PREFIX))) continue;
 
@@ -232,7 +232,7 @@ public final class GroundWarService {
     }
 
     private static boolean isInVillage(
-        Mob mob,
+        LivingEntity entity,
         MillenaireIntegration.VillageSnapshot state
     ) {
         return state.territory().contains(new ChunkPos(entity.blockPosition()));
