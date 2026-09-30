@@ -10,6 +10,7 @@
     "FoundingStoneBlockMixin",
     "PoliticsManagerTerritoryMixin",
     "ClaimLandPayloadMixin",
+    "CreateCountryPayloadMixin",
     "ResidentialBuildingBlockMixin",
     "MarketDataPayloadMixin",
     "SequencedAssemblyRecipeMixin",
