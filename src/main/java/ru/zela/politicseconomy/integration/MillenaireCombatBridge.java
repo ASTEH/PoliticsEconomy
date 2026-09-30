@@ -7,18 +7,17 @@ import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.phys.AABB;
 
 import java.lang.reflect.Method;
-import java.util.HashSet;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
 /**
- * Optional bridge to Millénaire's native diplomacy/raid system.
+ * Reflection bridge to the native Millénaire village relation and raid state.
  *
- * <p>Millénaire 9.x already contains village-versus-village raids. We use
- * reflection because PoliticsEconomy intentionally has no compile-time
- * dependency on Millénaire's classes.</p>
+ * <p>PoliticsEconomy does not depend on Millénaire at compile time, so all
+ * interaction with Village is performed reflectively.</p>
  */
 public final class MillenaireCombatBridge {
     private MillenaireCombatBridge() {}
@@ -27,6 +26,22 @@ public final class MillenaireCombatBridge {
         boolean relationChanged,
         boolean raidTriggered,
         String detail
+    ) {}
+
+    public record ArmyReport(
+        int roleRecords,
+        int liveMilitary,
+        int liveAdults,
+        int liveEntities
+    ) {}
+
+    public record RaidStatus(
+        int relation,
+        long planningStart,
+        long start,
+        long startGameTime,
+        int strength,
+        String target
     ) {}
 
     public static Result startWar(
@@ -52,8 +67,7 @@ public final class MillenaireCombatBridge {
         }
 
         Object existingTarget = invoke(attacker, "getRaidTarget");
-        if (existingTarget != null
-            && existingTarget.toString().equals(defenderId.toString())
+        if (sameId(existingTarget, defenderId)
             && longValue(invoke(attacker, "getRaidStart")) > 0L) {
             return new Result(true, true, "native_raid_already_active");
         }
@@ -80,13 +94,6 @@ public final class MillenaireCombatBridge {
         return new Result(relationChanged, raidTriggered, detail);
     }
 
-    public record ArmyReport(
-        int roleRecords,
-        int liveMilitary,
-        int liveAdults,
-        int liveEntities
-    ) {}
-
     public static ArmyReport armyReport(
         MinecraftServer server,
         MillenaireIntegration.VillageSnapshot state
@@ -111,8 +118,12 @@ public final class MillenaireCombatBridge {
             double minX = chunk.getMinBlockX();
             double minZ = chunk.getMinBlockZ();
             AABB box = new AABB(
-                minX, level.getMinBuildHeight(), minZ,
-                minX + 16.0D, level.getMaxBuildHeight(), minZ + 16.0D
+                minX,
+                level.getMinBuildHeight(),
+                minZ,
+                minX + 16.0D,
+                level.getMaxBuildHeight(),
+                minZ + 16.0D
             );
 
             for (LivingEntity entity : level.getEntitiesOfClass(
@@ -122,13 +133,19 @@ public final class MillenaireCombatBridge {
                     && isMillenaireEntity(candidate)
             )) {
                 if (!seen.add(entity.getUUID())) continue;
+
                 entities++;
                 if (isMilitaryEntity(entity)) military++;
                 if (isAdult(entity)) adults++;
             }
         }
 
-        return new ArmyReport(roleRecords, military, adults, entities);
+        return new ArmyReport(
+            roleRecords,
+            military,
+            adults,
+            entities
+        );
     }
 
     public static List<String> discoverCombatApi(
@@ -145,53 +162,56 @@ public final class MillenaireCombatBridge {
                 || name.contains("relation")
                 || name.contains("fight")
                 || name.contains("combat")
-            private static boolean setHostileRelation(
+                || name.contains("guard")
+                || name.contains("escort")
+                || name.contains("fighter")) {
+                methods.add(signature(method));
+            }
+        }
+
+        methods.sort(String::compareTo);
+        return List.copyOf(methods);
+    }
+
+    public static RaidStatus raidStatus(
+        MinecraftServer server,
+        String stateKey
+    ) {
+        Object village = MillenaireIntegration.liveVillage(server, stateKey);
+        if (village == null) {
+            return new RaidStatus(0, 0L, 0L, 0L, 0, "");
+        }
+
+        Object targetId = invoke(village, "getRaidTarget");
+        Object relation = targetId == null
+            ? null
+            : invoke(village, "getRelation", targetId);
+
+        return new RaidStatus(
+            intValue(relation),
+            longValue(invoke(village, "getRaidPlanningStart")),
+            longValue(invoke(village, "getRaidStart")),
+            longValue(invoke(village, "getRaidStartGameTime")),
+            intValue(invoke(village, "getVillageRaidStrength")),
+            targetId == null ? "" : targetId.toString()
+        );
+    }
+
+    private static boolean setHostileRelation(
         ServerLevel level,
         Object attacker,
         Object defender,
         Object defenderId
     ) {
-        int relationBefore = intValue(invoke(attacker, "getRelation", defenderId));
-
-        boolean updated = false;
-        Object direct = invoke(attacker, "setRelation", defenderId, -100);
-        if (direct != null || relationBefore <= -20) {
-            updated = true;
-        }
-
-        for (Method method : attacker.getClass().getMethods()) {
-            if (!method.getName().equals("adjustRelationSymmetric")
-                || method.getParameterCount() != 4) {
-                continue;
-            }
-
-            Class<?>[] params = method.getParameterTypes();
-            if (!ServerLevel.class.isAssignableFrom(params[0])
-                || !wrap(params[1]).isInstance(defenderId)
-                || wrap(params[2]) != Integer.class
-                || wrap(params[3]) != Boolean.class) {
-                continue;
-            }
-
-            try {
-                int current = intValue(invoke(attacker, "getRelation", defenderId));
-                int delta = -100 - current;
-                if (delta < 0) {
-                    method.invoke(attacker, level, defenderId, delta, true);
-                }
-                updated = intValue(invoke(attacker, "getRelation", defenderId)) <= -20;
-                break;
-            } catch (Throwable ignored) {
-            }
-        }
+        invoke(attacker, "setRelation", defenderId, -100);
 
         Object attackerId = invoke(attacker, "getId");
         if (attackerId != null) {
             invoke(defender, "setRelation", attackerId, -100);
         }
 
-        return updated
-            || intValue(invoke(attacker, "getRelation", defenderId)) <= -20;
+        int relation = intValue(invoke(attacker, "getRelation", defenderId));
+        return relation <= -20;
     }
 
     private static boolean triggerImmediateRaid(
@@ -208,12 +228,10 @@ public final class MillenaireCombatBridge {
 
             Object target = invoke(attacker, "getRaidTarget");
             long raidStart = longValue(invoke(attacker, "getRaidStart"));
-            long planningStart = longValue(
-                invoke(attacker, "getRaidPlanningStart")
-            );
+            long planningStart =
+                longValue(invoke(attacker, "getRaidPlanningStart"));
 
-            return target != null
-                && target.toString().equals(defenderId.toString())
+            return sameId(target, defenderId)
                 && raidStart == gameTime
                 && planningStart == gameTime;
         } catch (Throwable ignored) {
@@ -221,66 +239,18 @@ public final class MillenaireCombatBridge {
         }
     }
 
-t defender
-    ) {
-        Object target = invoke(attacker, "getRaidTarget");
-        if (target == null) return false;
-
-        Object defenderId = invoke(defender, "getId");
-        return defenderId != null
-            && target.toString().equals(defenderId.toString());
-    }
-
-    public record RaidStatus(
-        int relation,
-        long planningStart,
-        long start,
-        long startGameTime,
-        int strength,
-        String target
-    ) {}
-
-    public static RaidStatus raidStatus(
-        MinecraftServer server,
-        String stateKey
-    ) {
-        Object village = MillenaireIntegration.liveVillage(server, stateKey);
-        if (village == null) {
-            return new RaidStatus(0, 0L, 0L, 0L, 0, "");
-        }
-
-        Object targetId = invoke(village, "getRaidTarget");
-        Object relation = null;
-        if (targetId != null) {
-            relation = invoke(village, "getRelation", targetId);
-        }
-
-        return new RaidStatus(
-            relation instanceof Number ? ((Number) relation).intValue() : 0,
-            longValue(invoke(village, "getRaidPlanningStart")),
-            longValue(invoke(village, "getRaidStart")),
-            longValue(invoke(village, "getRaidStartGameTime")),
-            intValue(invoke(village, "getVillageRaidStrength")),
-            targetId == null ? "" : targetId.toString()
-        );
-    }
-
-    private static long longValue(Object value) {
-        return value instanceof Number ? ((Number) value).longValue() : 0L;
-    }
-
-    private static int intValue(Object value) {
-        return value instanceof Number ? ((Number) value).intValue() : 0;
-    }
-
     private static boolean isMillenaireEntity(LivingEntity entity) {
         if (entity == null) return false;
-        String className = entity.getClass().getName().toLowerCase(java.util.Locale.ROOT);
+
+        String className =
+            entity.getClass().getName().toLowerCase(java.util.Locale.ROOT);
         if (className.startsWith("org.millenaire.")) return true;
 
         try {
-            var key = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE
-                .getKey(entity.getType());
+            var key =
+                net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE
+                    .getKey(entity.getType());
+
             return key != null && "millenaire".equals(key.getNamespace());
         } catch (Throwable ignored) {
             return false;
@@ -291,12 +261,14 @@ t defender
         StringBuilder text = new StringBuilder()
             .append(entity.getClass().getName()).append(' ')
             .append(String.valueOf(invoke(entity, "getRoleName"))).append(' ')
-            .append(String.valueOf(invoke(entity, "getVillagerTypeId")))
-            .append(' ')
+            .append(String.valueOf(invoke(entity, "getVillagerTypeId"))).append(' ')
             .append(String.valueOf(invoke(entity, "getTypeId")));
 
         Object record = invoke(entity, "getVillagerRecord");
-        if (record == null) record = invoke(entity, "getRecord");
+        if (record == null) {
+            record = invoke(entity, "getRecord");
+        }
+
         if (record != null) {
             text.append(' ')
                 .append(String.valueOf(invoke(record, "getRoleName")))
@@ -305,6 +277,7 @@ t defender
         }
 
         String value = text.toString().toLowerCase(java.util.Locale.ROOT);
+
         return value.contains("soldier")
             || value.contains("guard")
             || value.contains("warrior")
@@ -314,69 +287,83 @@ t defender
 
     private static boolean isAdult(LivingEntity entity) {
         Object baby = invoke(entity, "isBaby");
-        if (baby instanceof Boolean) return !((Boolean) baby);
+        if (baby instanceof Boolean value) {
+            return !value;
+        }
 
-        String value = entity.getClass().getName().toLowerCase(java.util.Locale.ROOT);
+        String value =
+            entity.getClass().getName().toLowerCase(java.util.Locale.ROOT);
+
         return !value.contains("child")
             && !value.contains("boy")
             && !value.contains("girl");
     }
 
-    private static Object invoke(Object target, String name, Object... args) {
+    private static boolean sameId(Object a, Object b) {
+        return a != null
+            && b != null
+            && a.toString().equals(b.toString());
+    }
+
+    private static long longValue(Object value) {
+        return value instanceof Number number
+            ? number.longValue()
+            : 0L;
+    }
+
+    private static int intValue(Object value) {
+        return value instanceof Number number
+            ? number.intValue()
+            : 0;
+    }
+
+    private static Object invoke(
+        Object target,
+        String name,
+        Object... args
+    ) {
         if (target == null) return null;
+
         try {
             for (Method method : target.getClass().getMethods()) {
                 if (!method.getName().equals(name)
-                    || method.getParameterCount() != args.length) continue;
+                    || method.getParameterCount() != args.length) {
+                    continue;
+                }
 
                 Class<?>[] params = method.getParameterTypes();
                 boolean compatible = true;
+
                 for (int i = 0; i < params.length; i++) {
                     if (args[i] == null) continue;
+
                     if (!wrap(params[i]).isInstance(args[i])) {
                         compatible = false;
                         break;
                     }
                 }
-                if (compatible) return method.invoke(target, args);
-            }
-        } catch (Throwable ignored) {
-        }
-        return null;
-    }
 
-    private static UUID villageUuid(Object village) {
-        if (village == null) return null;
-
-        try {
-            for (Method method : village.getClass().getMethods()) {
-                if (!method.getName().equals("getId")
-                    || method.getParameterCount() != 0) continue;
-
-                Object id = method.invoke(village);
-                if (id instanceof UUID uuid) return uuid;
-
-                if (id != null) {
-                    for (Method sub : id.getClass().getMethods()) {
-                        if (!sub.getName().equals("uuid")
-                            || sub.getParameterCount() != 0) continue;
-                        Object uuid = sub.invoke(id);
-                        if (uuid instanceof UUID value) return value;
-                    }
+                if (compatible) {
+                    return method.invoke(target, args);
                 }
             }
         } catch (Throwable ignored) {
         }
+
         return null;
     }
 
     private static String signature(Method method) {
-        StringBuilder result = new StringBuilder(method.getName()).append('(');
+        StringBuilder result =
+            new StringBuilder(method.getName()).append('(');
+
         Class<?>[] parameters = method.getParameterTypes();
+
         for (int i = 0; i < parameters.length; i++) {
             if (i > 0) result.append(", ");
             result.append(parameters[i].getSimpleName());
         }
+
         return result.append(')').toString();
     }
 
