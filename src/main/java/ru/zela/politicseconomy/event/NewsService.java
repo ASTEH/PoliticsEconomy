@@ -14,5 +14,6 @@ public final class NewsService {
         String body
     ) {
         NewsSavedData.get(server).add(tick, category, title, body);
+        ru.zela.politicseconomy.network.EconomyNetwork.refreshAllOnlinePlayers(server);
     }
 }
