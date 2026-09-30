@@ -93,6 +93,7 @@ public final class XaeroPoliticalMapOverlay {
 
         drawQuads(graphics, quads);
         drawBorders(graphics, borders);
+        drawEventMarkers(screen, graphics, state);
     }
 
     private static void drawQuads(GuiGraphics graphics, List<Quad> quads) {
@@ -121,6 +122,66 @@ public final class XaeroPoliticalMapOverlay {
                 line.color()
             );
         }
+    }
+
+    private static void drawEventMarkers(
+        Screen screen,
+        GuiGraphics graphics,
+        MapState state
+    ) {
+        long now = Minecraft.getInstance().level == null
+            ? 0L
+            : Minecraft.getInstance().level.getGameTime();
+
+        for (PoliticalClaimsClientState.EventMarker marker
+            : PoliticalClaimsClientState.eventSnapshot()) {
+            if (marker.expiresAt() <= now) continue;
+
+            int sx = state.worldToScreenX(marker.x());
+            int sz = state.worldToScreenY(marker.z());
+            if (sx < -24 || sx > screen.width + 24
+                || sz < -24 || sz > screen.height + 24) {
+                continue;
+            }
+
+            int color = eventColor(marker.type());
+            boolean pulse = ((now / 8L) & 1L) == 0L;
+            int radius = pulse ? 5 : 4;
+
+            graphics.fill(sx - radius - 1, sz - radius - 1,
+                sx + radius + 2, sz + radius + 2, 0x66000000);
+            graphics.fill(sx - radius, sz - radius,
+                sx + radius + 1, sz + radius + 1, color);
+
+            String symbol = eventSymbol(marker.type());
+            graphics.drawCenteredString(
+                Minecraft.getInstance().font,
+                symbol,
+                sx,
+                sz - 4,
+                0xFFFFFFFF
+            );
+        }
+    }
+
+    private static int eventColor(String type) {
+        return switch (type) {
+            case "БЕДСТВИЕ" -> 0xFFE34A4A;
+            case "ЭКОНОМИКА" -> 0xFF52C878;
+            case "ОБЩЕСТВО" -> 0xFFFFC857;
+            case "РЫНОК" -> 0xFF4BA3FF;
+            default -> 0xFFB8C4D6;
+        };
+    }
+
+    private static String eventSymbol(String type) {
+        return switch (type) {
+            case "БЕДСТВИЕ" -> "!";
+            case "ЭКОНОМИКА" -> "$";
+            case "ОБЩЕСТВО" -> "?";
+            case "РЫНОК" -> "↕";
+            default -> "•";
+        };
     }
 
     private static long chunkKey(int x, int z) {
