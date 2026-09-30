@@ -150,11 +150,9 @@ public final class TerritoryService {
             return fail(player, "У тебя уже есть государство.");
         }
 
-        if (!player.chunkPosition().equals(new ChunkPos(payloadCenter))) {
-            return fail(player, "Столицу можно основать только в текущем чанке.");
-        }
-
-        ChunkPos center = new ChunkPos(payloadCenter);
+        // The client payload can be stale around chunk borders. The server
+        // always treats the player's real current chunk as the capital chunk.
+        ChunkPos center = player.chunkPosition();
         for (int x = -2; x <= 2; x++) {
             for (int z = -2; z <= 2; z++) {
                 if (politics.getCountryNameAt(new ChunkPos(center.x + x, center.z + z)) != null) {
@@ -192,9 +190,13 @@ public final class TerritoryService {
     }
 
     public static void handleCreateCountry(ServerPlayer player, BlockPos payloadCenter, String countryName) {
-        if (!canCreateCountry(player, payloadCenter)) return;
+        // Ignore stale client coordinates and found the capital at the player's
+        // actual position. This removes false "current chunk" errors at chunk
+        // borders while keeping the capital inside the player's current chunk.
+        BlockPos actualCenter = player.blockPosition();
+        if (!canCreateCountry(player, actualCenter)) return;
 
-        PoliticsManager.createCountry(player.serverLevel(), payloadCenter, player, countryName);
+        PoliticsManager.createCountry(player.serverLevel(), actualCenter, player, countryName);
 
         PoliticsManager politics = PoliticsManager.get(player.serverLevel());
         String createdCountry = politics == null
@@ -208,13 +210,8 @@ public final class TerritoryService {
                 player.getServer(), createdCountry
             );
 
-            ItemStack beds = new ItemStack(net.minecraft.world.item.Items.WHITE_BED, 4);
-            if (!player.getInventory().add(beds)) {
-                player.drop(beds, false);
-            }
-
             player.sendSystemMessage(Component.literal(
-                "Государство основано: 4 жителя зарегистрированы. "
+                "Государство основано: 4 жителя созданы. "
                     + "Тебе выданы 4 кровати — они определяют доступное жильё."
             ).withStyle(ChatFormatting.GREEN));
         }
