@@ -7,6 +7,7 @@ import ru.zela.politicseconomy.research.CountryResearchService;
 import ru.zela.politicseconomy.country.CountryWorkforceService;
 import ru.zela.politicseconomy.country.WorkforceSector;
 import ru.zela.politicseconomy.economy.NationalMaterialConsumptionService;
+import ru.zela.politicseconomy.event.NewsService;
 
 import java.util.Comparator;
 import java.util.List;
@@ -134,6 +135,22 @@ public final class GroundWarService {
             && defenderPower > attackerPower * 1.20D) {
             resolveVictory(server, wars, war, false);
             return;
+        }
+
+        if (elapsedRounds > 0L && elapsedRounds % 20L == 0L) {
+            String attackerName = MillenaireIntegration.displayName(server, war.attacker());
+            String defenderName = MillenaireIntegration.displayName(server, war.defender());
+            NewsService.add(
+                server,
+                now,
+                "ВОЙНА",
+                "Сводка фронта: " + attackerName + " — " + defenderName,
+                "Раунд " + elapsedRounds
+                    + ". Военная готовность: "
+                    + Math.round(readiness.readiness(war.attacker())) + "% / "
+                    + Math.round(readiness.readiness(war.defender())) + "%. "
+                    + "Боевые действия продолжаются."
+            );
         }
 
         if (elapsedRounds >= 120L) {
