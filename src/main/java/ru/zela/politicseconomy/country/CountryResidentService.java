@@ -347,6 +347,7 @@ public final class CountryResidentService {
             return;
         }
 
+        if (!targetCountry.equals(currentCountry)) {
             if (currentCountry != null) {
                 data.removeResident(currentCountry, villager.getUUID());
             }
