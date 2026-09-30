@@ -13,11 +13,9 @@ import net.minecraft.core.particles.ParticleTypes;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import ru.zela.politicseconomy.country.CountryDevelopmentService;
 import ru.zela.politicseconomy.integration.CountryContext;
-import ru.zela.politicseconomy.integration.MilitaryEconomyService;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
