@@ -165,7 +165,7 @@ public final class CountryPopulationService {
         double requiredRaw =
             data.getFoodRemainder(countryName)
                 + residents * FOOD_PER_RESIDENT_PER_CYCLE;
-        int requiredFood = Math.max(1, (int) Math.ceil(requiredRaw - 1.0E-9D));
+        int requiredFood = Math.max(0, (int) Math.floor(requiredRaw + 1.0E-9D));
         double nextRemainder = Math.max(0.0D, requiredRaw - requiredFood);
 
         int consumed = ru.zela.politicseconomy.economy.NationalMaterialConsumptionService
