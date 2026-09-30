@@ -16,13 +16,13 @@ public final class MaintenanceCalculator {
 
     public static double categoryCostPerBlock(InfrastructureCategory category) {
         return switch (category) {
-            case DECORATIVE -> 0.02;
-            case RESIDENTIAL -> 0.10;
-            case RESOURCE -> 0.20;
-            case INDUSTRIAL -> 0.80;
-            case MILITARY -> 1.50;
-            case TRANSPORT -> 0.70;
-            case ADVANCED -> 1.20;
+            case DECORATIVE -> 0.01;
+            case RESIDENTIAL -> 0.05;
+            case RESOURCE -> 0.10;
+            case INDUSTRIAL -> 0.35;
+            case MILITARY -> 0.75;
+            case TRANSPORT -> 0.30;
+            case ADVANCED -> 0.60;
         };
     }
 
