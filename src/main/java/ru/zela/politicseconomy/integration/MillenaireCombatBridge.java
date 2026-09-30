@@ -51,6 +51,13 @@ public final class MillenaireCombatBridge {
             return new Result(false, false, "defender_id_unavailable");
         }
 
+        Object existingTarget = invoke(attacker, "getRaidTarget");
+        if (existingTarget != null
+            && existingTarget.toString().equals(defenderId.toString())
+            && longValue(invoke(attacker, "getRaidStart")) > 0L) {
+            return new Result(true, true, "native_raid_already_active");
+        }
+
         boolean relationChanged = setHostileRelation(
             server.overworld(),
             attacker,
