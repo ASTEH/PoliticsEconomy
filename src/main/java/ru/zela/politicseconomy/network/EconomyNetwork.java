@@ -40,6 +40,29 @@ public final class EconomyNetwork {
             (payload, context) -> context.enqueueWork(() -> {
                 if (!(context.player() instanceof ServerPlayer player)) return;
 
+                if ("war_declare".equals(payload.action())) {
+                    String[] parts = payload.value().split("\\|", -1);
+                    if (parts.length != 2) {
+                        player.sendSystemMessage(
+                            net.minecraft.network.chat.Component.literal("Некорректная цель войны.")
+                                .withStyle(net.minecraft.ChatFormatting.RED)
+                        );
+                    } else {
+                        var result = ru.zela.politicseconomy.integration.MilitaryWarDeclarationService
+                            .declare(player, parts[0], parts[1]);
+                        player.sendSystemMessage(
+                            net.minecraft.network.chat.Component.literal(result.message())
+                                .withStyle(
+                                    result.success()
+                                        ? net.minecraft.ChatFormatting.GREEN
+                                        : net.minecraft.ChatFormatting.RED
+                                )
+                        );
+                    }
+                    refreshAllOnlinePlayers(player.getServer());
+                    return;
+                }
+
                 if ("workforce".equals(payload.action())) {
                     CountryWorkforceService.Result result =
                         CountryWorkforceService.apply(player, payload.value(), player.isCreative() && player.hasPermissions(2));
