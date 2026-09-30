@@ -488,7 +488,7 @@ public final class CountryPopulationService {
         PoliticsManager politics = PoliticsManager.get(server.overworld());
         if (politics == null || politics.getCountry(countryName) == null) return 0;
 
-        CountryResidentSavedData data = get(server);
+        CountryResidentSavedData data = CountryResidentService.get(server);
         CountryResidentService.population(server, countryName);
 
         int occupied = 0;
