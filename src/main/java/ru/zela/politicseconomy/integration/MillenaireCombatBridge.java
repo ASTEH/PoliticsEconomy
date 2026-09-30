@@ -472,12 +472,12 @@ public final class MillenaireCombatBridge {
                     case "tick" -> {
                         if (args != null && args.length == 1 && args[0] != null) {
                             Object ctx = args[0];
-                            Object villager = invoke(ctx, "villager");
-                            Object navManager = invoke(villager, "getNavManager");
+                            Object villager = MillenaireCombatBridge.invoke(ctx, "villager");
+                            Object navManager = MillenaireCombatBridge.invoke(villager, "getNavManager");
                             if (villager != null && navManager != null && target != null) {
                                 net.minecraft.core.BlockPos destination =
                                     net.minecraft.core.BlockPos.containing(target);
-                                invoke(navManager, "navigateTo", villager, destination, speed);
+                                MillenaireCombatBridge.invoke(navManager, "navigateTo", villager, destination, speed);
                             }
                         }
                         yield null;
@@ -496,7 +496,7 @@ public final class MillenaireCombatBridge {
                     case "getHeldItems", "getOffHandItems" -> List.of();
                     case "getNavDebugInfo" -> Map.of(
                         "goal", WAR_GOAL_ID.toString(),
-                        "target", target != null ? target.toShortString() : "null"
+                        "target", target != null ? target.toString() : "null"
                     );
                     case "getGoalLabel" -> null;
                     case "toString" -> "PoliticsEconomyWarTask[" + entity.getUUID() + "]";
