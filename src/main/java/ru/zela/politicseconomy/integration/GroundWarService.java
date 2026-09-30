@@ -70,6 +70,18 @@ public final class GroundWarService {
             return;
         }
 
+        // Prefer Millénaire's own raid/combat system. The custom controller
+        // is only a fallback when the native bridge is unavailable.
+        MillenaireCombatBridge.Result nativeResult =
+            MillenaireCombatBridge.startWar(
+                server,
+                war.attacker(),
+                war.defender()
+            );
+        if (nativeResult.relationChanged() || nativeResult.raidTriggered()) {
+            return;
+        }
+
         ServerLevel level = server.overworld();
         Set<LivingEntity> attackers = party(level, attacker, war);
         Set<LivingEntity> defenders = ensureDefenderParty(level, defender, war);
