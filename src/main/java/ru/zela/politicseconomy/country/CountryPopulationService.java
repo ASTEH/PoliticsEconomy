@@ -69,13 +69,13 @@ public final class CountryPopulationService {
         if (ru.zela.politicseconomy.integration.MillenaireIntegration.isStateKey(countryName)) {
             return ru.zela.politicseconomy.integration.MillenaireIntegration.population(server, countryName);
         }
+
         ensureCountryBootstrap(server, countryName);
 
-        CountryPopulationSavedData data = get(server);
         Cache cache = cache(server);
         return cache.byCountry.computeIfAbsent(
             countryName,
-            name -> data.getResidents(name)
+            name -> CountryResidentService.population(server, name)
         );
     }
 
@@ -104,7 +104,7 @@ public final class CountryPopulationService {
         ChunkPos chunk
     ) {
         if (server == null || chunk == null) return 0;
-        return get(server).getBeds(chunk.toLong());
+        return CountryResidentService.populationAtChunk(server, chunk);
     }
 
     /**
@@ -220,7 +220,7 @@ public final class CountryPopulationService {
         ensureCountryBootstrap(server, countryName);
 
         CountryPopulationSavedData data = get(server);
-        int residents = data.getResidents(countryName);
+        int residents = CountryResidentService.population(server, countryName);
         if (residents <= 0) return;
 
         int housing = housingCapacity(server, countryName);
@@ -242,17 +242,18 @@ public final class CountryPopulationService {
             data.setFedCycles(countryName, fedCycles);
 
             if (housing > residents && fedCycles >= GROWTH_FED_CYCLES) {
-                residents++;
-                data.setResidents(countryName, residents);
+                boolean spawned = CountryResidentService.spawnResidentForGrowth(server, countryName);
                 data.setFedCycles(countryName, 0);
 
-                ru.zela.politicseconomy.event.NewsService.add(
-                    server,
-                    server.overworld().getGameTime(),
-                    "ОБЩЕСТВО",
-                    countryName + ": рост населения",
-                    "Благодаря достатку еды и свободному жилью население выросло до " + residents + "."
-                );
+                if (spawned) {
+                    ru.zela.politicseconomy.event.NewsService.add(
+                        server,
+                        server.overworld().getGameTime(),
+                        "ОБЩЕСТВО",
+                        countryName + ": новый житель",
+                        "Есть свободное жильё и продовольствие. Новый житель сможет увеличить население после выбора собственной кровати."
+                    );
+                }
             }
 
             int developmentProgress = data.getDevelopmentProgress(countryName) + 1;
@@ -269,24 +270,23 @@ public final class CountryPopulationService {
             data.setStarvationCycles(countryName, starvationCycles);
 
             if (starvationCycles >= STARVATION_CYCLES_TO_LOSE_RESIDENT) {
-                residents = Math.max(1, residents - 1);
-                data.setResidents(countryName, residents);
+                boolean removed = CountryResidentService.removeOneResident(server, countryName);
                 data.setStarvationCycles(countryName, 0);
 
-                ru.zela.politicseconomy.event.NewsService.add(
-                    server,
-                    server.overworld().getGameTime(),
-                    "ОБЩЕСТВО",
-                    countryName + ": нехватка продовольствия",
-                    "Запасов еды не хватило для населения. Численность снизилась до " + residents + "."
-                );
+                if (removed) {
+                    ru.zela.politicseconomy.event.NewsService.add(
+                        server,
+                        server.overworld().getGameTime(),
+                        "ОБЩЕСТВО",
+                        countryName + ": нехватка продовольствия",
+                        "Продолжительный дефицит еды вынудил одного жителя покинуть поселение."
+                    );
+                }
             }
         }
 
-        // Keep the visible villager population synchronized with the same
-        // number that drives the economic system. Growth creates a resident;
-        // starvation removes one from the physical registry.
-        CountryResidentService.syncResidents(server, countryName);
+        // Population is derived from the villagers' actual HOME beds.
+        CountryResidentService.population(server, countryName);
 
         data.setDirty();
         invalidate(server);
@@ -488,15 +488,19 @@ public final class CountryPopulationService {
         PoliticsManager politics = PoliticsManager.get(server.overworld());
         if (politics == null || politics.getCountry(countryName) == null) return 0;
 
-        int totalBeds = 0;
-        for (Map.Entry<Long, Integer> entry : get(server).snapshot().entrySet()) {
-            ChunkPos chunk = new ChunkPos(entry.getKey());
-            Country owner = politics.getCountryAt(chunk);
-            if (owner == null || !countryName.equals(owner.getName())) continue;
-            if (!cityName.equals(politics.getCityAt(chunk))) continue;
-            totalBeds += Math.max(0, entry.getValue());
+        CountryResidentSavedData data = get(server);
+        CountryResidentService.population(server, countryName);
+
+        int occupied = 0;
+        for (long bedPos : data.occupiedBedPositions(countryName)) {
+            ChunkPos chunk = new ChunkPos(BlockPos.of(bedPos));
+            if (countryName.equals(politics.getCountryNameAt(chunk))
+                && cityName.equals(politics.getCityAt(chunk))) {
+                occupied++;
+            }
         }
-        return totalBeds;
+
+        return occupied;
     }
 
     private static Cache cache(MinecraftServer server) {
