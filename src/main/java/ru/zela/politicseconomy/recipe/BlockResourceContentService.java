@@ -55,14 +55,72 @@ public final class BlockResourceContentService {
             double perBlock = entry.getValue() / (double) resultCount;
             choices.add(new MaterialChoice(entry.getKey(), perBlock));
         }
-        choices.sort(Comparator.comparing(MaterialChoice::key));
+        choices.sort(Comparator.comparingDouble(BlockResourceContentService::supportCost));
+
+        if (!choices.isEmpty()) {
+            MaterialChoice selected = choices.get(0);
+            String cheapestItem = selected.acceptedItemIds().stream()
+                .min(Comparator.comparingDouble(BlockResourceContentService::itemCost))
+                .orElse(selected.representativeItemId());
+
+            selected = new MaterialChoice(
+                cheapestItem.isBlank() ? selected.acceptedItemIds() : List.of(cheapestItem),
+                selected.unitsPerBlock()
+            );
+
+            return new BlockResourceContent(
+                analysis.resultItemId(),
+                analysis.recipeId(),
+                resultCount,
+                List.of(selected)
+            );
+        }
 
         return new BlockResourceContent(
             analysis.resultItemId(),
             analysis.recipeId(),
             resultCount,
-            List.copyOf(choices)
+            List.of()
         );
+    }
+
+    /**
+     * Infrastructure upkeep represents one practical component of a recipe,
+     * not every ingredient. Common building materials are deliberately cheaper
+     * than rare/advanced items so upkeep does not punish a new country.
+     */
+    private static double supportCost(MaterialChoice choice) {
+        if (choice == null || choice.acceptedItemIds().isEmpty()) return Double.POSITIVE_INFINITY;
+        return choice.unitsPerBlock() * choice.acceptedItemIds().stream()
+            .mapToDouble(BlockResourceContentService::itemCost)
+            .min()
+            .orElse(Double.POSITIVE_INFINITY);
+    }
+
+    private static double itemCost(String itemId) {
+        if (itemId == null || itemId.isBlank()) return 1000.0D;
+
+        String normalized = itemId.toLowerCase(java.util.Locale.ROOT);
+        double cost = 10.0D;
+
+        if (normalized.contains("netherite")) cost = 100.0D;
+        else if (normalized.contains("diamond")) cost = 70.0D;
+        else if (normalized.contains("emerald")) cost = 55.0D;
+        else if (normalized.contains("gold")) cost = 28.0D;
+        else if (normalized.contains("brass")) cost = 22.0D;
+        else if (normalized.contains("steel")) cost = 20.0D;
+        else if (normalized.contains("iron")) cost = 16.0D;
+        else if (normalized.contains("copper") || normalized.contains("zinc")) cost = 12.0D;
+        else if (normalized.contains("coal") || normalized.contains("charcoal")) cost = 8.0D;
+        else if (normalized.contains("stone") || normalized.contains("cobblestone")
+            || normalized.contains("deepslate") || normalized.contains("gravel")) cost = 3.0D;
+        else if (normalized.contains("brick") || normalized.contains("terracotta")) cost = 6.0D;
+        else if (normalized.contains("plank") || normalized.contains("log")
+            || normalized.contains("wood") || normalized.contains("stick")) cost = 2.0D;
+        else if (normalized.contains("dirt") || normalized.contains("sand")
+            || normalized.contains("clay")) cost = 1.0D;
+
+        return cost;
     }
 
     public record MaterialChoice(List<String> acceptedItemIds, double unitsPerBlock) {
