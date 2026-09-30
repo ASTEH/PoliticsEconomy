@@ -15,6 +15,7 @@ import net.minecraft.world.level.chunk.LevelChunk;
 import net.neoforged.neoforge.event.level.ChunkEvent;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.WeakHashMap;
 
