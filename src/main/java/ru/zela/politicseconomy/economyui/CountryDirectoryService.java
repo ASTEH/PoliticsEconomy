@@ -31,6 +31,38 @@ public final class CountryDirectoryService {
         double score
     ) {}
 
+    public static String resolveStateKey(
+        MinecraftServer server,
+        String type,
+        String displayName
+    ) {
+        if (server == null || displayName == null || displayName.isBlank()) return null;
+        String wantedType = type == null ? "" : type.trim();
+
+        if ("PoliticsMod".equals(wantedType)) {
+            PoliticsManager politics = PoliticsManager.get(server.overworld());
+            if (politics == null) return null;
+            Country country = politics.getCountry(displayName);
+            return country == null ? null : country.getName();
+        }
+
+        if ("Millénaire".equals(wantedType)) {
+            for (MillenaireIntegration.VillageSnapshot state : MillenaireIntegration.snapshots(server)) {
+                if (displayName.equals(state.name())) return state.stateKey();
+            }
+            return null;
+        }
+
+        PoliticsManager politics = PoliticsManager.get(server.overworld());
+        if (politics != null && politics.getCountry(displayName) != null) {
+            return displayName;
+        }
+        for (MillenaireIntegration.VillageSnapshot state : MillenaireIntegration.snapshots(server)) {
+            if (displayName.equals(state.name())) return state.stateKey();
+        }
+        return null;
+    }
+
     public static List<CountrySnapshot> build(MinecraftServer server) {
         List<CountrySnapshot> result = new ArrayList<>();
         PoliticsManager politics = PoliticsManager.get(server.overworld());
