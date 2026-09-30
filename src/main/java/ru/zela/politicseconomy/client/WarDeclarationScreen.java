@@ -26,6 +26,7 @@ public final class WarDeclarationScreen extends Screen {
     private static final int NEGATIVE = 0xFFFF6B6B;
     private static final int NEGATIVE_DARK = 0xFF4A2124;
     private static final int GOLD = 0xFFFFC857;
+    private static final int SEARCH_WIDTH = 420;
 
     private EconomySnapshotPayload snapshot;
     private final Screen parent;
@@ -75,7 +76,7 @@ public final class WarDeclarationScreen extends Screen {
 
         search.setX(panelLeft + 28);
         search.setY(104);
-        search.setWidth(panelWidth - 56);
+        search.setWidth(Math.min(SEARCH_WIDTH, panelWidth - 56));
     }
 
     @Override
@@ -115,6 +116,7 @@ public final class WarDeclarationScreen extends Screen {
         );
 
         g.drawString(font, "ПОИСК", panelLeft + 28, 92, MUTED, true);
+        search.render(g, mouseX, mouseY, partialTick);
 
         drawSelector(g, mouseX, mouseY, panelLeft, panelRight);
 
@@ -158,7 +160,6 @@ public final class WarDeclarationScreen extends Screen {
             mouseY
         );
 
-        super.render(g, mouseX, mouseY, partialTick);
     }
 
     private void drawSelector(
@@ -393,6 +394,13 @@ public final class WarDeclarationScreen extends Screen {
 
         int panelBottom = warPanelBottom();
 
+        if (search != null
+            && inside(mouseX, mouseY, search.getX(), search.getY(),
+                search.getX() + search.getWidth(), search.getY() + search.getHeight())) {
+            search.mouseClicked(mouseX, mouseY, button);
+            return true;
+        }
+
         int buttonsY = panelBottom - 48;
 
         if (inside(mouseX, mouseY, left + 28, 145, right - 28, 184)) {
@@ -467,7 +475,29 @@ public final class WarDeclarationScreen extends Screen {
             closeScreen();
             return true;
         }
+        if (search != null && search.isFocused()
+            && search.keyPressed(keyCode, scanCode, modifiers)) {
+            return true;
+        }
         return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    @Override
+    public boolean charTyped(char codePoint, int modifiers) {
+        if (search != null && search.isFocused()
+            && search.charTyped(codePoint, modifiers)) {
+            return true;
+        }
+        return super.charTyped(codePoint, modifiers);
+    }
+
+    @Override
+    public boolean mouseReleased(double mouseX, double mouseY, int button) {
+        if (search != null && search.isFocused()
+            && search.mouseReleased(mouseX, mouseY, button)) {
+            return true;
+        }
+        return super.mouseReleased(mouseX, mouseY, button);
     }
 
     private void closeScreen() {
