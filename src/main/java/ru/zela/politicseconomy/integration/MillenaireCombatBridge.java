@@ -46,14 +46,16 @@ public final class MillenaireCombatBridge {
             return new Result(false, false, "village_unavailable");
         }
 
-        boolean relationChanged = setHostileRelation(attacker, defender);
-        boolean raidTriggered = planRaid(attacker, defender);
+        boolean relationChanged =
+            adjustRelationSymmetric(server.overworld(), attacker, defender);
+
+        boolean raidTriggered = hasActiveRaid(attacker, defender);
 
         String detail = raidTriggered
-            ? "native_raid_triggered"
+            ? "native_raid_active"
             : relationChanged
-                ? "hostile_relation_set"
-                : "no_native_raid_api_found";
+                ? "hostile_relation_set_waiting_for_millenaire_raid_planner"
+                : "relation_api_failed";
 
         return new Result(relationChanged, raidTriggered, detail);
     }
@@ -133,99 +135,100 @@ public final class MillenaireCombatBridge {
         return List.copyOf(methods);
     }
 
-    private static boolean setHostileRelation(
+    private static boolean adjustRelationSymmetric(
+        ServerLevel level,
         Object attacker,
         Object defender
     ) {
-        UUID defenderId = villageUuid(defender);
-        String[] names = {"setRelation", "setVillageRelation", "setRelations"};
+        Object defenderId = invoke(attacker, "getId");
+        if (defenderId == null) return false;
 
-        for (String name : names) {
-            for (Method method : attacker.getClass().getMethods()) {
-                if (!method.getName().equals(name)) continue;
+        Object current = invoke(attacker, "getRelation", defenderId);
+        int currentRelation = current instanceof Number
+            ? ((Number) current).intValue()
+            : 0;
 
-                Object[] args = buildArguments(
-                    method.getParameterTypes(),
-                    defender,
-                    defenderId,
-                    -100
-                );
-                if (args == null) continue;
+        int delta = -100 - currentRelation;
+        if (delta >= 0) return true;
 
-                try {
-                    method.invoke(attacker, args);
-                    return true;
-                } catch (Throwable ignored) {
-                }
+        for (Method method : attacker.getClass().getMethods()) {
+            if (!method.getName().equals("adjustRelationSymmetric")
+                || method.getParameterCount() != 4) {
+                continue;
+            }
+
+            Class<?>[] params = method.getParameterTypes();
+            if (!ServerLevel.class.isAssignableFrom(params[0])
+                || !wrap(params[1]).isInstance(defenderId)
+                || wrap(params[2]) != Integer.class
+                || wrap(params[3]) != Boolean.class) {
+                continue;
+            }
+
+            try {
+                method.invoke(attacker, level, defenderId, delta, true);
+                Object updated = invoke(attacker, "getRelation", defenderId);
+                return updated instanceof Number
+                    && ((Number) updated).intValue() <= -20;
+            } catch (Throwable ignored) {
             }
         }
+
         return false;
     }
 
-    private static boolean planRaid(
+    private static boolean hasActiveRaid(
         Object attacker,
         Object defender
     ) {
-        UUID defenderId = villageUuid(defender);
-        String[] names = {
-            "planRaid",
-            "startRaid",
-            "launchRaid",
-            "prepareRaid",
-            "setRaidTarget"
-        };
+        Object target = invoke(attacker, "getRaidTarget");
+        if (target == null) return false;
 
-        for (String name : names) {
-            for (Method method : attacker.getClass().getMethods()) {
-                if (!method.getName().equals(name)) continue;
-
-                Object[] args = buildArguments(
-                    method.getParameterTypes(),
-                    defender,
-                    defenderId,
-                    0
-                );
-                if (args == null) continue;
-
-                try {
-                    method.invoke(attacker, args);
-                    return true;
-                } catch (Throwable ignored) {
-                }
-            }
-        }
-        return false;
+        Object defenderId = invoke(defender, "getId");
+        return defenderId != null
+            && target.toString().equals(defenderId.toString());
     }
 
-    private static Object[] buildArguments(
-        Class<?>[] parameterTypes,
-        Object targetVillage,
-        UUID targetId,
-        int relationValue
+    public record RaidStatus(
+        int relation,
+        long planningStart,
+        long start,
+        long startGameTime,
+        int strength,
+        String target
+    ) {}
+
+    public static RaidStatus raidStatus(
+        MinecraftServer server,
+        String stateKey
     ) {
-        Object[] args = new Object[parameterTypes.length];
-
-        for (int i = 0; i < parameterTypes.length; i++) {
-            Class<?> type = wrap(parameterTypes[i]);
-
-            if (type.isInstance(targetVillage)) {
-                args[i] = targetVillage;
-            } else if (type == UUID.class) {
-                args[i] = targetId;
-            } else if (type == String.class) {
-                args[i] = targetId == null ? "" : targetId.toString();
-            } else if (type == Integer.class) {
-                args[i] = relationValue;
-            } else if (type == Long.class) {
-                args[i] = (long) relationValue;
-            } else if (type == Boolean.class) {
-                args[i] = true;
-            } else {
-                return null;
-            }
+        Object village = MillenaireIntegration.liveVillage(server, stateKey);
+        if (village == null) {
+            return new RaidStatus(0, 0L, 0L, 0L, 0, "");
         }
 
-        return args;
+        Object targetId = invoke(village, "getRaidTarget");
+        Object relation = null;
+        if (targetId != null) {
+            relation = invoke(village, "getRelation", targetId);
+        }
+
+        return new RaidStatus(
+            relation instanceof Number ? ((Number) relation).intValue() : 0,
+            longValue(invoke(village, "getRaidPlanningStart")),
+            longValue(invoke(village, "getRaidStart")),
+            longValue(invoke(village, "getRaidStartGameTime")),
+            intValue(invoke(village, "getVillageRaidStrength")),
+            targetId == null ? "" : targetId.toString()
+        );
+    }
+
+    private static long longValue(Object value) {
+        return value instanceof Number ? ((Number) value).longValue() : 0L;
+    }
+
+    private static int intValue(Object value) {
+        return value instanceof Number ? ((Number) value).intValue() : 0;
     }
 
     private static boolean isMillenaireEntity(LivingEntity entity) {
