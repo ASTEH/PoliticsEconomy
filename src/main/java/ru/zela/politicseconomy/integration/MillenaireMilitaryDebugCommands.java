@@ -16,7 +16,7 @@ import ru.zela.politicseconomy.economy.NationalMaterialConsumptionService;
 
 import java.util.List;
 
-/** Debug tools for testing Millénaire military AI without moving villages. */
+/** Debug tools for inspecting Millénaire military statistics and PE-native wars. */
 public final class MillenaireMilitaryDebugCommands {
     private MillenaireMilitaryDebugCommands() {}
 
