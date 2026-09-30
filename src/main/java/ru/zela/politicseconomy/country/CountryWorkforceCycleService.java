@@ -45,6 +45,7 @@ public final class CountryWorkforceCycleService {
 
         for (Country country : politics.getCountries().values()) {
             String name = country.getName();
+            CountryPopulationService.processCycle(server, name);
             CountryPoliticalService.processCycle(server, name, cycle);
             grantDividend(server, name, ledger);
         }
