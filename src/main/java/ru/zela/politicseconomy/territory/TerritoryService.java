@@ -13,6 +13,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.saveddata.SavedData;
+import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import ru.zela.politicseconomy.infrastructure.InfrastructureManager;
 import ru.zela.politicseconomy.map.PoliticalMapService;
@@ -188,7 +189,32 @@ public final class TerritoryService {
 
     public static void handleCreateCountry(ServerPlayer player, BlockPos payloadCenter, String countryName) {
         if (!canCreateCountry(player, payloadCenter)) return;
+
         PoliticsManager.createCountry(player.serverLevel(), payloadCenter, player, countryName);
+
+        PoliticsManager politics = PoliticsManager.get(player.serverLevel());
+        String createdCountry = politics == null
+            ? null
+            : (politics.getCountry(countryName) != null
+                ? countryName
+                : politics.getPlayerCountry(player.getUUID()));
+
+        if (createdCountry != null && !createdCountry.isBlank()) {
+            ru.zela.politicseconomy.country.CountryPopulationService.initializeCountry(
+                player.getServer(), createdCountry
+            );
+
+            ItemStack beds = new ItemStack(net.minecraft.world.item.Items.WHITE_BED, 4);
+            if (!player.getInventory().add(beds)) {
+                player.drop(beds, false);
+            }
+
+            player.sendSystemMessage(Component.literal(
+                "Государство основано: 4 жителя зарегистрированы. "
+                    + "Тебе выданы 4 кровати — они определяют доступное жильё."
+            ).withStyle(ChatFormatting.GREEN));
+        }
+
         PoliticalMapService.syncAll(player.getServer());
     }
 
