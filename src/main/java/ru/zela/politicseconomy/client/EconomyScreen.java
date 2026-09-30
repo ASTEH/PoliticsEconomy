@@ -47,7 +47,7 @@ public final class EconomyScreen extends Screen {
     private Page page = Page.OVERVIEW;
     private double scroll;
 
-    private final List<ClickTarget> targets = new ArrayList<>();
+    private final List<ClickTarget> targets = new ArrayList<>();\n    private final List<ClickTarget> modalTargets = new ArrayList<>();
     private String modalAction;
     private String modalCommand;
     private String modalTitle;
@@ -2130,6 +2130,10 @@ public final class EconomyScreen extends Screen {
         targets.add(new ClickTarget(left, top, right, bottom, action));
     }
 
+    private void modalTarget(int left, int top, int right, int bottom, Runnable action) {
+        modalTargets.add(new ClickTarget(left, top, right, bottom, action));
+    }
+
     private static boolean inside(double x, double y, int left, int top, int right, int bottom) {
         return x >= left && x <= right && y >= top && y <= bottom;
     }
@@ -2183,17 +2187,10 @@ public final class EconomyScreen extends Screen {
                     return true;
                 }
 
-                // Only the targets created by the war dialog itself may receive
-                // clicks while the modal is open. Background sidebar/content targets
-                // must never leak through the modal.
-                int modalRight = left + w;
-                int modalBottom = top + h;
-                for (int i = targets.size() - 1; i >= 0; i--) {
-                    ClickTarget click = targets.get(i);
-                    if (click.left() < left || click.right() > modalRight
-                        || click.top() < top || click.bottom() > modalBottom) {
-                        continue;
-                    }
+                // Only modal-owned targets may receive clicks while the war
+                // dialog is open. Background dashboard targets are completely isolated.
+                for (int i = modalTargets.size() - 1; i >= 0; i--) {
+                    ClickTarget click = modalTargets.get(i);
                     if (click.contains(mouseX, mouseY)) {
                         click.action.run();
                         return true;
