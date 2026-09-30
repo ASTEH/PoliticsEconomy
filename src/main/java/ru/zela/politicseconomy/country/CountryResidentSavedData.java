@@ -175,6 +175,18 @@ public final class CountryResidentSavedData extends SavedData {
         return occupied;
     }
 
+    public String findCountry(UUID uuid) {
+        if (uuid == null) return null;
+
+        for (Map.Entry<String, Map<UUID, String>> entry : residentsByCountry.entrySet()) {
+            if (entry.getValue().containsKey(uuid)) {
+                return entry.getKey();
+            }
+        }
+
+        return null;
+    }
+
     public void addResident(String countryName, UUID uuid, String role) {
         if (countryName == null || countryName.isBlank() || uuid == null) return;
 
