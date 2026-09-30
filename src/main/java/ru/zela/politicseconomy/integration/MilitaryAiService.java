@@ -46,6 +46,49 @@ public final class MilitaryAiService {
         DEBUG_NEIGHBORS.clear();
     }
 
+    /** Starts a real persistent ground-war record for debug testing, bypassing AI prerequisites. */
+    public static boolean debugForceStartWar(
+        MinecraftServer server,
+        MillenaireIntegration.VillageSnapshot attacker,
+        MillenaireIntegration.VillageSnapshot defender
+    ) {
+        if (server == null || attacker == null || defender == null
+            || attacker.villageId().equals(defender.villageId())) {
+            return false;
+        }
+
+        MilitaryWarSavedData wars = MilitaryWarSavedData.get(server);
+        if (wars.isAtWar(attacker.stateKey(), defender.stateKey())) {
+            return false;
+        }
+
+        long now = server.overworld().getGameTime();
+        wars.startWar(
+            attacker.stateKey(),
+            defender.stateKey(),
+            MilitaryWarSavedData.WarType.GROUND,
+            MilitaryWarSavedData.WarCause.BORDER_CONFLICT,
+            new ChunkPos(defender.center()),
+            now
+        );
+        wars.setNextDecisionTick(
+            attacker.stateKey(),
+            now + DECISION_COOLDOWN_TICKS
+        );
+
+        MilitaryReadinessSavedData readiness = MilitaryReadinessSavedData.get(server);
+        readiness.reduceReadiness(attacker.stateKey(), 7.0D);
+
+        notifyInvolvedPlayers(
+            server,
+            attacker.stateKey(),
+            defender.stateKey(),
+            attacker.name(),
+            defender.name()
+        );
+        return true;
+    }
+
     public static void onServerTick(ServerTickEvent.Post event) {
         MinecraftServer server = event.getServer();
         if (server.overworld() == null || !MillenaireIntegration.isAvailable()) return;
