@@ -271,13 +271,24 @@ public final class CountryResidentService {
         PoliticsManager politics = PoliticsManager.get(server.overworld());
         if (politics == null) return null;
 
+        ServerPlayer fallback = null;
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            if (countryName.equals(politics.getPlayerCountry(player.getUUID()))) {
+            if (!countryName.equals(politics.getPlayerCountry(player.getUUID()))) {
+                continue;
+            }
+
+            if (countryName.equals(
+                politics.getCountryNameAt(player.chunkPosition())
+            )) {
                 return player;
+            }
+
+            if (fallback == null) {
+                fallback = player;
             }
         }
 
-        return null;
+        return fallback;
     }
 
     private static boolean hasOnlineCountryPlayer(
