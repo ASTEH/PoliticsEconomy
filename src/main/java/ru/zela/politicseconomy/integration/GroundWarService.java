@@ -70,8 +70,24 @@ public final class GroundWarService {
             return;
         }
 
+        // Mobilise real Millénaire fighter villager types before the raid.
+        int targetParty = Math.min(
+            MAX_PARTY,
+            Math.max(3, partySize(attacker, server, true))
+        );
+        MillenaireCombatBridge.mobilizeForWar(
+            server,
+            attacker,
+            targetParty
+        );
+        MillenaireCombatBridge.mobilizeForWar(
+            server,
+            defender,
+            Math.min(MAX_PARTY, Math.max(3, partySize(defender, server, false)))
+        );
+
         // Prefer Millénaire's own raid/combat system. The custom controller
-        // is only a fallback when the native bridge is unavailable.
+        // remains a fallback when the native bridge does not activate it.
         MillenaireCombatBridge.Result nativeResult =
             MillenaireCombatBridge.startWar(
                 server,
@@ -168,26 +184,6 @@ public final class GroundWarService {
             result.add(mob);
         }
 
-        // If there are not enough soldiers, mobilise adult villagers.
-        if (result.size() < limit) {
-            for (LivingEntity mob : candidates(
-                level,
-                state.center().getX(),
-                state.center().getY(),
-                state.center().getZ(),
-                RALLY_RADIUS
-            )) {
-                if (result.size() >= limit) break;
-                if (!isMillenaireLivingEntity(mob) || !mob.isAlive()) continue;
-                if (!isInVillage(mob, state)) continue;
-                if (!isAdult(mob)) continue;
-                if (mob.getTags().stream().anyMatch(existing -> existing.startsWith(PARTY_PREFIX))) continue;
-
-                mob.addTag(tag);
-                result.add(mob);
-            }
-        }
-
         return result;
     }
 
@@ -228,26 +224,6 @@ public final class GroundWarService {
 
             mob.addTag(tag);
             result.add(mob);
-        }
-
-        // Emergency civilian mobilisation.
-        if (result.size() < limit) {
-            for (LivingEntity mob : candidates(
-                level,
-                state.center().getX(),
-                state.center().getY(),
-                state.center().getZ(),
-                RALLY_RADIUS
-            )) {
-                if (result.size() >= limit) break;
-                if (!isMillenaireLivingEntity(mob) || !mob.isAlive()) continue;
-                if (!isInVillage(mob, state)) continue;
-                if (!isAdult(mob)) continue;
-                if (mob.getTags().stream().anyMatch(existing -> existing.startsWith(PARTY_PREFIX))) continue;
-
-                mob.addTag(tag);
-                result.add(mob);
-            }
         }
 
         return result;
@@ -295,26 +271,26 @@ public final class GroundWarService {
     private static boolean isMilitaryVillager(LivingEntity entity) {
         if (!isMillenaireLivingEntity(entity)) return false;
 
-        StringBuilder text = new StringBuilder()
-            .append(entity.getClass().getName()).append(' ')
-            .append(String.valueOf(invoke(entity, "getRoleName"))).append(' ')
-            .append(String.valueOf(invoke(entity, "getVillagerTypeId"))).append(' ')
-            .append(String.valueOf(invoke(entity, "getTypeId")));
-
-        Object record = invoke(entity, "getVillagerRecord");
-        if (record == null) record = invoke(entity, "getRecord");
-        if (record != null) {
-            text.append(' ')
-                .append(String.valueOf(invoke(record, "getRoleName"))).append(' ')
-                .append(String.valueOf(invoke(record, "getVillagerTypeId")));
+        Object typeId = invoke(entity, "getVillagerTypeId");
+        if (!(typeId instanceof net.minecraft.resources.ResourceLocation id)) {
+            return false;
         }
 
-        String value = text.toString().toLowerCase(java.util.Locale.ROOT);
-        return value.contains("soldier")
-            || value.contains("guard")
-            || value.contains("warrior")
-            || value.contains("general")
-            || value.contains("army");
+        try {
+            Class<?> cultures =
+                Class.forName("org.millenaire.culture.ModCultures");
+            java.lang.reflect.Method getType = cultures.getMethod(
+                "getVillagerType",
+                net.minecraft.resources.ResourceLocation.class
+            );
+            Object type = getType.invoke(null, id);
+            if (type == null) return false;
+
+            return booleanResult(type, "hasTag", "isRaider")
+                || booleanResult(type, "hasTag", "helpInAttacks");
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 
     private static boolean isAdult(LivingEntity entity) {
@@ -327,6 +303,26 @@ public final class GroundWarService {
         return !value.contains("child")
             && !value.contains("boy")
             && !value.contains("girl");
+    }
+
+    private static boolean booleanResult(
+        Object target,
+        String methodName,
+        Object argument
+    ) {
+        if (target == null) return false;
+        try {
+            for (java.lang.reflect.Method method : target.getClass().getMethods()) {
+                if (!method.getName().equals(methodName)
+                    || method.getParameterCount() != 1) {
+                    continue;
+                }
+                Object value = method.invoke(target, argument);
+                return value instanceof Boolean && (Boolean)value;
+            }
+        } catch (Throwable ignored) {
+        }
+        return false;
     }
 
     private static Object invoke(Object target, String name, Object... args) {
