@@ -19,18 +19,32 @@ import java.util.Map;
 import java.util.WeakHashMap;
 
 /**
- * Bed-based population model.
+ * Country population model.
  *
- * Population no longer depends on Residential Building blocks.
- * A bed head represents two residents. A country's population is the sum of
- * beds in all chunks claimed by that country. A city's population is the same
- * calculation limited to chunks assigned to that city.
- *
- * Per-chunk bed counts are persisted in SavedData, so population survives
- * server/game restarts. Loaded chunks are rescanned to keep the counters current.
+ * Beds are housing capacity only. Actual population is an independent
+ * persisted resident count that grows from food, housing and successful
+ * economic cycles. Legacy worlds migrate their old bed-derived population once.
  */
 public final class CountryPopulationService {
-    private static final int RESIDENTS_PER_BED = 2;
+    private static final int RESIDENTS_PER_BED_LEGACY = 2;
+    private static final int INITIAL_RESIDENTS = 4;
+    private static final int GROWTH_FED_CYCLES = 3;
+    private static final int STARVATION_CYCLES_TO_LOSE_RESIDENT = 3;
+    private static final int DEVELOPMENT_ACTIVITY_CYCLES = 6;
+    private static final double FOOD_PER_RESIDENT_PER_CYCLE = 0.25D;
+    private static final List<String> FOOD_ITEMS = List.of(
+        "minecraft:bread",
+        "minecraft:baked_potato",
+        "minecraft:potato",
+        "minecraft:carrot",
+        "minecraft:beetroot",
+        "minecraft:wheat",
+        "minecraft:cooked_beef",
+        "minecraft:cooked_chicken",
+        "minecraft:cooked_porkchop",
+        "minecraft:cooked_cod",
+        "minecraft:cooked_salmon"
+    );
     private static final Map<MinecraftServer, Cache> CACHE = new WeakHashMap<>();
 
     private CountryPopulationService() {}
@@ -51,10 +65,15 @@ public final class CountryPopulationService {
         if (ru.zela.politicseconomy.integration.MillenaireIntegration.isStateKey(countryName)) {
             return ru.zela.politicseconomy.integration.MillenaireIntegration.population(server, countryName);
         }
+        CountryPopulationSavedData data = get(server);
+        if (!data.hasResidents(countryName)) {
+            migrateLegacyPopulation(server, countryName, data);
+        }
+
         Cache cache = cache(server);
         return cache.byCountry.computeIfAbsent(
             countryName,
-            name -> calculateCountry(server, name)
+            name -> data.getResidents(name)
         );
     }
 
@@ -83,7 +102,149 @@ public final class CountryPopulationService {
         ChunkPos chunk
     ) {
         if (server == null || chunk == null) return 0;
-        return get(server).getBeds(chunk.toLong()) * RESIDENTS_PER_BED;
+        return get(server).getBeds(chunk.toLong());
+    }
+
+    public static void initializeCountry(MinecraftServer server, String countryName) {
+        if (server == null || countryName == null || countryName.isBlank()) return;
+
+        CountryPopulationSavedData data = get(server);
+        if (!data.hasResidents(countryName)) {
+            data.setResidents(countryName, INITIAL_RESIDENTS);
+            data.setFoodRemainder(countryName, 0.0D);
+            data.setFedCycles(countryName, 0);
+            data.setStarvationCycles(countryName, 0);
+            data.setDevelopmentProgress(countryName, 0);
+
+            var ledger = ru.zela.politicseconomy.economy.NationalMaterialConsumptionService
+                .getLedger(server);
+            ledger.initializeCountry(countryName);
+
+            // Small founding reserve: the new state can feed four residents
+            // for the first cycles before production/trade has started.
+            if (ledger.getStockpile(countryName, "minecraft:bread") <= 0) {
+                ledger.addStockpile(countryName, "minecraft:bread", 8);
+            }
+        }
+        invalidate(server);
+    }
+
+    public static int housingCapacity(MinecraftServer server, String countryName) {
+        if (server == null || countryName == null || countryName.isBlank()) return 0;
+        if (ru.zela.politicseconomy.integration.MillenaireIntegration.isStateKey(countryName)) {
+            return ru.zela.politicseconomy.integration.MillenaireIntegration.population(server, countryName);
+        }
+
+        PoliticsManager politics = PoliticsManager.get(server.overworld());
+        if (politics == null) return 0;
+
+        int beds = 0;
+        for (Map.Entry<Long, Integer> entry : get(server).snapshot().entrySet()) {
+            Country owner = politics.getCountryAt(new ChunkPos(entry.getKey()));
+            if (owner != null && countryName.equals(owner.getName())) {
+                beds += Math.max(0, entry.getValue());
+            }
+        }
+        return beds;
+    }
+
+    public static void processCycle(MinecraftServer server, String countryName) {
+        if (server == null || countryName == null || countryName.isBlank()) return;
+        if (ru.zela.politicseconomy.integration.MillenaireIntegration.isStateKey(countryName)) return;
+
+        CountryPopulationSavedData data = get(server);
+        if (!data.hasResidents(countryName)) {
+            migrateLegacyPopulation(server, countryName, data);
+        }
+
+        int residents = data.getResidents(countryName);
+        if (residents <= 0) return;
+
+        int housing = housingCapacity(server, countryName);
+        double requiredRaw =
+            data.getFoodRemainder(countryName)
+                + residents * FOOD_PER_RESIDENT_PER_CYCLE;
+        int requiredFood = Math.max(1, (int) Math.ceil(requiredRaw - 1.0E-9D));
+        double nextRemainder = Math.max(0.0D, requiredRaw - requiredFood);
+
+        int consumed = ru.zela.politicseconomy.economy.NationalMaterialConsumptionService
+            .getLedger(server)
+            .consumeAccepted(countryName, FOOD_ITEMS, requiredFood);
+
+        if (consumed >= requiredFood) {
+            data.setFoodRemainder(countryName, nextRemainder);
+            data.setStarvationCycles(countryName, 0);
+
+            int fedCycles = data.getFedCycles(countryName) + 1;
+            data.setFedCycles(countryName, fedCycles);
+
+            if (housing > residents && fedCycles >= GROWTH_FED_CYCLES) {
+                residents++;
+                data.setResidents(countryName, residents);
+                data.setFedCycles(countryName, 0);
+
+                ru.zela.politicseconomy.event.NewsService.add(
+                    server,
+                    server.overworld().getGameTime(),
+                    "ОБЩЕСТВО",
+                    countryName + ": рост населения",
+                    "Благодаря достатку еды и свободному жилью население выросло до " + residents + "."
+                );
+            }
+
+            int developmentProgress = data.getDevelopmentProgress(countryName) + 1;
+            if (developmentProgress >= DEVELOPMENT_ACTIVITY_CYCLES) {
+                developmentProgress = 0;
+                CountryDevelopmentService.addActivity(server, countryName, 1);
+            }
+            data.setDevelopmentProgress(countryName, developmentProgress);
+        } else {
+            data.setFoodRemainder(countryName, nextRemainder);
+            data.setFedCycles(countryName, 0);
+
+            int starvationCycles = data.getStarvationCycles(countryName) + 1;
+            data.setStarvationCycles(countryName, starvationCycles);
+
+            if (starvationCycles >= STARVATION_CYCLES_TO_LOSE_RESIDENT) {
+                residents = Math.max(1, residents - 1);
+                data.setResidents(countryName, residents);
+                data.setStarvationCycles(countryName, 0);
+
+                ru.zela.politicseconomy.event.NewsService.add(
+                    server,
+                    server.overworld().getGameTime(),
+                    "ОБЩЕСТВО",
+                    countryName + ": нехватка продовольствия",
+                    "Запасов еды не хватило для населения. Численность снизилась до " + residents + "."
+                );
+            }
+        }
+
+        data.setDirty();
+        invalidate(server);
+    }
+
+    private static void migrateLegacyPopulation(
+        MinecraftServer server,
+        String countryName,
+        CountryPopulationSavedData data
+    ) {
+        PoliticsManager politics = PoliticsManager.get(server.overworld());
+        int legacyBeds = 0;
+
+        if (politics != null) {
+            for (Map.Entry<Long, Integer> entry : data.snapshot().entrySet()) {
+                Country owner = politics.getCountryAt(new ChunkPos(entry.getKey()));
+                if (owner != null && countryName.equals(owner.getName())) {
+                    legacyBeds += Math.max(0, entry.getValue());
+                }
+            }
+        }
+
+        data.setResidents(legacyBeds * RESIDENTS_PER_BED_LEGACY);
+        data.setFedCycles(countryName, 0);
+        data.setStarvationCycles(countryName, 0);
+        data.setDevelopmentProgress(countryName, 0);
     }
 
     /** Rebuilds a loaded chunk's bed count after the chunk is loaded. */
@@ -248,7 +409,7 @@ public final class CountryPopulationService {
             if (!cityName.equals(politics.getCityAt(chunk))) continue;
             totalBeds += Math.max(0, entry.getValue());
         }
-        return totalBeds * RESIDENTS_PER_BED;
+        return totalBeds;
     }
 
     private static Cache cache(MinecraftServer server) {
