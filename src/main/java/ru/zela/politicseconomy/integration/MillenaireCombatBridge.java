@@ -352,7 +352,8 @@ public final class MillenaireCombatBridge {
                 longValue(invoke(attacker, "getRaidPlanningStart"));
 
             return sameId(target, defenderId)
-                && planningStart == gameTime;
+                && planningStart == gameTime
+                && longValue(invoke(attacker, "getRaidStart")) > 0L;
         } catch (Throwable ignored) {
             return false;
         }
