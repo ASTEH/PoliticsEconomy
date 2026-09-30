@@ -398,31 +398,27 @@ public final class MillenaireCombatBridge {
     }
 
     private static boolean isMilitaryEntity(LivingEntity entity) {
-        StringBuilder text = new StringBuilder()
-            .append(entity.getClass().getName()).append(' ')
-            .append(String.valueOf(invoke(entity, "getRoleName"))).append(' ')
-            .append(String.valueOf(invoke(entity, "getVillagerTypeId"))).append(' ')
-            .append(String.valueOf(invoke(entity, "getTypeId")));
+        if (!isMillenaireEntity(entity)) return false;
 
-        Object record = invoke(entity, "getVillagerRecord");
-        if (record == null) {
-            record = invoke(entity, "getRecord");
+        Object typeId = invoke(entity, "getVillagerTypeId");
+        if (!(typeId instanceof net.minecraft.resources.ResourceLocation id)) {
+            return false;
         }
 
-        if (record != null) {
-            text.append(' ')
-                .append(String.valueOf(invoke(record, "getRoleName")))
-                .append(' ')
-                .append(String.valueOf(invoke(record, "getVillagerTypeId")));
+        try {
+            Class<?> cultures =
+                Class.forName("org.millenaire.culture.ModCultures");
+            Method getType = cultures.getMethod(
+                "getVillagerType",
+                net.minecraft.resources.ResourceLocation.class
+            );
+            Object type = getType.invoke(null, id);
+            return type != null
+                && (booleanResult(type, "hasTag", "isRaider")
+                    || booleanResult(type, "hasTag", "helpInAttacks"));
+        } catch (Throwable ignored) {
+            return false;
         }
-
-        String value = text.toString().toLowerCase(java.util.Locale.ROOT);
-
-        return value.contains("soldier")
-            || value.contains("guard")
-            || value.contains("warrior")
-            || value.contains("general")
-            || value.contains("army");
     }
 
     private static boolean isAdult(LivingEntity entity) {
