@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import ru.zela.politicseconomy.command.PoliticsEconomyCommands;
 import ru.zela.politicseconomy.country.CountryPopulationService;
 import ru.zela.politicseconomy.country.CountryResidentService;
+import ru.zela.politicseconomy.country.CountryMigrationService;
 import ru.zela.politicseconomy.country.CountryWorkforceCycleService;
 import ru.zela.politicseconomy.economy.NationalMaterialConsumptionService;
 import ru.zela.politicseconomy.economy.PopulationMarketService;
@@ -39,6 +40,7 @@ public final class PoliticsEconomy {
         NeoForge.EVENT_BUS.addListener(CountryResidentService::onServerTick);
         NeoForge.EVENT_BUS.addListener(CountryResidentService::onPlayerLoggedIn);
         NeoForge.EVENT_BUS.addListener(CountryResidentService::onResidentDeath);
+        NeoForge.EVENT_BUS.addListener(CountryMigrationService::onServerTick);
         NeoForge.EVENT_BUS.addListener(EconomyCycleEvents::onServerTick);
         NeoForge.EVENT_BUS.addListener(NationalMaterialConsumptionService::onServerTick);
         NeoForge.EVENT_BUS.addListener(ru.zela.politicseconomy.integration.MilitaryEconomyService::onServerTick);
