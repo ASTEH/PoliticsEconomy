@@ -74,9 +74,6 @@ public final class GroundWarService {
             MAX_ROUND_LOSS
         );
 
-        double attackerPressure = relativePressure(attackerPower, defenderPower);
-        double defenderPressure = relativePressure(defenderPower, attackerPower);
-
         MilitaryReadinessSavedData readiness =
             MilitaryReadinessSavedData.get(server);
 
@@ -122,18 +119,35 @@ public final class GroundWarService {
             (now - startedForRound) / BATTLE_INTERVAL_TICKS
         );
 
-        double attackerControl =
-            attackerPressure * Math.min(1.0D, elapsedRounds / 20.0D);
-        double defenderControl =
-            defenderPressure * Math.min(1.0D, elapsedRounds / 20.0D);
-
-        if (attackerControl >= 1.0D && attackerPower > defenderPower * 1.20D) {
+        /*
+         * A clear power advantage needs several rounds to become a victory.
+         * Equal forces can fight for a long time and eventually reach a
+         * negotiated stalemate rather than looping forever.
+         */
+        if (elapsedRounds >= 10L
+            && attackerPower > defenderPower * 1.20D) {
             resolveVictory(server, wars, war, true);
             return;
         }
 
-        if (defenderControl >= 1.0D && defenderPower > attackerPower * 1.20D) {
+        if (elapsedRounds >= 10L
+            && defenderPower > attackerPower * 1.20D) {
             resolveVictory(server, wars, war, false);
+            return;
+        }
+
+        if (elapsedRounds >= 120L) {
+            endWithPeace(server, wars, war);
+            server.getPlayerList().broadcastSystemMessage(
+                net.minecraft.network.chat.Component.literal(
+                    "§7Война между §f"
+                        + MillenaireIntegration.displayName(server, war.attacker())
+                        + " §7и §f"
+                        + MillenaireIntegration.displayName(server, war.defender())
+                        + " §7закончилась без решающей победы."
+                ),
+                false
+            );
             return;
         }
 
@@ -232,17 +246,6 @@ public final class GroundWarService {
         return bonus;
     }
 
-    private static double relativePressure(
-        double power,
-        double enemyPower
-    ) {
-        if (enemyPower <= 0.0D) return 1.0D;
-        return clamp(
-            (power / enemyPower - 0.70D) / 1.00D,
-            0.0D,
-            1.0D
-        );
-    }
 
     private static void applyWarCost(
         MinecraftServer server,
