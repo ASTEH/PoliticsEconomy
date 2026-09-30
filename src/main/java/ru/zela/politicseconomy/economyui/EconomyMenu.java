@@ -167,6 +167,9 @@ public final class EconomyMenu {
         String[] researchRows = CountryResearchService.dashboard(player.getServer(), countryName);
         var government = CountryPolicyManager.getGovernment(player.getServer(), countryName);
         var religion = CountryPolicyManager.getReligion(player.getServer(), countryName);
+        if (!millenaireState) {
+            CountryPopulationService.ensureCountryBootstrap(player.getServer(), countryName);
+        }
         int population = CountryPopulationService.population(player.getServer(), countryName);
         double workforce = CountryPolicyBonusService.workforcePercent(player.getServer(), countryName);
         int workingPopulation = CountryWorkforceService.workingPopulation(player.getServer(), countryName);
