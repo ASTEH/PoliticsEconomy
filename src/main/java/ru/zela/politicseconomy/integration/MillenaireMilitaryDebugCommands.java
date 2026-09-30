@@ -431,6 +431,12 @@ public final class MillenaireMilitaryDebugCommands {
                 return 0;
             }
 
+            MilitaryDiplomacyBridge.setPeace(
+                player.server,
+                current.stateKey(),
+                target.stateKey()
+            );
+
             source.sendSuccess(() -> Component.literal(
                 "§aDebug-война завершена: §f"
                     + current.name() + " §7↔ §f" + target.name()
