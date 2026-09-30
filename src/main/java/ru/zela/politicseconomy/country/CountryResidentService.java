@@ -13,6 +13,7 @@ import net.minecraft.world.entity.npc.VillagerData;
 import net.minecraft.world.entity.npc.VillagerProfession;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Heightmap;
+import net.minecraft.world.phys.AABB;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
@@ -143,8 +144,38 @@ public final class CountryResidentService {
         if (!villager.getTags().contains(RESIDENT_TAG)) return;
         if (!(villager.level() instanceof ServerLevel level)) return;
 
-        CountryResidentSavedData data = get(level.getServer());
+        MinecraftServer server = level.getServer();
+        CountryResidentSavedData data = get(server);
+        String countryName = null;
+        PoliticsManager politics = PoliticsManager.get(level);
+        if (politics != null) {
+            for (var country : politics.getCountries().values()) {
+                if (data.residentIds(country.getName()).contains(villager.getUUID())) {
+                    countryName = country.getName();
+                    break;
+                }
+            }
+        }
+
         data.removeResidentEverywhere(villager.getUUID());
+
+        if (countryName != null) {
+            CountryPopulationSavedData population = CountryPopulationService.get(server);
+            int current = population.getResidents(countryName);
+            if (current > 1) {
+                population.setResidents(countryName, current - 1);
+                population.setStarvationCycles(countryName, 0);
+
+                ru.zela.politicseconomy.event.NewsService.add(
+                    server,
+                    server.overworld().getGameTime(),
+                    "ОБЩЕСТВО",
+                    countryName + ": гибель жителя",
+                    "Население сократилось до " + (current - 1) + "."
+                );
+            }
+        }
+
         data.setDirty();
     }
 
@@ -178,6 +209,8 @@ public final class CountryResidentService {
         );
         villager.setPersistenceRequired();
         villager.addTag(RESIDENT_TAG);
+        villager.addTag("politicseconomy_country:" + countryName);
+        villager.addTag("politicseconomy_role:" + role);
         villager.setCustomName(
             Component.literal(
                 FIRST_NAMES[Math.floorMod(residentIndex, FIRST_NAMES.length)]
@@ -272,6 +305,11 @@ public final class CountryResidentService {
                         || !level.getFluidState(pos).isEmpty()
                         || !level.getFluidState(pos.above()).isEmpty()
                         || !level.getBlockState(pos.below()).isSolid()) {
+                        continue;
+                    }
+
+                    AABB box = new AABB(pos).inflate(1.0D);
+                    if (!level.getEntitiesOfClass(Villager.class, box).isEmpty()) {
                         continue;
                     }
 
