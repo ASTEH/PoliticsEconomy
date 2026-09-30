@@ -276,7 +276,7 @@ public final class RandomEventService {
             }
         }
 
-        ACTIVE_FIRES.put(serverId(server), next);
+        ACTIVE_FIRES.put(server, next);
     }
 
     private static boolean belongsToState(
