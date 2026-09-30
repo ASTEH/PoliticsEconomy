@@ -41,7 +41,6 @@ public final class CountryResidentService {
 
     private static final int STARTER_RESIDENTS = 4;
     private static final int TICK_INTERVAL = 20;
-    private static final int BRAIN_INTERVAL = 100;
     private static final int MAX_SPAWNS_PER_PASS = 4;
 
     private static final Map<MinecraftServer, Long> LAST_RECONCILE_TICK =
@@ -331,8 +330,6 @@ public final class CountryResidentService {
             return;
         }
 
-        String currentCountry = data.findCountry(villager.getUUID());
-        if (!targetCountry.equals(currentCountry)) {
             if (currentCountry != null) {
                 data.removeResident(currentCountry, villager.getUUID());
             }
