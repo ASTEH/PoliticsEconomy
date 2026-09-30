@@ -62,10 +62,13 @@ public final class EconomyScreen extends Screen {
     private EditBox tradeDispatchAmount;
     private EditBox tradeHistorySearch;
     private EditBox tradeCancelReason;
+    private EditBox warSearch;
     private Integer cancelOrderId;
     private String selectedTradeItemId = "minecraft:iron_ingot";
     private int selectedCountryIndex;
     private boolean countryDropdownOpen;
+    private String warTargetName;
+    private String warTargetType;
     private List<TradeItemOption> tradeItemOptions = List.of();
 
     // Coordinates are calculated from the actual trade cards every frame.
@@ -110,6 +113,8 @@ public final class EconomyScreen extends Screen {
         tradeDispatchAmount = new EditBox(font, 0, 0, 72, 20, Component.literal("Партия"));
         tradeHistorySearch = new EditBox(font, 0, 0, 220, 20, Component.literal("Поиск"));
         tradeCancelReason = new EditBox(font, 0, 0, 440, 20, Component.literal("Причина отмены"));
+        warSearch = new EditBox(font, 0, 0, 360, 20, Component.literal("Поиск страны"));
+        warSearch.setMaxLength(128);
 
         buildTradeItemOptions();
         tradeItem.setValue(tradeItemDisplayName(selectedTradeItemId));
@@ -253,7 +258,7 @@ public final class EconomyScreen extends Screen {
             case COUNTRY -> end = drawCountry(graphics, end, left, right, mouseX, mouseY);
             case EFFECTS -> end = drawEffects(graphics, end, left, right);
             case CITIES -> end = drawCities(graphics, end, left, right, mouseX, mouseY);
-            case NEWS -> end = drawNews(graphics, end, left, right);
+            case NEWS -> end = drawNews(graphics, end, left, right, mouseX, mouseY);
             case MARKET -> end = drawMarket(graphics, end, left, right, mouseX, mouseY);
             case TRADE -> end = drawTrade(graphics, end, left, right, mouseX, mouseY);
             case TRADE_HISTORY -> end = drawTradeHistory(graphics, end, left, right, mouseX, mouseY);
@@ -1560,6 +1565,7 @@ public final class EconomyScreen extends Screen {
     }
 
     private int modalHeight(boolean cancelDialog) {
+        if ("war_declare".equals(modalAction)) return Math.min(430, height - 24);
         return cancelDialog ? 238 : 224;
     }
 
@@ -1580,6 +1586,11 @@ public final class EconomyScreen extends Screen {
     }
 
     private void drawModal(GuiGraphics g, int mouseX, int mouseY) {
+        if ("war_declare".equals(modalAction)) {
+            drawWarDialog(g, mouseX, mouseY);
+            return;
+        }
+
         boolean cancelDialog = "trade_cancel".equals(modalAction);
         g.fill(0, 0, width, height, 0xFF000000);
 
@@ -1658,6 +1669,12 @@ public final class EconomyScreen extends Screen {
         modalCommand = null;
         modalTitle = null;
         cancelOrderId = null;
+        warTargetName = null;
+        warTargetType = null;
+        if (warSearch != null) {
+            warSearch.setValue("");
+            warSearch.setFocused(false);
+        }
         if (tradeCancelReason != null) {
             tradeCancelReason.setValue("");
             tradeCancelReason.setFocused(false);
@@ -1813,6 +1830,17 @@ public final class EconomyScreen extends Screen {
             }
 
             if (inside(mouseX, mouseY, left + w - 95, buttonY, left + w - 18, buttonY + 27)) {
+                if ("war_declare".equals(modalAction)) {
+                    if (warTargetName != null && warTargetType != null) {
+                        EconomyNetwork.sendAction(
+                            "war_declare",
+                            warTargetType + "|" + warTargetName
+                        );
+                        closeModal();
+                    }
+                    return true;
+                }
+
                 if (cancelDialog) {
                     String reason = tradeCancelReason.getValue().trim();
                     if (cancelOrderId != null && !reason.isBlank()) {
@@ -1876,6 +1904,9 @@ public final class EconomyScreen extends Screen {
         }
         if ("trade_cancel".equals(modalAction) && tradeCancelReason != null) {
             return tradeCancelReason.keyPressed(keyCode, scanCode, modifiers);
+        }
+        if ("war_declare".equals(modalAction) && warSearch != null) {
+            return warSearch.keyPressed(keyCode, scanCode, modifiers);
         }
         return super.keyPressed(keyCode, scanCode, modifiers);
     }
