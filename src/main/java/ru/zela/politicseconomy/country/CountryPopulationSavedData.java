@@ -161,7 +161,7 @@ public final class CountryPopulationSavedData extends SavedData {
         setDirty();
     }
 
-
+    public int getBeds(long chunkLong) {
         return Math.max(0, bedsByChunk.getOrDefault(chunkLong, 0));
     }
 
