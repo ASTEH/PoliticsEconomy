@@ -46,16 +46,29 @@ public final class MillenaireCombatBridge {
             return new Result(false, false, "village_unavailable");
         }
 
-        boolean relationChanged =
-            adjustRelationSymmetric(server.overworld(), attacker, defender);
+        Object defenderId = invoke(defender, "getId");
+        if (defenderId == null) {
+            return new Result(false, false, "defender_id_unavailable");
+        }
 
-        boolean raidTriggered = hasActiveRaid(attacker, defender);
+        boolean relationChanged = setHostileRelation(
+            server.overworld(),
+            attacker,
+            defender,
+            defenderId
+        );
+
+        boolean raidTriggered = triggerImmediateRaid(
+            attacker,
+            defenderId,
+            server.overworld().getGameTime()
+        );
 
         String detail = raidTriggered
-            ? "native_raid_active"
+            ? "native_raid_forced"
             : relationChanged
-                ? "hostile_relation_set_waiting_for_millenaire_raid_planner"
-                : "relation_api_failed";
+                ? "hostile_relation_set"
+                : "native_raid_api_failed";
 
         return new Result(relationChanged, raidTriggered, detail);
     }
@@ -125,31 +138,19 @@ public final class MillenaireCombatBridge {
                 || name.contains("relation")
                 || name.contains("fight")
                 || name.contains("combat")
-                || name.contains("guard")
-                || name.contains("escort")
-                || name.contains("fighter")) {
-                methods.add(signature(method));
-            }
-        }
-        methods.sort(String::compareTo);
-        return List.copyOf(methods);
-    }
-
-    private static boolean adjustRelationSymmetric(
+            private static boolean setHostileRelation(
         ServerLevel level,
         Object attacker,
-        Object defender
+        Object defender,
+        Object defenderId
     ) {
-        Object defenderId = invoke(attacker, "getId");
-        if (defenderId == null) return false;
+        int relationBefore = intValue(invoke(attacker, "getRelation", defenderId));
 
-        Object current = invoke(attacker, "getRelation", defenderId);
-        int currentRelation = current instanceof Number
-            ? ((Number) current).intValue()
-            : 0;
-
-        int delta = -100 - currentRelation;
-        if (delta >= 0) return true;
+        boolean updated = false;
+        Object direct = invoke(attacker, "setRelation", defenderId, -100);
+        if (direct != null || relationBefore <= -20) {
+            updated = true;
+        }
 
         for (Method method : attacker.getClass().getMethods()) {
             if (!method.getName().equals("adjustRelationSymmetric")
@@ -166,20 +167,54 @@ public final class MillenaireCombatBridge {
             }
 
             try {
-                method.invoke(attacker, level, defenderId, delta, true);
-                Object updated = invoke(attacker, "getRelation", defenderId);
-                return updated instanceof Number
-                    && ((Number) updated).intValue() <= -20;
+                int current = intValue(invoke(attacker, "getRelation", defenderId));
+                int delta = -100 - current;
+                if (delta < 0) {
+                    method.invoke(attacker, level, defenderId, delta, true);
+                }
+                updated = intValue(invoke(attacker, "getRelation", defenderId)) <= -20;
+                break;
             } catch (Throwable ignored) {
             }
         }
 
-        return false;
+        Object attackerId = invoke(attacker, "getId");
+        if (attackerId != null) {
+            invoke(defender, "setRelation", attackerId, -100);
+        }
+
+        return updated
+            || intValue(invoke(attacker, "getRelation", defenderId)) <= -20;
     }
 
-    private static boolean hasActiveRaid(
+    private static boolean triggerImmediateRaid(
         Object attacker,
-        Object defender
+        Object defenderId,
+        long gameTime
+    ) {
+        try {
+            invoke(attacker, "clearRaid");
+            invoke(attacker, "setRaidTarget", defenderId);
+            invoke(attacker, "setRaidPlanningStart", gameTime);
+            invoke(attacker, "setRaidStart", gameTime);
+            invoke(attacker, "setRaidStartGameTime", gameTime);
+
+            Object target = invoke(attacker, "getRaidTarget");
+            long raidStart = longValue(invoke(attacker, "getRaidStart"));
+            long planningStart = longValue(
+                invoke(attacker, "getRaidPlanningStart")
+            );
+
+            return target != null
+                && target.toString().equals(defenderId.toString())
+                && raidStart == gameTime
+                && planningStart == gameTime;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+t defender
     ) {
         Object target = invoke(attacker, "getRaidTarget");
         if (target == null) return false;
