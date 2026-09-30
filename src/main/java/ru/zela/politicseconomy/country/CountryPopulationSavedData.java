@@ -20,6 +20,7 @@ public final class CountryPopulationSavedData extends SavedData {
     private static final String FED_CYCLES = "fedCycles";
     private static final String STARVATION_CYCLES = "starvationCycles";
     private static final String DEVELOPMENT_PROGRESS = "developmentProgress";
+    private static final String STARTER_BEDS_GIVEN = "starterBedsGiven";
 
     private final Map<Long, Integer> bedsByChunk = new HashMap<>();
     private final Map<String, Integer> residentsByCountry = new HashMap<>();
@@ -27,6 +28,7 @@ public final class CountryPopulationSavedData extends SavedData {
     private final Map<String, Integer> fedCyclesByCountry = new HashMap<>();
     private final Map<String, Integer> starvationCyclesByCountry = new HashMap<>();
     private final Map<String, Integer> developmentProgressByCountry = new HashMap<>();
+    private final Map<String, Integer> starterBedsGivenByCountry = new HashMap<>();
 
     public static CountryPopulationSavedData create() {
         return new CountryPopulationSavedData();
@@ -54,6 +56,7 @@ public final class CountryPopulationSavedData extends SavedData {
         readIntMap(tag, FED_CYCLES, data.fedCyclesByCountry);
         readIntMap(tag, STARVATION_CYCLES, data.starvationCyclesByCountry);
         readIntMap(tag, DEVELOPMENT_PROGRESS, data.developmentProgressByCountry);
+        readIntMap(tag, STARTER_BEDS_GIVEN, data.starterBedsGivenByCountry);
         return data;
     }
 
@@ -75,6 +78,7 @@ public final class CountryPopulationSavedData extends SavedData {
         writeIntMap(tag, FED_CYCLES, fedCyclesByCountry);
         writeIntMap(tag, STARVATION_CYCLES, starvationCyclesByCountry);
         writeIntMap(tag, DEVELOPMENT_PROGRESS, developmentProgressByCountry);
+        writeIntMap(tag, STARTER_BEDS_GIVEN, starterBedsGivenByCountry);
         return tag;
     }
 
@@ -158,6 +162,15 @@ public final class CountryPopulationSavedData extends SavedData {
 
     public void setDevelopmentProgress(String countryName, int progress) {
         developmentProgressByCountry.put(countryName, Math.max(0, progress));
+        setDirty();
+    }
+
+    public boolean starterBedsGiven(String countryName) {
+        return starterBedsGivenByCountry.getOrDefault(countryName, 0) > 0;
+    }
+
+    public void markStarterBedsGiven(String countryName) {
+        starterBedsGivenByCountry.put(countryName, 1);
         setDirty();
     }
 
