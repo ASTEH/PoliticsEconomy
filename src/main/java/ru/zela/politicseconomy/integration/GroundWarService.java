@@ -7,6 +7,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.AABB;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import ru.zela.politicseconomy.country.CountryWorkforceService;
@@ -70,42 +71,40 @@ public final class GroundWarService {
         }
 
         ServerLevel level = server.overworld();
-        Set<Mob> attackers = party(level, attacker, war);
-        Set<Mob> defenders = ensureDefenderParty(level, defender, war);
+        Set<LivingEntity> attackers = party(level, attacker, war);
+        Set<LivingEntity> defenders = ensureDefenderParty(level, defender, war);
 
         if (attackers.isEmpty()) return;
 
-        for (Mob mob : attackers) {
+        for (LivingEntity mob : attackers) {
             if (!mob.isAlive()) continue;
 
             double distance = mob.position().distanceTo(
                 defender.center().getCenter()
             );
             if (distance > TARGET_RADIUS) {
-                mob.getNavigation().moveTo(
-                    defender.center().getX(),
-                    defender.center().getY(),
-                    defender.center().getZ(),
+                moveToward(
+                    mob,
+                    defender.center().getCenter(),
                     movementSpeed(attacker, defender)
                 );
             } else {
-                Mob target = nearestAlive(defenders, mob);
+                LivingEntity target = nearestAlive(defenders, mob);
                 if (target != null) attack(server, mob, target, now);
             }
         }
 
         // Defenders counterattack once the assault is close enough.
-        for (Mob mob : defenders) {
+        for (LivingEntity mob : defenders) {
             if (!mob.isAlive()) continue;
-            Mob target = nearestAlive(attackers, mob);
+            LivingEntity target = nearestAlive(attackers, mob);
             if (target == null) continue;
 
             double distance = mob.position().distanceTo(target.position());
             if (distance > TARGET_RADIUS) {
-                mob.getNavigation().moveTo(
-                    target.getX(),
-                    target.getY(),
-                    target.getZ(),
+                moveToward(
+                    mob,
+                    target.position(),
                     1.05D
                 );
             } else {
@@ -117,16 +116,16 @@ public final class GroundWarService {
         wars.setDirty();
     }
 
-    private static Set<Mob> party(
+    private static Set<LivingEntity> party(
         ServerLevel level,
         MillenaireIntegration.VillageSnapshot state,
         MilitaryWarSavedData.War war
     ) {
         String tag = partyTag(war, true);
-        Set<Mob> result = new HashSet<>();
+        Set<LivingEntity> result = new HashSet<>();
 
-        for (Mob mob : candidates(level, state.center().getX(), state.center().getY(), state.center().getZ(), RALLY_RADIUS)) {
-            if (!isMillenaireMob(mob)) continue;
+        for (LivingEntity mob : candidates(level, state.center().getX(), state.center().getY(), state.center().getZ(), RALLY_RADIUS)) {
+            if (!isMillenaireLivingEntity(mob)) continue;
             if (!isInVillage(mob, state)) continue;
             if (mob.getTags().stream().anyMatch(existing -> existing.startsWith(PARTY_PREFIX) && !existing.equals(tag))) {
                 continue;
@@ -147,7 +146,7 @@ public final class GroundWarService {
                 RALLY_RADIUS
             )) {
                 if (result.size() >= limit) break;
-                if (!isMillenaireMob(mob) || !mob.isAlive()) continue;
+                if (!isMillenaireLivingEntity(mob) || !mob.isAlive()) continue;
                 if (!isInVillage(mob, state)) continue;
                 if (mob.getTags().stream().anyMatch(existing -> existing.startsWith(PARTY_PREFIX))) continue;
 
@@ -159,7 +158,7 @@ public final class GroundWarService {
         return result;
     }
 
-    private static Set<Mob> ensureDefenderParty(
+    private static Set<LivingEntity> ensureDefenderParty(
         ServerLevel level,
         MillenaireIntegration.VillageSnapshot state,
         MilitaryWarSavedData.War war
@@ -200,7 +199,7 @@ public final class GroundWarService {
         return result;
     }
 
-    private static List<Mob> candidates(
+    private static List<LivingEntity> candidates(
         ServerLevel level,
         double x,
         double y,
@@ -212,20 +211,20 @@ public final class GroundWarService {
             x + radius, y + 24.0D, z + radius
         );
         return level.getEntitiesOfClass(
-            Mob.class,
+            LivingEntity.class,
             box,
-            mob -> mob.isAlive() && isMillenaireMob(mob)
+            mob -> mob.isAlive() && isMillenaireLivingEntity(mob)
         );
     }
 
-    private static boolean isMillenaireMob(Mob mob) {
-        if (mob == null) return false;
+    private static boolean isMillenaireLivingEntity(LivingEntity entity) {
+        if (entity == null) return false;
 
-        String className = mob.getClass().getName().toLowerCase(java.util.Locale.ROOT);
+        String className = entity.getClass().getName().toLowerCase(java.util.Locale.ROOT);
         if (className.startsWith("org.millenaire.")) return true;
 
         try {
-            var key = BuiltInRegistries.ENTITY_TYPE.getKey(mob.getType());
+            var key = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
             return key != null && "millenaire".equals(key.getNamespace());
         } catch (Throwable ignored) {
             return false;
@@ -236,7 +235,7 @@ public final class GroundWarService {
         Mob mob,
         MillenaireIntegration.VillageSnapshot state
     ) {
-        return state.territory().contains(new ChunkPos(mob.blockPosition()));
+        return state.territory().contains(new ChunkPos(entity.blockPosition()));
     }
 
     private static int partySize(
@@ -262,11 +261,38 @@ public final class GroundWarService {
         return 1.10D;
     }
 
-    private static Mob nearestAlive(Set<Mob> entities, Mob from) {
-        Mob best = null;
+    private static void moveToward(
+        LivingEntity entity,
+        Vec3 target,
+        double speed
+    ) {
+        Vec3 delta = target.subtract(entity.position());
+        double horizontal = Math.sqrt(delta.x * delta.x + delta.z * delta.z);
+        if (horizontal < 0.25D) return;
+
+        double step = Math.min(0.34D, Math.max(0.10D, speed * 0.14D));
+        double vx = delta.x / horizontal * step;
+        double vz = delta.z / horizontal * step;
+
+        double vy = entity.getDeltaMovement().y;
+        if (Math.abs(delta.y) > 2.0D) {
+            vy += Math.max(-0.08D, Math.min(0.08D, delta.y * 0.01D));
+        }
+
+        entity.setDeltaMovement(vx, vy, vz);
+        entity.hasImpulse = true;
+
+        if (entity instanceof Mob mob) {
+            mob.getNavigation().stop();
+            mob.getLookControl().setLookAt(target.x, target.y, target.z);
+        }
+    }
+
+    private static LivingEntity nearestAlive(Set<LivingEntity> entities, LivingEntity from) {
+        LivingEntity best = null;
         double bestDistance = Double.MAX_VALUE;
 
-        for (Mob entity : entities) {
+        for (LivingEntity entity : entities) {
             if (entity == null || !entity.isAlive()) continue;
             double distance = from.distanceToSqr(entity);
             if (distance < bestDistance) {
@@ -279,7 +305,7 @@ public final class GroundWarService {
 
     private static void attack(
         MinecraftServer server,
-        Mob attacker,
+        LivingEntity attacker,
         LivingEntity target,
         long now
     ) {
