@@ -3,6 +3,7 @@ package ru.zela.politicseconomy.country;
 import net.krona.politicsmod.PoliticsManager;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.GlobalPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -11,30 +12,40 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.npc.VillagerData;
 import net.minecraft.world.entity.npc.VillagerProfession;
+import net.minecraft.world.entity.ai.memory.MemoryModuleType;
 import net.minecraft.world.level.ChunkPos;
-import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.world.level.Heightmap;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
  * Physical citizen layer for Politics Economy.
  *
- * Residents are ordinary Minecraft villagers. Vanilla navigation, schedules,
- * beds, workstations and trading remain intact; Politics Economy adds country
- * identity and synchronization with the economic population.
+ * A villager becomes part of a country when its vanilla HOME memory points
+ * to a bed belonging to that country. Population is therefore the number of
+ * unique occupied beds, not the number of bed blocks placed in the world.
  */
 public final class CountryResidentService {
     private static final String RESIDENT_TAG = "politicseconomy_resident";
+    private static final String COUNTRY_TAG_PREFIX = "politicseconomy_country:";
+    private static final String ROLE_TAG_PREFIX = "politicseconomy_role:";
+
     private static final int STARTER_RESIDENTS = 4;
     private static final int TICK_INTERVAL = 20;
     private static final int BRAIN_INTERVAL = 100;
     private static final int MAX_SPAWNS_PER_PASS = 4;
+
+    private static final Map<MinecraftServer, Long> LAST_RECONCILE_TICK =
+        new java.util.WeakHashMap<>();
 
     private static final String[] FIRST_NAMES = {
         "Иван", "Анна", "Алексей", "Мария",
@@ -55,49 +66,58 @@ public final class CountryResidentService {
         );
     }
 
-    public static void syncResidents(MinecraftServer server, String countryName) {
-        if (server == null || countryName == null || countryName.isBlank()) return;
-        if (ru.zela.politicseconomy.integration.MillenaireIntegration.isStateKey(countryName)) return;
+    /**
+     * Returns the actual resident population: unique beds selected by
+     * villagers through their HOME brain memory.
+     */
+    public static int population(MinecraftServer server, String countryName) {
+        if (server == null || countryName == null || countryName.isBlank()) return 0;
+        if (ru.zela.politicseconomy.integration.MillenaireIntegration.isStateKey(countryName)) {
+            return ru.zela.politicseconomy.integration.MillenaireIntegration.population(server, countryName);
+        }
 
-        CountryPopulationSavedData populationData = CountryPopulationService.get(server);
-        syncResidents(server, countryName, populationData.getResidents(countryName));
+        reconcileIfNeeded(server);
+
+        return get(server).occupiedBedCount(countryName);
     }
 
-    public static void syncResidents(
-        MinecraftServer server,
-        String countryName,
-        int targetResidents
-    ) {
+    public static int populationAtChunk(MinecraftServer server, ChunkPos chunk) {
+        if (server == null || chunk == null) return 0;
+        reconcileIfNeeded(server);
+
+        CountryResidentSavedData data = get(server);
+        PoliticsManager politics = PoliticsManager.get(server.overworld());
+        if (politics == null) return 0;
+
+        String country = politics.getCountryNameAt(chunk);
+        if (country == null) return 0;
+
+        return data.occupiedBedCountInChunk(country, chunk.toLong());
+    }
+
+    public static void ensureStarterResidents(MinecraftServer server, String countryName) {
         if (server == null || countryName == null || countryName.isBlank()) return;
-        if (targetResidents <= 0 || !hasOnlineCountryPlayer(server, countryName)) return;
+        if (!hasOnlineCountryPlayer(server, countryName)) return;
 
         PoliticsManager politics = PoliticsManager.get(server.overworld());
         if (politics == null || politics.getCountry(countryName) == null) return;
 
         CountryResidentSavedData data = get(server);
-        Map<UUID, String> registered = data.snapshot(countryName);
+        int existingPhysical = data.residentIds(countryName).size();
+        int missing = Math.max(0, STARTER_RESIDENTS - existingPhysical);
 
-        int missing = Math.max(0, targetResidents - registered.size());
-        int spawnCount = Math.min(missing, MAX_SPAWNS_PER_PASS);
+        spawnResidents(server, countryName, missing, false);
+        reconcileIfNeeded(server);
+    }
 
-        for (int i = 0; i < spawnCount; i++) {
-            String role = chooseRole(server, countryName, registered.size());
-            Villager villager = spawnResident(server, countryName, role, registered.size());
-            if (villager == null) break;
-
-            data.addResident(countryName, villager.getUUID(), role);
-            registered = data.snapshot(countryName);
-        }
-
-        if (registered.size() > targetResidents) {
-            removeExcessResidents(server, countryName, targetResidents, registered);
-        }
-
-        if (server.overworld().getGameTime() % BRAIN_INTERVAL == 0L) {
-            maintainResidentTerritory(server, countryName, data);
-        }
-
-        data.setDirty();
+    /**
+     * Called when economic growth creates enough food and housing for another
+     * household member. The villager is created physically; population starts
+     * counting it only after the villager claims a bed.
+     */
+    public static boolean spawnResidentForGrowth(MinecraftServer server, String countryName) {
+        if (server == null || countryName == null || countryName.isBlank()) return false;
+        return spawnResidents(server, countryName, 1, true) > 0;
     }
 
     public static void onServerTick(ServerTickEvent.Post event) {
@@ -107,24 +127,16 @@ public final class CountryResidentService {
         long tick = server.overworld().getGameTime();
         if (tick % TICK_INTERVAL != 0L) return;
 
+        reconcileAll(server);
+
         PoliticsManager politics = PoliticsManager.get(server.overworld());
         if (politics == null) return;
 
-        CountryPopulationSavedData populationData = CountryPopulationService.get(server);
         for (var country : politics.getCountries().values()) {
-            int residents = populationData.getResidents(country.getName());
-            if (residents > 0) {
-                syncResidents(server, country.getName(), residents);
+            if (hasOnlineCountryPlayer(server, country.getName())) {
+                ensureStarterResidents(server, country.getName());
             }
         }
-    }
-
-    public static void ensureStarterResidents(MinecraftServer server, String countryName) {
-        if (server == null || countryName == null || countryName.isBlank()) return;
-
-        CountryPopulationSavedData data = CountryPopulationService.get(server);
-        int target = Math.max(STARTER_RESIDENTS, data.getResidents(countryName));
-        syncResidents(server, countryName, target);
     }
 
     public static void onPlayerLoggedIn(PlayerEvent.PlayerLoggedInEvent event) {
@@ -136,6 +148,7 @@ public final class CountryResidentService {
         String countryName = politics.getPlayerCountry(player.getUUID());
         if (countryName != null && !countryName.isBlank()) {
             ensureStarterResidents(player.getServer(), countryName);
+            reconcileIfNeeded(player.getServer());
         }
     }
 
@@ -146,37 +159,244 @@ public final class CountryResidentService {
 
         MinecraftServer server = level.getServer();
         CountryResidentSavedData data = get(server);
-        String countryName = null;
-        PoliticsManager politics = PoliticsManager.get(level);
-        if (politics != null) {
-            for (var country : politics.getCountries().values()) {
-                if (data.residentIds(country.getName()).contains(villager.getUUID())) {
-                    countryName = country.getName();
-                    break;
+        data.removeResidentEverywhere(villager.getUUID());
+        data.setDirty();
+
+        String countryName = data.findCountry(villager.getUUID());
+        if (countryName != null) {
+            ru.zela.politicseconomy.event.NewsService.add(
+                server,
+                server.overworld().getGameTime(),
+                "ОБЩЕСТВО",
+                countryName + ": гибель жителя",
+                "Житель погиб. Свободное жильё может принять нового жителя."
+            );
+        }
+    }
+
+    /**
+     * Removes one physical resident when a prolonged food shortage causes
+     * population decline. The actual population change is reflected through
+     * the occupied-bed counter after the resident is removed.
+     */
+    public static boolean removeOneResident(MinecraftServer server, String countryName) {
+        if (server == null || countryName == null || countryName.isBlank()) return false;
+
+        CountryResidentSavedData data = get(server);
+        for (UUID uuid : new ArrayList<>(data.residentIds(countryName))) {
+            Long bed = data.getResidentBed(countryName, uuid);
+
+            for (ServerLevel level : server.getAllLevels()) {
+                var entity = level.getEntity(uuid);
+                if (entity instanceof Villager villager) {
+                    villager.releasePoi(MemoryModuleType.HOME);
+                    villager.remove(net.minecraft.world.entity.Entity.RemovalReason.DISCARDED);
+                    data.removeResident(countryName, uuid);
+                    data.setDirty();
+                    return true;
                 }
             }
-        }
 
-        data.removeResidentEverywhere(villager.getUUID());
-
-        if (countryName != null) {
-            CountryPopulationSavedData population = CountryPopulationService.get(server);
-            int current = population.getResidents(countryName);
-            if (current > 1) {
-                population.setResidents(countryName, current - 1);
-                population.setStarvationCycles(countryName, 0);
-
-                ru.zela.politicseconomy.event.NewsService.add(
-                    server,
-                    server.overworld().getGameTime(),
-                    "ОБЩЕСТВО",
-                    countryName + ": гибель жителя",
-                    "Население сократилось до " + (current - 1) + "."
-                );
+            // If the entity is currently unloaded, remove the persisted
+            // residence record. When it becomes loaded again, vanilla HOME
+            // data can attach it back to its actual country.
+            if (bed != null) {
+                data.removeResident(countryName, uuid);
+                data.setDirty();
+                return true;
             }
         }
 
+        return false;
+    }
+
+    /**
+     * Reconciles all claimed country chunks with the villagers currently
+     * loaded in those chunks. This is what allows a villager brought from
+     * another settlement to become a citizen once it selects a local bed.
+     */
+    public static void reconcileAll(MinecraftServer server) {
+        if (server == null || server.overworld() == null) return;
+
+        PoliticsManager politics = PoliticsManager.get(server.overworld());
+        if (politics == null) return;
+
+        for (var country : politics.getCountries().values()) {
+            reconcileCountry(server, country.getName());
+        }
+
+        LAST_RECONCILE_TICK.put(server, server.overworld().getGameTime());
+    }
+
+    private static void reconcileIfNeeded(MinecraftServer server) {
+        long tick = server.overworld().getGameTime();
+        if (!Long.valueOf(tick).equals(LAST_RECONCILE_TICK.get(server))) {
+            reconcileAll(server);
+        }
+    }
+
+    private static void reconcileCountry(MinecraftServer server, String countryName) {
+        PoliticsManager politics = PoliticsManager.get(server.overworld());
+        if (politics == null || politics.getCountry(countryName) == null) return;
+
+        CountryResidentSavedData data = get(server);
+        ServerLevel level = server.overworld();
+        Set<UUID> seen = new HashSet<>();
+
+        // First validate residents whose entities are currently loaded.
+        for (UUID uuid : new ArrayList<>(data.residentIds(countryName))) {
+            var entity = level.getEntity(uuid);
+            if (entity instanceof Villager villager) {
+                seen.add(uuid);
+                reconcileLoadedVillager(server, politics, data, villager, countryName);
+            }
+        }
+
+        // Then discover ordinary villagers living in this country, including
+        // villagers imported from a different settlement.
+        politics.forEachClaim((chunk, color) -> {
+            String owner = politics.getCountryNameAt(chunk);
+            if (!countryName.equals(owner)) return;
+
+            int minX = chunk.getMinBlockX();
+            int minZ = chunk.getMinBlockZ();
+
+            AABB box = new AABB(
+                minX,
+                level.getMinBuildHeight(),
+                minZ,
+                minX + 16.0D,
+                level.getMaxBuildHeight(),
+                minZ + 16.0D
+            );
+
+            for (Villager villager : level.getEntitiesOfClass(Villager.class, box)) {
+                if (!seen.add(villager.getUUID())) {
+                    continue;
+                }
+
+                reconcileLoadedVillager(server, politics, data, villager, countryName);
+            }
+        });
+
         data.setDirty();
+    }
+
+    private static void reconcileLoadedVillager(
+        MinecraftServer server,
+        PoliticsManager politics,
+        CountryResidentSavedData data,
+        Villager villager,
+        String targetCountry
+    ) {
+        GlobalPos home = villager.getBrain()
+            .getMemory(MemoryModuleType.HOME)
+            .orElse(null);
+
+        String homeCountry = countryCountryAtHome(server, politics, home);
+
+        // A villager that is physically inside the target country but still
+        // remembers a bed in another country gets its old POI released. Vanilla
+        // AI can then choose an available local bed normally.
+        if (homeCountry != null && !targetCountry.equals(homeCountry)) {
+            if (politics.getCountryNameAt(villager.chunkPosition()) != null
+                && targetCountry.equals(
+                    politics.getCountryNameAt(villager.chunkPosition())
+                )) {
+                villager.releasePoi(MemoryModuleType.HOME);
+            }
+            return;
+        }
+
+        if (!targetCountry.equals(homeCountry)) {
+            return;
+        }
+
+        BlockPos bedPos = home.pos();
+        if (!isValidBed(server.overworld(), bedPos)) {
+            villager.releasePoi(MemoryModuleType.HOME);
+            data.setResidentBed(targetCountry, villager.getUUID(), null);
+            return;
+        }
+
+        String currentCountry = data.findCountry(villager.getUUID());
+        if (!targetCountry.equals(currentCountry)) {
+            if (currentCountry != null) {
+                data.removeResident(currentCountry, villager.getUUID());
+            }
+
+            String role = roleFromVillager(villager);
+            data.addResident(targetCountry, villager.getUUID(), role);
+            setCountryTags(villager, targetCountry, role);
+        } else if (!data.residentIds(targetCountry).contains(villager.getUUID())) {
+            data.addResident(targetCountry, villager.getUUID(), roleFromVillager(villager));
+        }
+
+        data.setResidentBed(
+            targetCountry,
+            villager.getUUID(),
+            bedPos.asLong()
+        );
+    }
+
+    private static String countryCountryAtHome(
+        MinecraftServer server,
+        PoliticsManager politics,
+        GlobalPos home
+    ) {
+        if (home == null || !home.dimension().equals(Level.OVERWORLD)) {
+            return null;
+        }
+
+        BlockPos pos = home.pos();
+        if (!isValidBed(server.overworld(), pos)) {
+            return null;
+        }
+
+        return politics.getCountryNameAt(new ChunkPos(pos));
+    }
+
+    private static boolean isValidBed(ServerLevel level, BlockPos pos) {
+        return level.getBlockState(pos).getBlock()
+            instanceof net.minecraft.world.level.block.BedBlock;
+    }
+
+    private static int spawnResidents(
+        MinecraftServer server,
+        String countryName,
+        int count,
+        boolean growth
+    ) {
+        if (count <= 0) return 0;
+
+        ServerPlayer anchor = findAnchorPlayer(server, countryName);
+        if (anchor == null) return 0;
+
+        CountryResidentSavedData data = get(server);
+        int spawned = 0;
+
+        for (int i = 0; i < Math.min(MAX_SPAWNS_PER_PASS, count); i++) {
+            String role = chooseRole(server, countryName, data.residentIds(countryName).size());
+            Villager villager = spawnResident(server, countryName, role, data.residentIds(countryName).size());
+            if (villager == null) break;
+
+            data.addResident(countryName, villager.getUUID(), role);
+            setCountryTags(villager, countryName, role);
+            spawned++;
+        }
+
+        if (spawned > 0) {
+            data.setDirty();
+            anchor.sendSystemMessage(
+                Component.literal(
+                    growth
+                        ? "Новый житель появился в государстве " + countryName + ". Он должен найти свободное жильё."
+                        : "В государстве " + countryName + " появились новые жители."
+                ).withStyle(ChatFormatting.GREEN)
+            );
+        }
+
+        return spawned;
     }
 
     private static Villager spawnResident(
@@ -195,10 +415,10 @@ public final class CountryResidentService {
         Villager villager = EntityType.VILLAGER.create(level);
         if (villager == null) return null;
 
-        VillagerData data = villager.getVillagerData()
+        VillagerData villagerData = villager.getVillagerData()
             .setProfession(professionForRole(role))
             .setLevel(1);
-        villager.setVillagerData(data);
+        villager.setVillagerData(villagerData);
 
         villager.moveTo(
             spawnPos.getX() + 0.5D,
@@ -209,8 +429,6 @@ public final class CountryResidentService {
         );
         villager.setPersistenceRequired();
         villager.addTag(RESIDENT_TAG);
-        villager.addTag("politicseconomy_country:" + countryName);
-        villager.addTag("politicseconomy_role:" + role);
         villager.setCustomName(
             Component.literal(
                 FIRST_NAMES[Math.floorMod(residentIndex, FIRST_NAMES.length)]
@@ -229,10 +447,9 @@ public final class CountryResidentService {
     ) {
         var ledger = ru.zela.politicseconomy.economy.NationalMaterialConsumptionService
             .getLedger(server);
-        int bread = ledger.getStockpile(countryName, "minecraft:bread");
-        int population = Math.max(1, CountryPopulationService.get(server).getResidents(countryName));
 
-        if (bread < population * 0.5D) {
+        int bread = ledger.getStockpile(countryName, "minecraft:bread");
+        if (bread < 4) {
             return "FARMER";
         }
 
@@ -254,6 +471,16 @@ public final class CountryResidentService {
         };
     }
 
+    private static String roleFromVillager(Villager villager) {
+        return switch (villager.getVillagerData().profession().toString()) {
+            case "minecraft:farmer" -> "FARMER";
+            case "minecraft:toolsmith" -> "TOOLSMITH";
+            case "minecraft:librarian" -> "LIBRARIAN";
+            case "minecraft:armorer" -> "ARMORER";
+            default -> "CITIZEN";
+        };
+    }
+
     private static String roleDisplayName(String role) {
         return switch (role) {
             case "FARMER" -> "фермер";
@@ -262,6 +489,23 @@ public final class CountryResidentService {
             case "ARMORER" -> "воин";
             default -> "житель";
         };
+    }
+
+    private static void setCountryTags(
+        Villager villager,
+        String countryName,
+        String role
+    ) {
+        for (String tag : new ArrayList<>(villager.getTags())) {
+            if (tag.startsWith(COUNTRY_TAG_PREFIX)
+                || tag.startsWith(ROLE_TAG_PREFIX)) {
+                villager.removeTag(tag);
+            }
+        }
+
+        villager.addTag(RESIDENT_TAG);
+        villager.addTag(COUNTRY_TAG_PREFIX + countryName);
+        villager.addTag(ROLE_TAG_PREFIX + role);
     }
 
     private static ServerPlayer findAnchorPlayer(
@@ -277,15 +521,11 @@ public final class CountryResidentService {
                 continue;
             }
 
-            if (countryName.equals(
-                politics.getCountryNameAt(player.chunkPosition())
-            )) {
+            if (countryName.equals(politics.getCountryNameAt(player.chunkPosition()))) {
                 return player;
             }
 
-            if (fallback == null) {
-                fallback = player;
-            }
+            if (fallback == null) fallback = player;
         }
 
         return fallback;
@@ -306,7 +546,11 @@ public final class CountryResidentService {
 
                     int x = origin.getX() + dx;
                     int z = origin.getZ() + dz;
-                    int y = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+                    int y = level.getHeight(
+                        Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
+                        x,
+                        z
+                    );
 
                     if (y <= level.getMinBuildHeight() + 1) continue;
 
@@ -330,59 +574,5 @@ public final class CountryResidentService {
         }
 
         return null;
-    }
-
-    private static void removeExcessResidents(
-        MinecraftServer server,
-        String countryName,
-        int targetResidents,
-        Map<UUID, String> registered
-    ) {
-        CountryResidentSavedData data = get(server);
-        int excess = registered.size() - targetResidents;
-        if (excess <= 0) return;
-
-        for (UUID uuid : new ArrayList<>(registered.keySet())) {
-            if (excess <= 0) break;
-
-            for (ServerLevel level : server.getAllLevels()) {
-                var entity = level.getEntity(uuid);
-                if (!(entity instanceof Villager villager)) continue;
-
-                villager.remove(net.minecraft.world.entity.Entity.RemovalReason.DISCARDED);
-                data.removeResident(countryName, uuid);
-                excess--;
-                break;
-            }
-        }
-    }
-
-    private static void maintainResidentTerritory(
-        MinecraftServer server,
-        String countryName,
-        CountryResidentSavedData data
-    ) {
-        PoliticsManager politics = PoliticsManager.get(server.overworld());
-        ServerPlayer anchor = findAnchorPlayer(server, countryName);
-        if (politics == null || anchor == null) return;
-
-        for (UUID uuid : data.residentIds(countryName)) {
-            var entity = server.overworld().getEntity(uuid);
-            if (!(entity instanceof Villager villager)) continue;
-
-            ChunkPos chunk = villager.chunkPosition();
-            String owner = politics.getCountryNameAt(chunk);
-            if (countryName.equals(owner)) continue;
-
-            BlockPos safe = findSpawnPosition(server.overworld(), anchor.blockPosition());
-            if (safe == null) continue;
-
-            villager.teleportTo(
-                safe.getX() + 0.5D,
-                safe.getY(),
-                safe.getZ() + 0.5D
-            );
-            villager.getNavigation().stop();
-        }
     }
 }
