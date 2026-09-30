@@ -19,7 +19,8 @@ public record PoliticalClaimsPayload(
     int radius,
     String[] countries,
     long[] chunks,
-    int[] countryIndices
+    int[] countryIndices,
+    String[] eventRows
 ) implements CustomPacketPayload {
     public static final Type<PoliticalClaimsPayload> TYPE =
         new Type<>(ResourceLocation.fromNamespaceAndPath("politicseconomy", "political_claims"));
@@ -27,11 +28,14 @@ public record PoliticalClaimsPayload(
     private static final int MAX_COUNTRIES = 256;
     private static final int MAX_CHUNKS = 12_000;
     private static final int MAX_COUNTRY_NAME = 128;
+    private static final int MAX_EVENTS = 64;
+    private static final int MAX_EVENT_ROW = 256;
 
     public PoliticalClaimsPayload {
         countries = countries == null ? new String[0] : Arrays.copyOf(countries, countries.length);
         chunks = chunks == null ? new long[0] : Arrays.copyOf(chunks, chunks.length);
         countryIndices = countryIndices == null ? new int[0] : Arrays.copyOf(countryIndices, countryIndices.length);
+        eventRows = eventRows == null ? new String[0] : Arrays.copyOf(eventRows, eventRows.length);
     }
 
     public static final StreamCodec<RegistryFriendlyByteBuf, PoliticalClaimsPayload> STREAM_CODEC =
@@ -57,13 +61,20 @@ public record PoliticalClaimsPayload(
                     indices[i] = Math.max(0, Math.min(countryCount - 1, buf.readVarInt()));
                 }
 
+                int eventCount = Math.max(0, Math.min(MAX_EVENTS, buf.readVarInt()));
+                String[] eventRows = new String[eventCount];
+                for (int i = 0; i < eventCount; i++) {
+                    eventRows[i] = buf.readUtf(MAX_EVENT_ROW);
+                }
+
                 return new PoliticalClaimsPayload(
                     centerX,
                     centerZ,
                     radius,
                     countries,
                     chunks,
-                    indices
+                    indices,
+                    eventRows
                 );
             }
 
@@ -93,6 +104,12 @@ public record PoliticalClaimsPayload(
                     }
                     buf.writeLong(value.chunks()[i]);
                     buf.writeVarInt(index);
+                }
+
+                int eventCount = Math.min(MAX_EVENTS, value.eventRows().length);
+                buf.writeVarInt(eventCount);
+                for (int i = 0; i < eventCount; i++) {
+                    buf.writeUtf(limit(value.eventRows()[i], MAX_EVENT_ROW), MAX_EVENT_ROW);
                 }
             }
         };
