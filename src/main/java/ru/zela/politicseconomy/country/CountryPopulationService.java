@@ -283,6 +283,11 @@ public final class CountryPopulationService {
             }
         }
 
+        // Keep the visible villager population synchronized with the same
+        // number that drives the economic system. Growth creates a resident;
+        // starvation removes one from the physical registry.
+        CountryResidentService.syncResidents(server, countryName);
+
         data.setDirty();
         invalidate(server);
     }
