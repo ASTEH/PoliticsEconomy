@@ -9,6 +9,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.core.particles.ParticleTypes;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import ru.zela.politicseconomy.country.CountryDevelopmentService;
 import ru.zela.politicseconomy.integration.CountryContext;
@@ -28,7 +29,7 @@ public final class RandomEventService {
     private static final long MAX_DELAY = 18000L;
     private static final Random RANDOM = new Random();
     private static final Map<MinecraftServer, List<BurningBlock>> ACTIVE_FIRES = new HashMap<>();
-    private static final Map<MinecraftServer, Long> LAST_FIRE_NOTICE = new HashMap<>();
+    private static final Map<MinecraftServer, List<MapMarker>> ACTIVE_MARKERS = new HashMap<>();
 
     private RandomEventService() {}
 
@@ -39,6 +40,7 @@ public final class RandomEventService {
 
         long now = level.getGameTime();
         tickFires(server, now);
+        tickMarkers(server, now);
 
         if (now % CHECK_INTERVAL != 0L) return;
 
@@ -90,6 +92,8 @@ public final class RandomEventService {
 
         if (roll < 0.60D) {
             CountryDevelopmentService.addActivity(server, stateKey, 120);
+            addMarker(server, player.blockPosition(), "ЭКОНОМИКА", stateKey, now, 900L);
+            levelPulse(player.serverLevel(), player.blockPosition(), ParticleTypes.HAPPY_VILLAGER);
             NewsService.add(
                 server,
                 now,
@@ -108,6 +112,8 @@ public final class RandomEventService {
                     Math.min(100, politics.getUnrest(stateKey) + 12)
                 );
             }
+            addMarker(server, player.blockPosition(), "ОБЩЕСТВО", stateKey, now, 900L);
+            levelPulse(player.serverLevel(), player.blockPosition(), ParticleTypes.ANGRY_VILLAGER);
             var military = ru.zela.politicseconomy.integration.MilitaryReadinessSavedData.get(server);
             military.reduceReadiness(stateKey, 4.0D);
             NewsService.add(
@@ -120,6 +126,8 @@ public final class RandomEventService {
             return;
         }
 
+        addMarker(server, player.blockPosition(), "РЫНОК", stateKey, now, 900L);
+        levelPulse(player.serverLevel(), player.blockPosition(), ParticleTypes.COMPOSTER);
         NewsService.add(
             server,
             now,
@@ -171,7 +179,8 @@ public final class RandomEventService {
 
         if (count == 0) return;
 
-        LAST_FIRE_NOTICE.put(server, now);
+        addMarker(server, origin, "БЕДСТВИЕ", stateKey, now, 1800L);
+        levelPulse(level, origin, ParticleTypes.FLAME);
         NewsService.add(
             server,
             now,
@@ -279,6 +288,71 @@ public final class RandomEventService {
         ACTIVE_FIRES.put(server, next);
     }
 
+    public static String[] mapRows(MinecraftServer server) {
+        if (server == null) return new String[0];
+
+        List<MapMarker> markers = ACTIVE_MARKERS.get(server);
+        if (markers == null || markers.isEmpty()) return new String[0];
+
+        long now = server.overworld().getGameTime();
+        List<String> rows = new ArrayList<>();
+        for (MapMarker marker : markers) {
+            if (marker.expiresAt() <= now) continue;
+            rows.add(
+                safe(marker.type()) + "|" +
+                safe(displayName(server, marker.stateKey())) + "|" +
+                marker.pos().getX() + "|" +
+                marker.pos().getZ() + "|" +
+                marker.expiresAt()
+            );
+            if (rows.size() >= 64) break;
+        }
+        return rows.toArray(String[]::new);
+    }
+
+    private static void addMarker(
+        MinecraftServer server,
+        BlockPos pos,
+        String type,
+        String stateKey,
+        long now,
+        long duration
+    ) {
+        ACTIVE_MARKERS.computeIfAbsent(server, ignored -> new ArrayList<>())
+            .add(new MapMarker(pos.immutable(), type, stateKey, now + duration));
+    }
+
+    private static void tickMarkers(MinecraftServer server, long now) {
+        List<MapMarker> markers = ACTIVE_MARKERS.get(server);
+        if (markers == null) return;
+
+        markers.removeIf(marker -> marker.expiresAt() <= now);
+        if (markers.isEmpty()) ACTIVE_MARKERS.remove(server);
+    }
+
+    private static void levelPulse(
+        ServerLevel level,
+        BlockPos pos,
+        net.minecraft.core.particles.ParticleOptions particle
+    ) {
+        if (level == null || pos == null) return;
+        level.sendParticles(
+            particle,
+            pos.getX() + 0.5D,
+            pos.getY() + 1.0D,
+            pos.getZ() + 0.5D,
+            24,
+            1.2D,
+            1.0D,
+            1.2D,
+            0.03D
+        );
+    }
+
+    private static String safe(String value) {
+        return value == null ? "" : value.replace("|", "/");
+    }
+
     private static boolean belongsToState(
         MinecraftServer server,
         BlockPos pos,
@@ -306,4 +380,5 @@ public final class RandomEventService {
     }
 
     private record BurningBlock(BlockPos pos, String stateKey, long dueTick) {}
+    private record MapMarker(BlockPos pos, String type, String stateKey, long expiresAt) {}
 }
