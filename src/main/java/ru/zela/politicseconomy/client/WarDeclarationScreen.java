@@ -220,6 +220,7 @@ public final class WarDeclarationScreen extends Screen {
         int rowHeight = 34;
         int maxRows = Math.max(1, Math.min(8, (height - top - 120) / rowHeight));
 
+        rows.clear();
         List<CountryOption> options = filteredOptions();
         if (options.isEmpty()) {
             panel(g, left + 28, top, right - 28, top + rowHeight);
