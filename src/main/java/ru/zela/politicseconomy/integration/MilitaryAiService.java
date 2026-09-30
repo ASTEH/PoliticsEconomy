@@ -176,6 +176,11 @@ public final class MilitaryAiService {
 
         MilitaryReadinessSavedData readiness = MilitaryReadinessSavedData.get(server);
         readiness.reduceReadiness(attackerKey, 7.0D);
+        MilitaryDiplomacyBridge.setWar(
+            server,
+            attackerKey,
+            selected.stateKey()
+        );
         notifyInvolvedPlayers(server, attackerKey, selected.stateKey(), attacker.name(), selected.name());
     }
 
