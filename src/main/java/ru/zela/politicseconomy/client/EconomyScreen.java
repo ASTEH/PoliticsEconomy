@@ -127,7 +127,7 @@ public final class EconomyScreen extends Screen {
 
         for (EditBox box : List.of(
             tradeItem, tradeAmount, tradeMaxPrice, tradeAcceptPrice, tradeDispatchAmount,
-            tradeHistorySearch, tradeCancelReason
+            tradeHistorySearch, tradeCancelReason, warSearch
         )) {
             box.setTextColor(TEXT);
             box.setTextColorUneditable(MUTED);
@@ -149,6 +149,7 @@ public final class EconomyScreen extends Screen {
         String dispatch = tradeDispatchAmount == null ? "64" : tradeDispatchAmount.getValue();
         String historySearch = tradeHistorySearch == null ? "" : tradeHistorySearch.getValue();
         String cancelReason = tradeCancelReason == null ? "" : tradeCancelReason.getValue();
+        String warQuery = warSearch == null ? "" : warSearch.getValue();
 
         super.resize(minecraft, width, height);
 
@@ -160,6 +161,7 @@ public final class EconomyScreen extends Screen {
             tradeDispatchAmount.setValue(dispatch);
             tradeHistorySearch.setValue(historySearch);
             tradeCancelReason.setValue(cancelReason);
+            warSearch.setValue(warQuery);
             layoutTradeInputs();
             updateTradeInputVisibility();
         }
@@ -219,6 +221,7 @@ public final class EconomyScreen extends Screen {
         boolean tradeVisible = page == Page.TRADE && modalAction == null;
         boolean historyVisible = page == Page.TRADE_HISTORY && modalAction == null;
         boolean cancelVisible = "trade_cancel".equals(modalAction);
+        boolean warVisible = "war_declare".equals(modalAction);
 
         tradeItem.visible = tradeVisible && inViewport(tradeItem.getY(), tradeItem.getHeight(), top, bottom);
         tradeAmount.visible = tradeVisible && inViewport(tradeAmount.getY(), tradeAmount.getHeight(), top, bottom);
@@ -228,6 +231,7 @@ public final class EconomyScreen extends Screen {
 
         tradeHistorySearch.visible = historyVisible && inViewport(tradeHistorySearch.getY(), tradeHistorySearch.getHeight(), top, bottom);
         tradeCancelReason.visible = cancelVisible;
+        warSearch.visible = warVisible;
     }
 
     private static boolean inViewport(int y, int h, int top, int bottom) {
@@ -931,13 +935,61 @@ public final class EconomyScreen extends Screen {
         return rankY + 4;
     }
 
-    private int drawNews(GuiGraphics g, int y, int left, int right) {
-        y = title(g, left, y, "НОВОСТИ", "Последние события мира PoliticsEconomy");
+    private int drawNews(
+        GuiGraphics g,
+        int y,
+        int left,
+        int right,
+        int mouseX,
+        int mouseY
+    ) {
+        y = title(
+            g,
+            left,
+            y,
+            "НОВОСТИ",
+            "События мира, международные конфликты и объявления"
+        );
+
+        panel(g, left, y, right, y + 58);
+        g.drawString(font, "ВОЕННАЯ ПОЛИТИКА", left + 14, y + 10, MUTED, true);
+        g.drawString(
+            font,
+            "Объявление войны теперь выполняется только отсюда.",
+            left + 14,
+            y + 30,
+            TEXT,
+            false
+        );
+        drawButton(
+            g,
+            right - 174,
+            y + 16,
+            right - 14,
+            y + 44,
+            "ОБЪЯВИТЬ ВОЙНУ",
+            NEGATIVE_DARK,
+            NEGATIVE,
+            mouseX,
+            mouseY,
+            this::openWarDialog
+        );
+        y += 68;
+
+        y = drawActiveWars(g, y, left, right);
+        y += 4;
 
         if (snapshot.newsRows().length == 0) {
             panel(g, left, y, right, y + 72);
             g.drawString(font, "Новостей пока нет.", left + 14, y + 24, MUTED, false);
-            g.drawString(font, "Когда произойдут события, они появятся здесь.", left + 14, y + 43, TEXT, false);
+            g.drawString(
+                font,
+                "Когда произойдут события, они появятся здесь.",
+                left + 14,
+                y + 43,
+                TEXT,
+                false
+            );
             return y + 82;
         }
 
@@ -961,14 +1013,283 @@ public final class EconomyScreen extends Screen {
             };
 
             drawPill(g, category, left + 12, y + 9, PANEL_3, categoryColor, 110);
-            g.drawString(font, clipToWidth(title, right - left - 150), left + 134, y + 12, TEXT, true);
-            g.drawString(font, clipToWidth(body, right - left - 28), left + 14, y + 39, MUTED, false);
+            g.drawString(
+                font,
+                clipToWidth(title, right - left - 150),
+                left + 134,
+                y + 12,
+                TEXT,
+                true
+            );
+
+            int bodyY = y + 39;
+            for (String line : wrapText(body, right - left - 28)) {
+                g.drawString(
+                    font,
+                    line,
+                    left + 14,
+                    bodyY,
+                    MUTED,
+                    false
+                );
+                bodyY += 12;
+                if (bodyY > bottom - 12) break;
+            }
+
             y = bottom + 8;
         }
 
         return y + 4;
     }
 
+    private int drawActiveWars(
+        GuiGraphics g,
+        int y,
+        int left,
+        int right
+    ) {
+        panel(g, left, y, right, y + 34);
+        g.drawString(font, "АКТИВНЫЕ ВОЙНЫ", left + 14, y + 10, NEGATIVE, true);
+        if (snapshot.warRows().length == 0) {
+            g.drawString(font, "Сейчас активных войн нет.", left + 160, y + 10, MUTED, false);
+            return y + 44;
+        }
+
+        y += 42;
+        for (String raw : snapshot.warRows()) {
+            String[] parts = raw.split("\\|", -1);
+            if (parts.length < 6) continue;
+
+            String attacker = parts[0];
+            String defender = parts[1];
+            String rounds = parts[2];
+            String attackerReadiness = parts[3];
+            String defenderReadiness = parts[4];
+            String cause = parts[5];
+
+            int bottom = y + 76;
+            panel(g, left, y, right, bottom);
+            g.drawString(
+                font,
+                clipToWidth(attacker, Math.max(100, (right - left) / 2 - 50)),
+                left + 14,
+                y + 11,
+                NEGATIVE,
+                true
+            );
+            g.drawString(font, " VS ", left + 14 + font.width(attacker) + 6, y + 11, MUTED, false);
+            g.drawString(
+                font,
+                clipToWidth(defender, Math.max(100, (right - left) / 2 - 100)),
+                left + (right - left) / 2,
+                y + 11,
+                ACCENT,
+                true
+            );
+
+            g.drawString(
+                font,
+                "Раунд " + rounds
+                    + "  •  Готовность: " + attackerReadiness + "% / "
+                    + defenderReadiness + "%",
+                left + 14,
+                y + 33,
+                TEXT,
+                false
+            );
+
+            String stage = Integer.parseInt(rounds) < 10
+                ? "Начало конфликта"
+                : Integer.parseInt(rounds) < 120
+                    ? "Активные боевые действия"
+                    : "Затяжной конфликт";
+
+            drawPill(
+                g,
+                stage,
+                left + 14,
+                y + 51,
+                PANEL_3,
+                rounds.equals("0") ? GOLD : NEGATIVE,
+                205
+            );
+            drawPill(g, cause, right - 165, y + 51, PANEL_3, MUTED, 151);
+
+            y = bottom + 8;
+        }
+        return y;
+    }
+
+    private void openWarDialog() {
+        modalAction = "war_declare";
+        modalCommand = null;
+        modalTitle = "Выберите государство";
+        warTargetName = null;
+        warTargetType = null;
+        if (warSearch != null) {
+            warSearch.setValue("");
+            warSearch.setFocused(true);
+            warSearch.visible = true;
+        }
+        updateTradeInputVisibility();
+    }
+
+    private void drawWarDialog(
+        GuiGraphics g,
+        int mouseX,
+        int mouseY
+    ) {
+        g.fill(0, 0, width, height, 0xCC000000);
+
+        int w = Math.min(650, width - 24);
+        int h = Math.min(430, height - 24);
+        int left = (width - w) / 2;
+        int top = (height - h) / 2;
+
+        panel(g, left, top, left + w, top + h);
+        g.drawString(font, "ОБЪЯВЛЕНИЕ ВОЙНЫ", left + 18, top + 16, NEGATIVE, true);
+        g.drawString(
+            font,
+            "Выберите государство. Сервер дополнительно проверит готовность, долг и право на объявление.",
+            left + 18,
+            top + 35,
+            MUTED,
+            false
+        );
+
+        warSearch.setX(left + 18);
+        warSearch.setY(top + 52);
+        warSearch.setWidth(w - 36);
+        warSearch.visible = true;
+        warSearch.render(g, mouseX, mouseY, 0.0F);
+
+        String query = warSearch.getValue().trim().toLowerCase(Locale.ROOT);
+        int rowY = top + 80;
+        int visible = 0;
+        for (int i = 0; i < snapshot.cityNames().length; i++) {
+            String name = valueAt(snapshot.cityNames(), i);
+            String type = valueAt(snapshot.cityCountries(), i);
+
+            if (name.equals(snapshot.countryName())) continue;
+            if (!query.isBlank()
+                && !name.toLowerCase(Locale.ROOT).contains(query)
+                && !type.toLowerCase(Locale.ROOT).contains(query)) {
+                continue;
+            }
+
+            if (visible >= 9) break;
+            int bottom = rowY + 29;
+            boolean selected = name.equals(warTargetName) && type.equals(warTargetType);
+            boolean hover = inside(mouseX, mouseY, left + 18, rowY, left + w - 18, bottom);
+
+            g.fill(
+                left + 18,
+                rowY,
+                left + w - 18,
+                bottom,
+                selected ? ACCENT_DARK : hover ? PANEL_2 : PANEL_3
+            );
+            outline(
+                g,
+                left + 18,
+                rowY,
+                left + w - 18,
+                bottom,
+                selected ? ACCENT : BORDER
+            );
+
+            g.drawString(
+                font,
+                clipToWidth(name, w - 190),
+                left + 30,
+                rowY + 6,
+                TEXT,
+                selected
+            );
+            drawPill(
+                g,
+                type,
+                left + w - 146,
+                rowY + 6,
+                type.equals("Millénaire") ? 0xFF433056 : ACCENT_DARK,
+                type.equals("Millénaire") ? 0xFFC77DFF : ACCENT,
+                126
+            );
+
+            final String selectedName = name;
+            final String selectedType = type;
+            target(
+                left + 18,
+                rowY,
+                left + w - 18,
+                bottom,
+                () -> {
+                    warTargetName = selectedName;
+                    warTargetType = selectedType;
+                }
+            );
+            rowY += 33;
+            visible++;
+        }
+
+        if (visible == 0) {
+            g.drawString(font, "Подходящих государств не найдено.", left + 18, top + 96, MUTED, false);
+        }
+
+        int buttonY = top + h - 42;
+        drawButtonVisual(
+            g,
+            left + w - 196,
+            buttonY,
+            left + w - 104,
+            buttonY + 27,
+            "ОТМЕНА",
+            PANEL_3,
+            TEXT,
+            mouseX,
+            mouseY
+        );
+
+        boolean ready = warTargetName != null && warTargetType != null;
+        if (ready) {
+            drawButtonVisual(
+                g,
+                left + w - 95,
+                buttonY,
+                left + w - 18,
+                buttonY + 27,
+                "ОБЪЯВИТЬ",
+                NEGATIVE_DARK,
+                NEGATIVE,
+                mouseX,
+                mouseY
+            );
+        } else {
+            drawButtonVisual(
+                g,
+                left + w - 95,
+                buttonY,
+                left + w - 18,
+                buttonY + 27,
+                "ОБЪЯВИТЬ",
+                PANEL_3,
+                MUTED,
+                mouseX,
+                mouseY
+            );
+        }
+
+        if (ready) {
+            g.drawString(
+                font,
+                "Цель: " + warTargetName + " • " + warTargetType,
+                left + 18,
+                buttonY + 8,
+                GOLD,
+                true
+            );
+        }
+    }
 
     private int drawMarket(GuiGraphics g, int y, int left, int right, int mouseX, int mouseY) {
         y = title(g, left, y, "РЫНОК", "Население покупает реальные предметы; здесь можно продавать им товары");
@@ -1936,6 +2257,7 @@ public final class EconomyScreen extends Screen {
             case EFFECTS -> end = y + 40 + 38 +
                 Math.max(1, Math.max(effectCount(true), effectCount(false))) * 30 + 22;
             case CITIES -> end = y + 40 + Math.max(1, snapshot.cityNames().length) * 102 + 10;
+            case NEWS -> end = y + 132 + Math.max(1, snapshot.warRows().length) * 86 + Math.max(1, snapshot.newsRows().length) * 90 + 20;
             case MARKET -> end = y + 40 + 88 + Math.max(1, snapshot.marketItemIds().length) * 77 + 10;
             case TRADE_HISTORY -> end = y + 40 + 38 + Math.max(1, snapshot.tradeHistory().length) * 118 + 10;
             case DEBTS -> end = y + 40 + 102 + 70 + Math.max(1, materialDebtCount()) * 48 + 20;
