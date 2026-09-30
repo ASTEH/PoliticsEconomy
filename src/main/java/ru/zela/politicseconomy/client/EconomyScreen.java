@@ -243,6 +243,7 @@ public final class EconomyScreen extends Screen {
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         renderBackground(graphics, mouseX, mouseY, partialTick);
         targets.clear();
+        modalTargets.clear();
 
         graphics.fill(0, 0, width, height, BG);
         graphics.fill(0, 0, 5, height, ACCENT);
@@ -1251,7 +1252,7 @@ public final class EconomyScreen extends Screen {
 
                 final String selectedName = name;
                 final String selectedType = type;
-                target(
+                modalTarget(
                     left + 18,
                     rowY,
                     left + w - 18,
