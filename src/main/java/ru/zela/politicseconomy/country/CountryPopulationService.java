@@ -15,6 +15,7 @@ import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.neoforged.neoforge.event.level.ChunkEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 import java.util.HashMap;
 import java.util.List;
@@ -300,6 +301,20 @@ public final class CountryPopulationService {
         data.setFedCycles(countryName, 0);
         data.setStarvationCycles(countryName, 0);
         data.setDevelopmentProgress(countryName, 0);
+    }
+
+    /** Detects newly created PoliticsMod countries and initializes their residents. */
+    public static void onServerTick(ServerTickEvent.Post event) {
+        MinecraftServer server = event.getServer();
+        if (server == null || server.overworld() == null) return;
+        if (server.overworld().getGameTime() % 20L != 0L) return;
+
+        PoliticsManager politics = PoliticsManager.get(server.overworld());
+        if (politics == null) return;
+
+        for (Country country : politics.getCountries().values()) {
+            ensureCountryBootstrap(server, country.getName());
+        }
     }
 
     /** Rebuilds a loaded chunk's bed count after the chunk is loaded. */
