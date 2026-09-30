@@ -69,6 +69,7 @@ public final class EconomyScreen extends Screen {
     private boolean countryDropdownOpen;
     private String warTargetName;
     private String warTargetType;
+    private boolean warDropdownOpen;
     private List<TradeItemOption> tradeItemOptions = List.of();
 
     // Coordinates are calculated from the actual trade cards every frame.
@@ -1126,6 +1127,7 @@ public final class EconomyScreen extends Screen {
         modalTitle = "Выберите государство";
         warTargetName = null;
         warTargetType = null;
+        warDropdownOpen = false;
         if (warSearch != null) {
             warSearch.setValue("");
             warSearch.setFocused(true);
@@ -1150,7 +1152,7 @@ public final class EconomyScreen extends Screen {
         g.drawString(font, "ОБЪЯВЛЕНИЕ ВОЙНЫ", left + 18, top + 16, NEGATIVE, true);
         g.drawString(
             font,
-            "Выберите государство. Сервер дополнительно проверит готовность, долг и право на объявление.",
+            "Поиск помогает быстро найти цель, а список ниже позволяет выбрать государство.",
             left + 18,
             top + 35,
             MUTED,
@@ -1163,77 +1165,100 @@ public final class EconomyScreen extends Screen {
         warSearch.visible = true;
         warSearch.render(g, mouseX, mouseY, 0.0F);
 
-        String query = warSearch.getValue().trim().toLowerCase(Locale.ROOT);
-        int rowY = top + 80;
-        int visible = 0;
-        for (int i = 0; i < snapshot.cityNames().length; i++) {
-            String name = valueAt(snapshot.cityNames(), i);
-            String type = valueAt(snapshot.cityCountries(), i);
+        String selectedLabel = warTargetName == null
+            ? "Выберите государство"
+            : warTargetName + " • " + warTargetType;
 
-            if (name.equals(snapshot.countryName())) continue;
-            if (!query.isBlank()
-                && !name.toLowerCase(Locale.ROOT).contains(query)
-                && !type.toLowerCase(Locale.ROOT).contains(query)) {
-                continue;
+        drawButton(
+            g,
+            left + 18,
+            top + 79,
+            left + w - 18,
+            top + 106,
+            selectedLabel,
+            PANEL_3,
+            warTargetName == null ? MUTED : ACCENT,
+            mouseX,
+            mouseY,
+            () -> warDropdownOpen = !warDropdownOpen
+        );
+
+        if (warDropdownOpen) {
+            String query = warSearch.getValue().trim().toLowerCase(Locale.ROOT);
+            int rowY = top + 112;
+            int visible = 0;
+
+            for (int i = 0; i < snapshot.cityNames().length; i++) {
+                String name = valueAt(snapshot.cityNames(), i);
+                String type = valueAt(snapshot.cityCountries(), i);
+
+                if (name.equals(snapshot.countryName())) continue;
+                if (!query.isBlank()
+                    && !name.toLowerCase(Locale.ROOT).contains(query)
+                    && !type.toLowerCase(Locale.ROOT).contains(query)) {
+                    continue;
+                }
+
+                if (visible >= 7) break;
+                int bottom = rowY + 29;
+                boolean selected = name.equals(warTargetName) && type.equals(warTargetType);
+                boolean hover = inside(mouseX, mouseY, left + 18, rowY, left + w - 18, bottom);
+
+                g.fill(
+                    left + 18,
+                    rowY,
+                    left + w - 18,
+                    bottom,
+                    selected ? ACCENT_DARK : hover ? PANEL_2 : PANEL_3
+                );
+                outline(
+                    g,
+                    left + 18,
+                    rowY,
+                    left + w - 18,
+                    bottom,
+                    selected ? ACCENT : BORDER
+                );
+
+                g.drawString(
+                    font,
+                    clipToWidth(name, w - 190),
+                    left + 30,
+                    rowY + 6,
+                    TEXT,
+                    selected
+                );
+                drawPill(
+                    g,
+                    type,
+                    left + w - 146,
+                    rowY + 6,
+                    type.equals("Millénaire") ? 0xFF433056 : ACCENT_DARK,
+                    type.equals("Millénaire") ? 0xFFC77DFF : ACCENT,
+                    126
+                );
+
+                final String selectedName = name;
+                final String selectedType = type;
+                target(
+                    left + 18,
+                    rowY,
+                    left + w - 18,
+                    bottom,
+                    () -> {
+                        warTargetName = selectedName;
+                        warTargetType = selectedType;
+                        warDropdownOpen = false;
+                    }
+                );
+                rowY += 33;
+                visible++;
             }
 
-            if (visible >= 9) break;
-            int bottom = rowY + 29;
-            boolean selected = name.equals(warTargetName) && type.equals(warTargetType);
-            boolean hover = inside(mouseX, mouseY, left + 18, rowY, left + w - 18, bottom);
-
-            g.fill(
-                left + 18,
-                rowY,
-                left + w - 18,
-                bottom,
-                selected ? ACCENT_DARK : hover ? PANEL_2 : PANEL_3
-            );
-            outline(
-                g,
-                left + 18,
-                rowY,
-                left + w - 18,
-                bottom,
-                selected ? ACCENT : BORDER
-            );
-
-            g.drawString(
-                font,
-                clipToWidth(name, w - 190),
-                left + 30,
-                rowY + 6,
-                TEXT,
-                selected
-            );
-            drawPill(
-                g,
-                type,
-                left + w - 146,
-                rowY + 6,
-                type.equals("Millénaire") ? 0xFF433056 : ACCENT_DARK,
-                type.equals("Millénaire") ? 0xFFC77DFF : ACCENT,
-                126
-            );
-
-            final String selectedName = name;
-            final String selectedType = type;
-            target(
-                left + 18,
-                rowY,
-                left + w - 18,
-                bottom,
-                () -> {
-                    warTargetName = selectedName;
-                    warTargetType = selectedType;
-                }
-            );
-            rowY += 33;
-            visible++;
-        }
-
-        if (visible == 0) {
-            g.drawString(font, "Подходящих государств не найдено.", left + 18, top + 96, MUTED, false);
+            if (visible == 0) {
+                g.drawString(font, "Подходящих государств не найдено.",
+                    left + 18, top + 125, MUTED, false);
+            }
         }
 
         int buttonY = top + h - 42;
@@ -1251,33 +1276,18 @@ public final class EconomyScreen extends Screen {
         );
 
         boolean ready = warTargetName != null && warTargetType != null;
-        if (ready) {
-            drawButtonVisual(
-                g,
-                left + w - 95,
-                buttonY,
-                left + w - 18,
-                buttonY + 27,
-                "ОБЪЯВИТЬ",
-                NEGATIVE_DARK,
-                NEGATIVE,
-                mouseX,
-                mouseY
-            );
-        } else {
-            drawButtonVisual(
-                g,
-                left + w - 95,
-                buttonY,
-                left + w - 18,
-                buttonY + 27,
-                "ОБЪЯВИТЬ",
-                PANEL_3,
-                MUTED,
-                mouseX,
-                mouseY
-            );
-        }
+        drawButtonVisual(
+            g,
+            left + w - 95,
+            buttonY,
+            left + w - 18,
+            buttonY + 27,
+            "ОБЪЯВИТЬ",
+            ready ? NEGATIVE_DARK : PANEL_3,
+            ready ? NEGATIVE : MUTED,
+            mouseX,
+            mouseY
+        );
 
         if (ready) {
             g.drawString(
@@ -1992,6 +2002,7 @@ public final class EconomyScreen extends Screen {
         cancelOrderId = null;
         warTargetName = null;
         warTargetType = null;
+        warDropdownOpen = false;
         if (warSearch != null) {
             warSearch.setValue("");
             warSearch.setFocused(false);
