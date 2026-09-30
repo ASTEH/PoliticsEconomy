@@ -62,6 +62,11 @@ public final class PoliticsEconomyCommands {
             Commands.literal("pe")
                 .then(Commands.literal("info")
                     .executes(context -> showInfo(context.getSource())))
+                .then(Commands.literal("debug")
+                    .requires(source -> source.hasPermission(2))
+                    .then(Commands.literal("event")
+                        .then(Commands.literal("fire")
+                            .executes(context -> debugEventFire(context.getSource())))))
                 .then(Commands.literal("territory")
                     .then(Commands.literal("claim")
                         .executes(context -> claimTerritory(context.getSource())))
@@ -1951,6 +1956,29 @@ public final class PoliticsEconomyCommands {
             return 1;
         } catch (Exception e) {
             source.sendFailure(Component.literal("Не удалось получить статус территории."));
+            return 0;
+        }
+    }
+
+    private static int debugEventFire(CommandSourceStack source) {
+        try {
+            ServerPlayer player = source.getPlayerOrException();
+            boolean triggered =
+                ru.zela.politicseconomy.event.RandomEventService.debugTriggerFire(player);
+            if (!triggered) {
+                source.sendFailure(
+                    Component.literal("Не удалось запустить пожар: игрок не находится в государстве.")
+                );
+                return 0;
+            }
+            source.sendSuccess(
+                () -> Component.literal("Тестовый пожар запущен.")
+                    .withStyle(ChatFormatting.RED),
+                false
+            );
+            return 1;
+        } catch (Exception exception) {
+            source.sendFailure(Component.literal("Команда доступна только игроку."));
             return 0;
         }
     }
