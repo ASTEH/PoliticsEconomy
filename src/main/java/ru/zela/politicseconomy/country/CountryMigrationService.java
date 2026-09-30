@@ -3,14 +3,10 @@ package ru.zela.politicseconomy.country;
 import net.krona.politicsmod.PoliticsManager;
 import net.krona.politicsmod.politics.Country;
 import net.minecraft.ChatFormatting;
-import net.minecraft.core.GlobalPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
-import net.minecraft.world.level.ChunkPos;
-import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 import ru.zela.politicseconomy.economy.NationalMaterialConsumptionService;
@@ -19,9 +15,11 @@ import ru.zela.politicseconomy.event.NewsService;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.WeakHashMap;
 
 /**
  * Slow, population-aware migration between Politics Economy countries.
@@ -42,6 +40,10 @@ public final class CountryMigrationService {
     private static final int MIN_SOURCE_POPULATION = 6;
     private static final int MIN_REMAINING_POPULATION = 4;
     private static final int MAX_MIGRATIONS_PER_PASS = 2;
+    private static final long RESIDENT_MIGRATION_COOLDOWN_TICKS = 12000L; // 10 minutes
+
+    private static final Map<MinecraftServer, Map<UUID, Long>> LAST_MIGRATION_TICK =
+        new WeakHashMap<>();
 
     private static final double MIN_ATTRACTIVENESS_ADVANTAGE = 12.0D;
     private static final double BASE_MIGRATION_CHANCE = 0.05D;
@@ -104,6 +106,15 @@ public final class CountryMigrationService {
             );
 
             if (server.overworld().getRandom().nextDouble() >= chance) continue;
+
+            long lastMigration = LAST_MIGRATION_TICK
+                .getOrDefault(server, Map.of())
+                .getOrDefault(villager.getUUID(), Long.MIN_VALUE);
+            long now = server.overworld().getGameTime();
+            if (lastMigration != Long.MIN_VALUE
+                && now - lastMigration < RESIDENT_MIGRATION_COOLDOWN_TICKS) {
+                continue;
+            }
 
             if (migrateVillager(server, villager, sourceCountry, target.countryName())) {
                 migrations++;
@@ -289,6 +300,9 @@ public final class CountryMigrationService {
         villager.teleportTo(targetX, targetY, targetZ);
         villager.getBrain().eraseMemory(MemoryModuleType.HOME);
         setCountryTags(villager, targetCountry, role);
+        LAST_MIGRATION_TICK
+            .computeIfAbsent(server, ignored -> new HashMap<>())
+            .put(uuid, server.overworld().getGameTime());
 
         String message =
             "Житель из страны «" + sourceCountry
