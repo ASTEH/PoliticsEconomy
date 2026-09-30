@@ -148,6 +148,15 @@ public final class GroundWarService {
                 ),
                 false
             );
+            ru.zela.politicseconomy.event.NewsService.add(
+                server,
+                now,
+                "ВОЙНА",
+                "Война завершилась без победителя",
+                MillenaireIntegration.displayName(server, war.attacker())
+                    + " и " + MillenaireIntegration.displayName(server, war.defender())
+                    + " заключили перемирие после затяжного конфликта."
+            );
             return;
         }
 
@@ -307,6 +316,13 @@ public final class GroundWarService {
         // chunk-by-chunk occupation. For now the winner is persisted in the
         // war resolution notification and no Millénaire territory is mutated.
         notifyWarResult(server, winner, loser);
+        ru.zela.politicseconomy.event.NewsService.add(
+            server,
+            server.overworld().getGameTime(),
+            "ВОЙНА",
+            MillenaireIntegration.displayName(server, winner) + " побеждает",
+            "Война против " + MillenaireIntegration.displayName(server, loser) + " завершилась победой."
+        );
     }
 
     private static void endWithPeace(
