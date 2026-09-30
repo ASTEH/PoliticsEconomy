@@ -3,7 +3,7 @@ package ru.zela.politicseconomy.integration;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
-import ru.zela.politicseconomy.country.CountryResearchService;
+import ru.zela.politicseconomy.research.CountryResearchService;
 import ru.zela.politicseconomy.country.CountryWorkforceService;
 import ru.zela.politicseconomy.country.WorkforceSector;
 import ru.zela.politicseconomy.economy.NationalMaterialConsumptionService;
