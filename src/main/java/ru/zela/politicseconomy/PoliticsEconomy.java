@@ -24,7 +24,7 @@ import ru.zela.politicseconomy.territory.TerritoryBorderVisualService;
 @Mod(PoliticsEconomy.MOD_ID)
 public final class PoliticsEconomy {
     public static final String MOD_ID = "politicseconomy";
-    public static final String VERSION = "2.3.0";
+    public static final String VERSION = "2.4.0";
     private static final Logger LOGGER = LogUtils.getLogger();
 
     public PoliticsEconomy(IEventBus modEventBus, ModContainer modContainer) {
