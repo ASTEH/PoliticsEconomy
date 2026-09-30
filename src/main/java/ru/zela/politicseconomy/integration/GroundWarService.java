@@ -21,9 +21,10 @@ import java.util.UUID;
 
 /** First real ground-combat layer for Millénaire settlements. */
 public final class GroundWarService {
-    private static final long TICK_INTERVAL = 10L;
+    private static final long TICK_INTERVAL = 1L;
     private static final long ATTACK_COOLDOWN = 20L;
     private static final double RALLY_RADIUS = 56.0D;
+    private static final double PARTY_TRACK_RADIUS = 4096.0D;
     private static final double TARGET_RADIUS = 5.5D;
     private static final int MAX_PARTY = 12;
     private static final String PARTY_PREFIX = "pewar:";
@@ -104,8 +105,9 @@ public final class GroundWarService {
         Set<LivingEntity> result = new HashSet<>();
 
         for (LivingEntity mob : candidates(level, state.center().getX(), state.center().getY(),
-                state.center().getZ(), RALLY_RADIUS)) {
-            if (!isInVillage(mob, state)) continue;
+                state.center().getZ(), PARTY_TRACK_RADIUS)) {
+            // Once a villager has joined a war party, it is allowed to leave
+            // the village territory. Keep tracking it until the war ends.
             if (mob.getTags().contains(tag)) result.add(mob);
         }
 
@@ -128,8 +130,8 @@ public final class GroundWarService {
         Set<LivingEntity> result = new HashSet<>();
 
         for (LivingEntity mob : candidates(level, state.center().getX(), state.center().getY(),
-                state.center().getZ(), RALLY_RADIUS)) {
-            if (isInVillage(mob, state) && mob.getTags().contains(tag)) result.add(mob);
+                state.center().getZ(), PARTY_TRACK_RADIUS)) {
+            if (mob.getTags().contains(tag)) result.add(mob);
         }
 
         int limit = partySize(state, level.getServer(), false);
