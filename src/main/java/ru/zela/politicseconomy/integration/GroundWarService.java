@@ -39,10 +39,16 @@ public final class GroundWarService {
         if (now % TICK_INTERVAL != 0L) return;
 
         MilitaryWarSavedData wars = MilitaryWarSavedData.get(server);
+        Set<String> activePartyTags = new HashSet<>();
+
         for (MilitaryWarSavedData.War war : wars.wars()) {
             if (war.type() != MilitaryWarSavedData.WarType.GROUND) continue;
+            activePartyTags.add(partyTag(war, true));
+            activePartyTags.add(partyTag(war, false));
             processWar(server, wars, war, now);
         }
+
+        MillenaireCombatBridge.cleanupWarNavigation(activePartyTags);
     }
 
     private static void processWar(MinecraftServer server, MilitaryWarSavedData wars,
@@ -217,6 +223,11 @@ public final class GroundWarService {
      * calling navigation.stop() and manually pushing the entity.
      */
     private static void moveToward(LivingEntity entity, Vec3 target, double speed) {
+        if (isMillenaireLivingEntity(entity)) {
+            MillenaireCombatBridge.forceWarNavigation(entity, target, speed);
+            return;
+        }
+
         if (entity instanceof Mob mob) {
             mob.getLookControl().setLookAt(target.x, target.y, target.z);
             mob.getNavigation().moveTo(target.x, target.y, target.z, speed);
