@@ -146,6 +146,10 @@ public final class TerritoryService {
         PoliticsManager politics = PoliticsManager.get(player.serverLevel());
         if (politics == null) return false;
 
+        if (politics.getPlayerCountry(player.getUUID()) != null) {
+            return fail(player, "У тебя уже есть государство.");
+        }
+
         if (!player.chunkPosition().equals(new ChunkPos(payloadCenter))) {
             return fail(player, "Столицу можно основать только в текущем чанке.");
         }
