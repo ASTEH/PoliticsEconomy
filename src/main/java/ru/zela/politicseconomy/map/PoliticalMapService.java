@@ -144,7 +144,8 @@ public final class PoliticalMapService {
                 128,
                 countries.toArray(String[]::new),
                 chunkArray,
-                ownerArray
+                ownerArray,
+                ru.zela.politicseconomy.event.RandomEventService.mapRows(player.getServer())
             )
         );
     }
