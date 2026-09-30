@@ -1155,7 +1155,8 @@ public final class EconomyScreen extends Screen {
         int mouseY
     ) {
         // The war dialog is a true modal layer: the underlying dashboard must not
-        // remain visible through it or receive its click targets.\n        g.fill(0, 0, width, height, 0xFF090C11);
+        // remain visible through it or receive its click targets.
+        g.fill(0, 0, width, height, 0xFF090C11);
 
         int w = Math.min(650, width - 24);
         int h = Math.min(430, height - 24);
