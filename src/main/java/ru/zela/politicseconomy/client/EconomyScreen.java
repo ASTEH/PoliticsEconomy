@@ -1152,7 +1152,7 @@ public final class EconomyScreen extends Screen {
         int mouseX,
         int mouseY
     ) {
-        g.fill(0, 0, width, height, 0xCC000000);
+        // The war dialog is a true modal layer: the underlying dashboard must not\n        // remain visible through it or receive its click targets.\n        g.fill(0, 0, width, height, 0xFF090C11);
 
         int w = Math.min(650, width - 24);
         int h = Math.min(430, height - 24);
@@ -2183,8 +2183,17 @@ public final class EconomyScreen extends Screen {
                     return true;
                 }
 
+                // Only the targets created by the war dialog itself may receive
+                // clicks while the modal is open. Background sidebar/content targets
+                // must never leak through the modal.
+                int modalRight = left + w;
+                int modalBottom = top + h;
                 for (int i = targets.size() - 1; i >= 0; i--) {
                     ClickTarget click = targets.get(i);
+                    if (click.left() < left || click.right() > modalRight
+                        || click.top() < top || click.bottom() > modalBottom) {
+                        continue;
+                    }
                     if (click.contains(mouseX, mouseY)) {
                         click.action.run();
                         return true;
