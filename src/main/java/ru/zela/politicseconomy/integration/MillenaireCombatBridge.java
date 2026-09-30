@@ -312,6 +312,204 @@ public final class MillenaireCombatBridge {
         );
     }
 
+
+    private static final net.minecraft.resources.ResourceLocation WAR_GOAL_ID =
+        net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("politicseconomy", "war_march");
+
+    private static final Map<UUID, WarTaskHandler> WAR_TASKS = new java.util.HashMap<>();
+
+    /**
+     * Millénaire runs its GoalScheduler every tick. Calling PathfinderMob navigation
+     * from an external controller is therefore not enough: the scheduler can select
+     * a normal work/walk task on the very next tick. A forced VillagerTask keeps the
+     * navigation command authoritative for the duration of the war march.
+     */
+    public static void forceWarNavigation(
+        LivingEntity entity,
+        net.minecraft.world.phys.Vec3 target,
+        double speed
+    ) {
+        if (entity == null || !entity.isAlive()) return;
+
+        WarTaskHandler handler = WAR_TASKS.get(entity.getUUID());
+        if (handler != null) {
+            handler.updateTarget(target, speed);
+            return;
+        }
+
+        try {
+            Object scheduler = invoke(entity, "getGoalScheduler");
+            if (scheduler == null) return;
+
+            Object currentGoalId = invoke(scheduler, "getCurrentGoalId");
+            if (WAR_GOAL_ID.equals(currentGoalId)) {
+                // The handler map can be repopulated after a save/reload; do not
+                // force another task if the villager is already on our task.
+                return;
+            }
+
+            Class<?> taskType = Class.forName("org.millenaire.goal.VillagerTask");
+            Class<?> contextType = Class.forName("org.millenaire.goal.GoalContext");
+            WarTaskHandler newHandler = new WarTaskHandler(entity, target, speed);
+
+            Object task = java.lang.reflect.Proxy.newProxyInstance(
+                taskType.getClassLoader(),
+                new Class<?>[]{taskType},
+                newHandler
+            );
+
+            Object context = invokePrivateNoArgs(entity, "buildGoalContext");
+            if (context != null && contextType.isInstance(context)) {
+                invoke(scheduler, "forceTask", task, context);
+                WAR_TASKS.put(entity.getUUID(), newHandler);
+                return;
+            }
+
+            // Fallback: forceTask accepts a nullable context. This keeps the
+            // integration usable if Millénaire changes buildGoalContext visibility.
+            invoke(scheduler, "forceTask", task, null);
+            WAR_TASKS.put(entity.getUUID(), newHandler);
+        } catch (Throwable ignored) {
+            // The normal navigation path remains available as a fallback.
+        }
+    }
+
+    /**
+     * Releases custom war tasks for fighters whose party tags are no longer
+     * associated with a live war.
+     */
+    public static void cleanupWarNavigation(Set<String> activePartyTags) {
+        java.util.Iterator<Map.Entry<UUID, WarTaskHandler>> iterator =
+            WAR_TASKS.entrySet().iterator();
+
+        while (iterator.hasNext()) {
+            Map.Entry<UUID, WarTaskHandler> entry = iterator.next();
+            WarTaskHandler handler = entry.getValue();
+            LivingEntity entity = handler.entity();
+
+            boolean active = entity != null
+                && entity.isAlive()
+                && entity.getTags().stream().anyMatch(activePartyTags::contains);
+
+            if (active) continue;
+
+            try {
+                Object scheduler = invoke(entity, "getGoalScheduler");
+                if (scheduler != null) {
+                    Object context = invokePrivateNoArgs(entity, "buildGoalContext");
+                    if (context != null) {
+                        invoke(scheduler, "forceStop", context);
+                    } else {
+                        invoke(scheduler, "forceStop", null);
+                    }
+                }
+            } catch (Throwable ignored) {
+            }
+
+            if (entity != null) {
+                for (String tag : new HashSet<>(entity.getTags())) {
+                    if (tag.startsWith("pewar:")) {
+                        entity.removeTag(tag);
+                    }
+                }
+            }
+
+            iterator.remove();
+        }
+    }
+
+    private static Object invokePrivateNoArgs(Object target, String name) {
+        if (target == null) return null;
+        try {
+            java.lang.reflect.Method method = target.getClass().getDeclaredMethod(name);
+            method.setAccessible(true);
+            return method.invoke(target);
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    private static final class WarTaskHandler implements java.lang.reflect.InvocationHandler {
+        private final LivingEntity entity;
+        private net.minecraft.world.phys.Vec3 target;
+        private double speed;
+        private boolean finished;
+
+        private WarTaskHandler(
+            LivingEntity entity,
+            net.minecraft.world.phys.Vec3 target,
+            double speed
+        ) {
+            this.entity = entity;
+            this.target = target;
+            this.speed = speed;
+        }
+
+        private LivingEntity entity() {
+            return entity;
+        }
+
+        private void updateTarget(
+            net.minecraft.world.phys.Vec3 target,
+            double speed
+        ) {
+            this.target = target;
+            this.speed = speed;
+            this.finished = false;
+        }
+
+        @Override
+        public Object invoke(
+            Object proxy,
+            java.lang.reflect.Method method,
+            Object[] args
+        ) {
+            String name = method.getName();
+
+            try {
+                return switch (name) {
+                    case "goalId" -> WAR_GOAL_ID;
+                    case "tick" -> {
+                        if (args != null && args.length == 1 && args[0] != null) {
+                            Object ctx = args[0];
+                            Object villager = invoke(ctx, "villager");
+                            Object navManager = invoke(villager, "getNavManager");
+                            if (villager != null && navManager != null && target != null) {
+                                net.minecraft.core.BlockPos destination =
+                                    net.minecraft.core.BlockPos.containing(target);
+                                invoke(navManager, "navigateTo", villager, destination, speed);
+                            }
+                        }
+                        yield null;
+                    }
+                    case "isFinished" -> finished;
+                    case "stop" -> {
+                        finished = true;
+                        yield null;
+                    }
+                    case "consumeProgress" -> true;
+                    case "reportProgress" -> null;
+                    case "getTravelPhase" -> Enum.valueOf(
+                        (Class<Enum>)Class.forName("org.millenaire.goal.TravelPhase"),
+                        "TRAVELLING"
+                    );
+                    case "getHeldItems", "getOffHandItems" -> List.of();
+                    case "getNavDebugInfo" -> Map.of(
+                        "goal", WAR_GOAL_ID.toString(),
+                        "target", target != null ? target.toShortString() : "null"
+                    );
+                    case "getGoalLabel" -> null;
+                    case "toString" -> "PoliticsEconomyWarTask[" + entity.getUUID() + "]";
+                    case "hashCode" -> System.identityHashCode(proxy);
+                    case "equals" -> proxy == (args != null && args.length > 0 ? args[0] : null);
+                    default -> null;
+                };
+            } catch (Throwable ignored) {
+                return null;
+            }
+        }
+    }
+
     private static boolean setHostileRelation(
         ServerLevel level,
         Object attacker,
