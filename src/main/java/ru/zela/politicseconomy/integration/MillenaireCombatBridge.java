@@ -434,6 +434,8 @@ public final class MillenaireCombatBridge {
         private net.minecraft.world.phys.Vec3 target;
         private double speed;
         private boolean finished;
+        private net.minecraft.core.BlockPos marchPoint;
+        private long lastRouteTick = Long.MIN_VALUE;
 
         private WarTaskHandler(
             LivingEntity entity,
@@ -458,6 +460,90 @@ public final class MillenaireCombatBridge {
             this.finished = false;
         }
 
+        private net.minecraft.core.BlockPos nextMarchPoint() {
+            if (target == null) return null;
+
+            double dx = target.x - entity.getX();
+            double dz = target.z - entity.getZ();
+            double distance = Math.sqrt(dx * dx + dz * dz);
+
+            if (distance <= 7.0D) {
+                return net.minecraft.core.BlockPos.containing(target);
+            }
+
+            double leg = Math.min(24.0D, distance);
+            double x = entity.getX() + dx / distance * leg;
+            double z = entity.getZ() + dz / distance * leg;
+            int blockX = net.minecraft.util.Mth.floor(x);
+            int blockZ = net.minecraft.util.Mth.floor(z);
+            int y = entity.blockPosition().getY();
+
+            if (entity.level() instanceof ServerLevel level) {
+                y = level.getHeight(
+                    net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,
+                    blockX,
+                    blockZ
+                );
+            }
+
+            return new net.minecraft.core.BlockPos(blockX, y, blockZ);
+        }
+
+        private void tickWarMovement() {
+            if (entity == null || !entity.isAlive() || target == null) return;
+
+            Object navigation = MillenaireCombatBridge.invoke(
+                entity,
+                "getNavigation"
+            );
+            if (navigation == null) return;
+
+            long now = entity.level().getGameTime();
+
+            if (marchPoint == null
+                || entity.blockPosition().distSqr(marchPoint) <= 16.0D
+                || now - lastRouteTick > 40L) {
+                marchPoint = nextMarchPoint();
+            }
+
+            if (marchPoint == null) return;
+
+            boolean done = Boolean.TRUE.equals(
+                MillenaireCombatBridge.invoke(navigation, "isDone")
+            );
+
+            if (done || now - lastRouteTick > 20L) {
+                Object result = MillenaireCombatBridge.invoke(
+                    navigation,
+                    "moveTo",
+                    marchPoint.getX() + 0.5D,
+                    marchPoint.getY(),
+                    marchPoint.getZ() + 0.5D,
+                    Math.max(0.6D, Math.min(1.15D, speed))
+                );
+
+                lastRouteTick = now;
+
+                // If vanilla pathfinding cannot find the next short leg,
+                // keep the military NPC advancing instead of returning to
+                // its civilian position. The forced WarTask still owns AI.
+                if (result instanceof Boolean ok && !ok) {
+                    double dx = marchPoint.getX() + 0.5D - entity.getX();
+                    double dz = marchPoint.getZ() + 0.5D - entity.getZ();
+                    double horizontal = Math.sqrt(dx * dx + dz * dz);
+                    if (horizontal > 0.1D) {
+                        double step = 0.10D;
+                        entity.setDeltaMovement(
+                            dx / horizontal * step,
+                            entity.getDeltaMovement().y,
+                            dz / horizontal * step
+                        );
+                        entity.hasImpulse = true;
+                    }
+                }
+            }
+        }
+
         @Override
         public Object invoke(
             Object proxy,
@@ -470,34 +556,7 @@ public final class MillenaireCombatBridge {
                 return switch (name) {
                     case "goalId" -> WAR_GOAL_ID;
                     case "tick" -> {
-                        if (args != null && args.length == 1 && args[0] != null) {
-                            Object ctx = args[0];
-                            Object villager = MillenaireCombatBridge.invoke(ctx, "villager");
-                            Object navManager = MillenaireCombatBridge.invoke(villager, "getNavManager");
-                            if (villager != null && navManager != null && target != null) {
-                                net.minecraft.core.BlockPos destination =
-                                    net.minecraft.core.BlockPos.containing(target);
-                                Object currentDestination =
-                                    MillenaireCombatBridge.invoke(navManager, "getDestination");
-                                Object abandoned =
-                                    MillenaireCombatBridge.invoke(navManager, "isAbandoned");
-
-                                boolean needsNewRoute =
-                                    !(currentDestination instanceof net.minecraft.core.BlockPos current)
-                                        || current.distSqr(destination) > 4.0D
-                                        || Boolean.TRUE.equals(abandoned);
-
-                                if (needsNewRoute) {
-                                    MillenaireCombatBridge.invoke(
-                                        navManager,
-                                        "navigateTo",
-                                        villager,
-                                        destination,
-                                        speed
-                                    );
-                                }
-                            }
-                        }
+                        tickWarMovement();
                         yield null;
                     }
                     case "isFinished" -> finished;
@@ -514,7 +573,8 @@ public final class MillenaireCombatBridge {
                     case "getHeldItems", "getOffHandItems" -> List.of();
                     case "getNavDebugInfo" -> Map.of(
                         "goal", WAR_GOAL_ID.toString(),
-                        "target", target != null ? target.toString() : "null"
+                        "target", target != null ? target.toString() : "null",
+                        "marchPoint", marchPoint != null ? marchPoint.toShortString() : "null"
                     );
                     case "getGoalLabel" -> null;
                     case "toString" -> "PoliticsEconomyWarTask[" + entity.getUUID() + "]";
