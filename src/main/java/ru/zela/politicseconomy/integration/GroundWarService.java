@@ -137,6 +137,26 @@ public final class GroundWarService {
         }
 
         int limit = partySize(state, level.getServer(), true);
+
+        // Prefer real military villagers first.
+        for (LivingEntity mob : candidates(
+            level,
+            state.center().getX(),
+            state.center().getY(),
+            state.center().getZ(),
+            RALLY_RADIUS
+        )) {
+            if (result.size() >= limit) break;
+            if (!isMillenaireLivingEntity(mob) || !mob.isAlive()) continue;
+            if (!isInVillage(mob, state)) continue;
+            if (!isMilitaryVillager(mob)) continue;
+            if (mob.getTags().stream().anyMatch(existing -> existing.startsWith(PARTY_PREFIX))) continue;
+
+            mob.addTag(tag);
+            result.add(mob);
+        }
+
+        // If there are not enough soldiers, mobilise adult villagers.
         if (result.size() < limit) {
             for (LivingEntity mob : candidates(
                 level,
@@ -148,6 +168,7 @@ public final class GroundWarService {
                 if (result.size() >= limit) break;
                 if (!isMillenaireLivingEntity(mob) || !mob.isAlive()) continue;
                 if (!isInVillage(mob, state)) continue;
+                if (!isAdult(mob)) continue;
                 if (mob.getTags().stream().anyMatch(existing -> existing.startsWith(PARTY_PREFIX))) continue;
 
                 mob.addTag(tag);
@@ -178,6 +199,26 @@ public final class GroundWarService {
         }
 
         int limit = partySize(state, level.getServer(), false);
+
+        // Defenders also prioritise real military villagers.
+        for (LivingEntity mob : candidates(
+            level,
+            state.center().getX(),
+            state.center().getY(),
+            state.center().getZ(),
+            RALLY_RADIUS
+        )) {
+            if (result.size() >= limit) break;
+            if (!isMillenaireLivingEntity(mob) || !mob.isAlive()) continue;
+            if (!isInVillage(mob, state)) continue;
+            if (!isMilitaryVillager(mob)) continue;
+            if (mob.getTags().stream().anyMatch(existing -> existing.startsWith(PARTY_PREFIX))) continue;
+
+            mob.addTag(tag);
+            result.add(mob);
+        }
+
+        // Emergency civilian mobilisation.
         if (result.size() < limit) {
             for (LivingEntity mob : candidates(
                 level,
@@ -189,6 +230,7 @@ public final class GroundWarService {
                 if (result.size() >= limit) break;
                 if (!isMillenaireLivingEntity(mob) || !mob.isAlive()) continue;
                 if (!isInVillage(mob, state)) continue;
+                if (!isAdult(mob)) continue;
                 if (mob.getTags().stream().anyMatch(existing -> existing.startsWith(PARTY_PREFIX))) continue;
 
                 mob.addTag(tag);
@@ -236,6 +278,77 @@ public final class GroundWarService {
         MillenaireIntegration.VillageSnapshot state
     ) {
         return state.territory().contains(new ChunkPos(entity.blockPosition()));
+    }
+
+    private static boolean isMilitaryVillager(LivingEntity entity) {
+        if (!isMillenaireLivingEntity(entity)) return false;
+
+        StringBuilder text = new StringBuilder()
+            .append(entity.getClass().getName()).append(' ')
+            .append(String.valueOf(invoke(entity, "getRoleName"))).append(' ')
+            .append(String.valueOf(invoke(entity, "getVillagerTypeId"))).append(' ')
+            .append(String.valueOf(invoke(entity, "getTypeId")));
+
+        Object record = invoke(entity, "getVillagerRecord");
+        if (record == null) record = invoke(entity, "getRecord");
+        if (record != null) {
+            text.append(' ')
+                .append(String.valueOf(invoke(record, "getRoleName"))).append(' ')
+                .append(String.valueOf(invoke(record, "getVillagerTypeId")));
+        }
+
+        String value = text.toString().toLowerCase(java.util.Locale.ROOT);
+        return value.contains("soldier")
+            || value.contains("guard")
+            || value.contains("warrior")
+            || value.contains("general")
+            || value.contains("army");
+    }
+
+    private static boolean isAdult(LivingEntity entity) {
+        if (entity instanceof net.minecraft.world.entity.Ageable ageable) {
+            return !ageable.isBaby();
+        }
+        String value = entity.getClass().getName().toLowerCase(java.util.Locale.ROOT);
+        return !value.contains("child") && !value.contains("boy") && !value.contains("girl");
+    }
+
+    private static Object invoke(Object target, String name, Object... args) {
+        if (target == null) return null;
+        try {
+            for (java.lang.reflect.Method method : target.getClass().getMethods()) {
+                if (!method.getName().equals(name)
+                    || method.getParameterCount() != args.length) continue;
+                boolean compatible = true;
+                Class<?>[] params = method.getParameterTypes();
+                for (int i = 0; i < params.length; i++) {
+                    if (args[i] == null) continue;
+                    Class<?> type = params[i].isPrimitive()
+                        ? wrap(params[i])
+                        : params[i];
+                    if (!type.isInstance(args[i])) {
+                        compatible = false;
+                        break;
+                    }
+                }
+                if (compatible) return method.invoke(target, args);
+            }
+        } catch (Throwable ignored) {
+        }
+        return null;
+    }
+
+    private static Class<?> wrap(Class<?> type) {
+        if (!type.isPrimitive()) return type;
+        if (type == boolean.class) return Boolean.class;
+        if (type == int.class) return Integer.class;
+        if (type == long.class) return Long.class;
+        if (type == double.class) return Double.class;
+        if (type == float.class) return Float.class;
+        if (type == short.class) return Short.class;
+        if (type == byte.class) return Byte.class;
+        if (type == char.class) return Character.class;
+        return type;
     }
 
     private static int partySize(
