@@ -186,13 +186,6 @@ public final class MilitaryAiService {
             attackerKey,
             selected.stateKey()
         );
-        if (MillenaireIntegration.isStateKey(selected.stateKey())) {
-            MillenaireCombatBridge.startWar(
-                server,
-                attackerKey,
-                selected.stateKey()
-            );
-        }
         notifyInvolvedPlayers(server, attackerKey, selected.stateKey(), attacker.name(), selected.name());
     }
 
