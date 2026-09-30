@@ -47,7 +47,8 @@ public final class EconomyScreen extends Screen {
     private Page page = Page.OVERVIEW;
     private double scroll;
 
-    private final List<ClickTarget> targets = new ArrayList<>();\n    private final List<ClickTarget> modalTargets = new ArrayList<>();
+    private final List<ClickTarget> targets = new ArrayList<>();
+    private final List<ClickTarget> modalTargets = new ArrayList<>();
     private String modalAction;
     private String modalCommand;
     private String modalTitle;
@@ -1153,7 +1154,8 @@ public final class EconomyScreen extends Screen {
         int mouseX,
         int mouseY
     ) {
-        // The war dialog is a true modal layer: the underlying dashboard must not\n        // remain visible through it or receive its click targets.\n        g.fill(0, 0, width, height, 0xFF090C11);
+        // The war dialog is a true modal layer: the underlying dashboard must not
+        // remain visible through it or receive its click targets.\n        g.fill(0, 0, width, height, 0xFF090C11);
 
         int w = Math.min(650, width - 24);
         int h = Math.min(430, height - 24);
