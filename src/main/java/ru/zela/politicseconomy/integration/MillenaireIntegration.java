@@ -559,6 +559,14 @@ public final class MillenaireIntegration {
         return Collections.unmodifiableMap(result);
     }
 
+    /** Returns the live Millénaire village object for optional reflective integrations. */
+    public static Object liveVillage(MinecraftServer server, String stateKey) {
+        if (server == null || !isStateKey(stateKey)) return null;
+        UUID id = villageIdFromStateKey(stateKey);
+        if (id == null) return null;
+        return findVillageById(server.overworld(), id);
+    }
+
     private static Object findVillageById(ServerLevel level, UUID id) {
         for (Object village : villages(level)) {
             if (id.equals(villageId(village))) return village;
