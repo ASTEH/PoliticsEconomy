@@ -78,7 +78,7 @@ public final class GroundWarService {
                 war.attacker(),
                 war.defender()
             );
-        if (nativeResult.relationChanged() || nativeResult.raidTriggered()) {
+        if (nativeResult.raidTriggered()) {
             return;
         }
 
