@@ -14,10 +14,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Calculates exact material content and recurring material consumption for a country. */
+/** Calculates practical national material upkeep from one selected recipe component per block. */
 public final class NationalMaterialDemandService {
     /** 1% of the material content of infrastructure is consumed per economy cycle. */
-    public static final double BLOCK_MATERIAL_CONSUMPTION_RATE = 0.01D;
+    /** 0.25% of represented material content is consumed per economy cycle. */
+    public static final double BLOCK_MATERIAL_CONSUMPTION_RATE = 0.0025D;
     private static final int MAX_DASHBOARD_MATERIALS = 32;
 
     private NationalMaterialDemandService() {}
