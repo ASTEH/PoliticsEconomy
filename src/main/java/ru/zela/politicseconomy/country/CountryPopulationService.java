@@ -12,6 +12,8 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.BedBlock;
 import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 import net.neoforged.neoforge.event.level.ChunkEvent;
 
 import java.util.HashMap;
@@ -66,11 +68,9 @@ public final class CountryPopulationService {
         if (ru.zela.politicseconomy.integration.MillenaireIntegration.isStateKey(countryName)) {
             return ru.zela.politicseconomy.integration.MillenaireIntegration.population(server, countryName);
         }
-        CountryPopulationSavedData data = get(server);
-        if (!data.hasResidents(countryName)) {
-            migrateLegacyPopulation(server, countryName, data);
-        }
+        ensureCountryBootstrap(server, countryName);
 
+        CountryPopulationSavedData data = get(server);
         Cache cache = cache(server);
         return cache.byCountry.computeIfAbsent(
             countryName,
@@ -106,13 +106,37 @@ public final class CountryPopulationService {
         return get(server).getBeds(chunk.toLong());
     }
 
-    public static void initializeCountry(MinecraftServer server, String countryName) {
+    /**
+     * Boots a PoliticsMod country into the resident system even when the
+     * country was created directly by PoliticsMod rather than our helper.
+     * This runs idempotently and also grants the one-time four-bed starter pack.
+     */
+    public static void ensureCountryBootstrap(
+        MinecraftServer server,
+        String countryName
+    ) {
         if (server == null || countryName == null || countryName.isBlank()) return;
+        if (ru.zela.politicseconomy.integration.MillenaireIntegration.isStateKey(countryName)) return;
+
+        PoliticsManager politics = PoliticsManager.get(server.overworld());
+        if (politics == null || politics.getCountry(countryName) == null) return;
 
         CountryPopulationSavedData data = get(server);
         if (!data.hasResidents(countryName)) {
-            data.setResidents(countryName, INITIAL_RESIDENTS);
-            data.setFoodRemainder(countryName, 0.0D);
+            int legacyBeds = 0;
+            for (Map.Entry<Long, Integer> entry : data.snapshot().entrySet()) {
+                Country owner = politics.getCountryAt(new ChunkPos(entry.getKey()));
+                if (owner != null && countryName.equals(owner.getName())) {
+                    legacyBeds += Math.max(0, entry.getValue());
+                }
+            }
+
+            data.setResidents(
+                countryName,
+                legacyBeds > 0
+                    ? legacyBeds * RESIDENTS_PER_BED_LEGACY
+                    : INITIAL_RESIDENTS
+            );
             data.setFedCycles(countryName, 0);
             data.setStarvationCycles(countryName, 0);
             data.setDevelopmentProgress(countryName, 0);
@@ -120,14 +144,41 @@ public final class CountryPopulationService {
             var ledger = ru.zela.politicseconomy.economy.NationalMaterialConsumptionService
                 .getLedger(server);
             ledger.initializeCountry(countryName);
-
-            // Small founding reserve: the new state can feed four residents
-            // for the first cycles before production/trade has started.
-            if (ledger.getStockpile(countryName, "minecraft:bread") <= 0) {
+            if (legacyBeds == 0 && ledger.getStockpile(countryName, "minecraft:bread") <= 0) {
                 ledger.addStockpile(countryName, "minecraft:bread", 8);
             }
         }
+
+        if (!data.starterBedsGiven(countryName)) {
+            for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+                if (!countryName.equals(politics.getPlayerCountry(player.getUUID()))) {
+                    continue;
+                }
+
+                ItemStack beds = new ItemStack(Items.WHITE_BED, 4);
+                if (!player.getInventory().add(beds)) {
+                    player.drop(beds, false);
+                }
+
+                player.sendSystemMessage(
+                    Component.literal(
+                        "Государство " + countryName
+                            + " получило 4 стартовых жителя и 4 кровати."
+                    ).withStyle(ChatFormatting.GREEN)
+                );
+                data.markStarterBedsGiven(countryName);
+                break;
+            }
+        }
+
+        data.setDirty();
         invalidate(server);
+    }
+
+    public static void initializeCountry(MinecraftServer server, String countryName) {
+        if (server == null || countryName == null || countryName.isBlank()) return;
+
+        ensureCountryBootstrap(server, countryName);
     }
 
     public static int housingCapacity(MinecraftServer server, String countryName) {
@@ -153,11 +204,9 @@ public final class CountryPopulationService {
         if (server == null || countryName == null || countryName.isBlank()) return;
         if (ru.zela.politicseconomy.integration.MillenaireIntegration.isStateKey(countryName)) return;
 
-        CountryPopulationSavedData data = get(server);
-        if (!data.hasResidents(countryName)) {
-            migrateLegacyPopulation(server, countryName, data);
-        }
+        ensureCountryBootstrap(server, countryName);
 
+        CountryPopulationSavedData data = get(server);
         int residents = data.getResidents(countryName);
         if (residents <= 0) return;
 
@@ -242,7 +291,12 @@ public final class CountryPopulationService {
             }
         }
 
-        data.setResidents(countryName, legacyBeds * RESIDENTS_PER_BED_LEGACY);
+        data.setResidents(
+            countryName,
+            legacyBeds > 0
+                ? legacyBeds * RESIDENTS_PER_BED_LEGACY
+                : INITIAL_RESIDENTS
+        );
         data.setFedCycles(countryName, 0);
         data.setStarvationCycles(countryName, 0);
         data.setDevelopmentProgress(countryName, 0);
