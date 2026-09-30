@@ -288,6 +288,19 @@ public final class RandomEventService {
         ACTIVE_FIRES.put(server, next);
     }
 
+    public static boolean debugTriggerFire(ServerPlayer player) {
+        if (player == null || player.getServer() == null) return false;
+        String stateKey = CountryContext.playerStateName(player);
+        if (stateKey == null || stateKey.isBlank()) return false;
+        startFire(
+            player.getServer(),
+            player,
+            stateKey,
+            player.getServer().overworld().getGameTime()
+        );
+        return true;
+    }
+
     public static String[] mapRows(MinecraftServer server) {
         if (server == null) return new String[0];
 
