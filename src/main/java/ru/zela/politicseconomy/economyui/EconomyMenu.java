@@ -347,11 +347,44 @@ public final class EconomyMenu {
             );
         }
 
+        java.util.List<String> warRows = new java.util.ArrayList<>();
+        long now = player.getServer().overworld().getGameTime();
+        for (ru.zela.politicseconomy.integration.MilitaryWarSavedData.War war
+            : ru.zela.politicseconomy.integration.MilitaryWarSavedData.get(player.getServer()).wars()) {
+            long rounds = Math.max(
+                0L,
+                (now - war.startedTick()) / 100L
+            );
+            double attackerReadiness =
+                ru.zela.politicseconomy.integration.MilitaryEconomyService
+                    .readiness(player.getServer(), war.attacker());
+            double defenderReadiness =
+                ru.zela.politicseconomy.integration.MilitaryEconomyService
+                    .readiness(player.getServer(), war.defender());
+
+            warRows.add(
+                safeTradeText(
+                    ru.zela.politicseconomy.integration.MillenaireIntegration
+                        .displayName(player.getServer(), war.attacker())
+                ) + "|" +
+                safeTradeText(
+                    ru.zela.politicseconomy.integration.MillenaireIntegration
+                        .displayName(player.getServer(), war.defender())
+                ) + "|" +
+                rounds + "|" +
+                String.format(java.util.Locale.ROOT, "%.0f", attackerReadiness) + "|" +
+                String.format(java.util.Locale.ROOT, "%.0f", defenderReadiness) + "|" +
+                war.cause().name()
+            );
+
+            if (warRows.size() >= 24) break;
+        }
+
         String displayStateName = millenaireState && millenaireSnapshot != null
             ? millenaireSnapshot.name()
             : countryName;
 
-        return new EconomySnapshotPayload(displayStateName, selectedDirection == null ? "Не выбрано" : selectedDirection.displayName(), government == null ? "Не выбрано" : government.displayName(), religion == null ? "Не выбрано" : religion.displayName(), population, workforce, workingPopulation, employedPopulation, unemployedPopulation, workplaceCapacity, workplaceCounts, workplaceSlots, sectorWorkers, sectorAllocation, sectorBonuses, policySummary, unrest, demand, supportSummary, treasury, infrastructureCost, moneyDebt, dieselModifier, totalMaterialPerCycle, materialIds, materialNames, materialStockpile, materialDebt, materialPerCycle, modifierNames.toArray(String[]::new), modifierValues.stream().mapToDouble(Double::doubleValue).toArray(), researchPoints, researchRows, cityNames, cityCountries, cityMayors, cityTreasuries, cityIncome, cityInfrastructure, cityPopulation, cityTaxBlocks, cityCapitals, cityMine, developmentLevel, developmentPoints, developmentNextThreshold, developmentTitle, developmentNextTitle, developmentPerk, developmentNextPerk, marketItemIds, marketItemNames, marketBaseDemand, marketRemaining, marketSold, marketImported, marketPrices, personalWallet, tradeTerminalSet, tradeTerminalPosition, tradeOwnOrders.toArray(String[]::new), tradeOpenOrders.toArray(String[]::new), tradeShipments.toArray(String[]::new), tradeHistory.toArray(String[]::new), newsRows.toArray(String[]::new));
+        return new EconomySnapshotPayload(displayStateName, selectedDirection == null ? "Не выбрано" : selectedDirection.displayName(), government == null ? "Не выбрано" : government.displayName(), religion == null ? "Не выбрано" : religion.displayName(), population, workforce, workingPopulation, employedPopulation, unemployedPopulation, workplaceCapacity, workplaceCounts, workplaceSlots, sectorWorkers, sectorAllocation, sectorBonuses, policySummary, unrest, demand, supportSummary, treasury, infrastructureCost, moneyDebt, dieselModifier, totalMaterialPerCycle, materialIds, materialNames, materialStockpile, materialDebt, materialPerCycle, modifierNames.toArray(String[]::new), modifierValues.stream().mapToDouble(Double::doubleValue).toArray(), researchPoints, researchRows, cityNames, cityCountries, cityMayors, cityTreasuries, cityIncome, cityInfrastructure, cityPopulation, cityTaxBlocks, cityCapitals, cityMine, developmentLevel, developmentPoints, developmentNextThreshold, developmentTitle, developmentNextTitle, developmentPerk, developmentNextPerk, marketItemIds, marketItemNames, marketBaseDemand, marketRemaining, marketSold, marketImported, marketPrices, personalWallet, tradeTerminalSet, tradeTerminalPosition, tradeOwnOrders.toArray(String[]::new), tradeOpenOrders.toArray(String[]::new), tradeShipments.toArray(String[]::new), tradeHistory.toArray(String[]::new), newsRows.toArray(String[]::new), warRows.toArray(String[]::new));
     }
 
     private static void addModifier(java.util.List<String> names, java.util.List<Double> values, String name, double value) { names.add(name); values.add(value); }
