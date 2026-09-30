@@ -1114,11 +1114,22 @@ public final class EconomyScreen extends Screen {
                 rounds.equals("0") ? GOLD : NEGATIVE,
                 205
             );
-            drawPill(g, cause, right - 165, y + 51, PANEL_3, MUTED, 151);
+            drawPill(g, causeText(cause), right - 165, y + 51, PANEL_3, MUTED, 151);
 
             y = bottom + 8;
         }
         return y;
+    }
+
+    private String causeText(String cause) {
+        return switch (cause) {
+            case "BORDER_CONFLICT" -> "Пограничный конфликт";
+            case "RESOURCE_SHORTAGE" -> "Дефицит ресурсов";
+            case "TERRITORIAL_EXPANSION" -> "Расширение территории";
+            case "RETALIATION" -> "Ответный удар";
+            case "STRATEGIC_OPPORTUNITY" -> "Стратегическая цель";
+            default -> "Вооружённый конфликт";
+        };
     }
 
     private void openWarDialog() {
