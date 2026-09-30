@@ -67,9 +67,14 @@ public final class MillenaireCombatBridge {
         }
 
         Object existingTarget = invoke(attacker, "getRaidTarget");
-        if (sameId(existingTarget, defenderId)
-            && longValue(invoke(attacker, "getRaidStart")) > 0L) {
-            return new Result(true, true, "native_raid_already_active");
+        if (sameId(existingTarget, defenderId)) {
+            return new Result(
+                true,
+                true,
+                longValue(invoke(attacker, "getRaidStart")) > 0L
+                    ? "native_raid_already_active"
+                    : "native_raid_planned"
+            );
         }
 
         boolean relationChanged = setHostileRelation(
@@ -220,19 +225,23 @@ public final class MillenaireCombatBridge {
         long gameTime
     ) {
         try {
+            /*
+             * Do not set raidStart ourselves. Millénaire uses the planning
+             * phase to calculate raid strength and select actual fighters.
+             * We only create the target + planning state and let its own AI
+             * start the raid.
+             */
             invoke(attacker, "clearRaid");
             invoke(attacker, "setRaidTarget", defenderId);
             invoke(attacker, "setRaidPlanningStart", gameTime);
-            invoke(attacker, "setRaidStart", gameTime);
-            invoke(attacker, "setRaidStartGameTime", gameTime);
+            invoke(attacker, "setRaidStart", 0L);
+            invoke(attacker, "setRaidStartGameTime", 0L);
 
             Object target = invoke(attacker, "getRaidTarget");
-            long raidStart = longValue(invoke(attacker, "getRaidStart"));
             long planningStart =
                 longValue(invoke(attacker, "getRaidPlanningStart"));
 
             return sameId(target, defenderId)
-                && raidStart == gameTime
                 && planningStart == gameTime;
         } catch (Throwable ignored) {
             return false;
