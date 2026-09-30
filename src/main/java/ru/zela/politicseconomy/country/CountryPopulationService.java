@@ -123,14 +123,20 @@ public final class CountryPopulationService {
         if (politics == null || politics.getCountry(countryName) == null) return;
 
         CountryPopulationSavedData data = get(server);
-        if (!data.hasResidents(countryName)) {
-            int legacyBeds = 0;
-            for (Map.Entry<Long, Integer> entry : data.snapshot().entrySet()) {
-                Country owner = politics.getCountryAt(new ChunkPos(entry.getKey()));
-                if (owner != null && countryName.equals(owner.getName())) {
-                    legacyBeds += Math.max(0, entry.getValue());
-                }
+
+        int legacyBeds = 0;
+        for (Map.Entry<Long, Integer> entry : data.snapshot().entrySet()) {
+            Country owner = politics.getCountryAt(new ChunkPos(entry.getKey()));
+            if (owner != null && countryName.equals(owner.getName())) {
+                legacyBeds += Math.max(0, entry.getValue());
             }
+        }
+
+        // A zero-resident record can exist from an older migration pass.
+        // Treat such a country as uninitialized until its one-time starter
+        // package has been delivered.
+        if (!data.hasResidents(countryName)
+            || (data.getResidents(countryName) <= 0 && !data.starterBedsGiven(countryName))) {
 
             data.setResidents(
                 countryName,
@@ -145,6 +151,7 @@ public final class CountryPopulationService {
             var ledger = ru.zela.politicseconomy.economy.NationalMaterialConsumptionService
                 .getLedger(server);
             ledger.initializeCountry(countryName);
+
             if (legacyBeds == 0 && ledger.getStockpile(countryName, "minecraft:bread") <= 0) {
                 ledger.addStockpile(countryName, "minecraft:bread", 8);
             }
