@@ -97,9 +97,7 @@ public final class WarDeclarationScreen extends Screen {
         int panelTop = 42;
         int panelRight = panelLeft + panelWidth;
 
-        int panelBottom = dropdownOpen
-            ? Math.min(height - 28, Math.max(520, height - 40))
-            : Math.min(height - 28, 390);
+        int panelBottom = warPanelBottom();
 
         g.fill(panelLeft, panelTop, panelRight, panelBottom, PANEL);
         outline(g, panelLeft, panelTop, panelRight, panelBottom, BORDER);
@@ -126,8 +124,7 @@ public final class WarDeclarationScreen extends Screen {
 
         int infoTop;
         if (dropdownOpen) {
-            int visibleRows = Math.min(8, Math.max(1, (height - 250) / 34));
-            infoTop = 190 + visibleRows * 34 + 14;
+            infoTop = 190 + warVisibleRows() * 34 + 14;
         } else {
             infoTop = 235;
         }
@@ -223,7 +220,7 @@ public final class WarDeclarationScreen extends Screen {
     ) {
         int top = 190;
         int rowHeight = 34;
-        int maxRows = Math.max(1, Math.min(8, (height - top - 120) / rowHeight));
+        int maxRows = warVisibleRows();
 
         rows.clear();
         List<CountryOption> options = filteredOptions();
@@ -312,6 +309,17 @@ public final class WarDeclarationScreen extends Screen {
         }
     }
 
+    private int warVisibleRows() {
+        int available = Math.max(34, height - 376);
+        return Math.max(1, Math.min(8, available / 34));
+    }
+
+    private int warPanelBottom() {
+        if (!dropdownOpen) return Math.min(height - 28, 390);
+        int infoTop = 190 + warVisibleRows() * 34 + 14;
+        return Math.min(height - 28, infoTop + 96 + 60);
+    }
+
     private void drawInfo(GuiGraphics g, int left, int top, int right) {
         panel(g, left, top, right, top + 96);
 
@@ -383,9 +391,7 @@ public final class WarDeclarationScreen extends Screen {
         int left = (width - panelWidth) / 2;
         int right = left + panelWidth;
 
-        int panelBottom = dropdownOpen
-            ? Math.min(height - 28, Math.max(520, height - 40))
-            : Math.min(height - 28, 390);
+        int panelBottom = warPanelBottom();
 
         int buttonsY = panelBottom - 48;
 
