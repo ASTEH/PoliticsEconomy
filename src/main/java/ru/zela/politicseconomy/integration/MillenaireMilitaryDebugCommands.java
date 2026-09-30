@@ -2,9 +2,11 @@ package ru.zela.politicseconomy.integration;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.arguments.DoubleArgumentType;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.ChunkPos;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
@@ -27,6 +29,29 @@ public final class MillenaireMilitaryDebugCommands {
                             .executes(context -> showId(context.getSource())))
                         .then(Commands.literal("neighbors")
                             .executes(context -> showNeighbors(context.getSource())))
+                        .then(Commands.literal("status")
+                            .executes(context -> showStatus(context.getSource())))
+                        .then(Commands.literal("readiness")
+                            .executes(context -> showReadiness(context.getSource()))
+                            .then(Commands.argument("value", DoubleArgumentType.doubleArg(0.0D, 100.0D))
+                                .executes(context -> setReadiness(
+                                    context.getSource(),
+                                    DoubleArgumentType.getDouble(context, "value")
+                                ))))
+                        .then(Commands.literal("war")
+                            .then(Commands.argument("target", StringArgumentType.word())
+                                .executes(context -> forceWar(
+                                    context.getSource(),
+                                    StringArgumentType.getString(context, "target")
+                                ))))
+                        .then(Commands.literal("wars")
+                            .executes(context -> showWars(context.getSource())))
+                        .then(Commands.literal("endwar")
+                            .then(Commands.argument("target", StringArgumentType.word())
+                                .executes(context -> endWar(
+                                    context.getSource(),
+                                    StringArgumentType.getString(context, "target")
+                                ))))
                         .then(Commands.literal("link")
                             .then(Commands.argument("target", StringArgumentType.word())
                                 .executes(context -> linkNeighbor(
@@ -178,6 +203,240 @@ public final class MillenaireMilitaryDebugCommands {
             "§aВсе временные debug-соседства Millénaire очищены."
         ), true);
         return 1;
+    }
+
+
+    private static int showStatus(CommandSourceStack source) {
+        try {
+            ServerPlayer player = source.getPlayerOrException();
+            MillenaireIntegration.VillageSnapshot current = currentVillage(player);
+            if (current == null) {
+                source.sendFailure(Component.literal(
+                    "Ты должен находиться на территории поселения Millénaire."
+                ));
+                return 0;
+            }
+
+            MinecraftServer server = player.server;
+            int militaryWorkers = CountryWorkforceService.sectorWorkers(
+                server,
+                current.stateKey(),
+                WorkforceSector.MILITARY
+            );
+            double readiness = MilitaryEconomyService.readiness(
+                server,
+                current.stateKey()
+            );
+            double supply = MilitaryEconomyService.supplyPercent(
+                server,
+                current.stateKey()
+            );
+            long treasury = MillenaireStateSavedData.get(server)
+                .treasury(current.villageId());
+            boolean debt = NationalMaterialConsumptionService.getLedger(server)
+                .hasAnyDebt(current.stateKey());
+
+            source.sendSuccess(() -> Component.literal("§6=== Военный статус ==="), false);
+            source.sendSuccess(() -> Component.literal(
+                "§7Поселение: §f" + current.name()), false);
+            source.sendSuccess(() -> Component.literal(
+                "§7Население: §f" + current.population()
+                    + " §8(взрослых: " + current.adults()
+                    + ", детей: " + current.children() + ")"), false);
+            source.sendSuccess(() -> Component.literal(
+                "§7Военные рабочие: §f" + militaryWorkers), false);
+            source.sendSuccess(() -> Component.literal(
+                "§7Военная готовность: §f"
+                    + String.format(java.util.Locale.ROOT, "%.1f", readiness)
+                    + "/100"), false);
+            source.sendSuccess(() -> Component.literal(
+                "§7Снабжение: §f"
+                    + String.format(java.util.Locale.ROOT, "%.1f", supply)
+                    + "%"), false);
+            source.sendSuccess(() -> Component.literal(
+                "§7Казна: §f" + treasury), false);
+            source.sendSuccess(() -> Component.literal(
+                "§7Материальный долг: "
+                    + (debt ? "§cесть" : "§aнет")), false);
+            source.sendSuccess(() -> Component.literal(
+                "§8Debug-война игнорирует эти ограничения."), false);
+            return 1;
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("Команда доступна только игроку."));
+            return 0;
+        }
+    }
+
+    private static int showReadiness(CommandSourceStack source) {
+        try {
+            ServerPlayer player = source.getPlayerOrException();
+            MillenaireIntegration.VillageSnapshot current = currentVillage(player);
+            if (current == null) {
+                source.sendFailure(Component.literal(
+                    "Ты должен находиться на территории поселения Millénaire."
+                ));
+                return 0;
+            }
+
+            double readiness = MilitaryEconomyService.readiness(
+                player.server,
+                current.stateKey()
+            );
+            source.sendSuccess(() -> Component.literal(
+                "§6Военная готовность §f"
+                    + String.format(java.util.Locale.ROOT, "%.1f", readiness)
+                    + "/100"
+            ), false);
+            return 1;
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("Команда доступна только игроку."));
+            return 0;
+        }
+    }
+
+    private static int setReadiness(CommandSourceStack source, double value) {
+        try {
+            ServerPlayer player = source.getPlayerOrException();
+            MillenaireIntegration.VillageSnapshot current = currentVillage(player);
+            if (current == null) {
+                source.sendFailure(Component.literal(
+                    "Ты должен находиться на территории поселения Millénaire."
+                ));
+                return 0;
+            }
+
+            MilitaryReadinessSavedData.get(player.server)
+                .setReadiness(current.stateKey(), value);
+            source.sendSuccess(() -> Component.literal(
+                "§aВоенная готовность §f"
+                    + String.format(java.util.Locale.ROOT, "%.1f", value)
+                    + "/100 §aустановлена для §f" + current.name() + "§a."
+            ), true);
+            return 1;
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("Не удалось изменить военную готовность."));
+            return 0;
+        }
+    }
+
+    private static int forceWar(CommandSourceStack source, String targetId) {
+        try {
+            ServerPlayer player = source.getPlayerOrException();
+            MillenaireIntegration.VillageSnapshot attacker = currentVillage(player);
+            if (attacker == null) {
+                source.sendFailure(Component.literal(
+                    "Ты должен находиться на территории поселения Millénaire."
+                ));
+                return 0;
+            }
+
+            MillenaireIntegration.VillageSnapshot defender =
+                findVillage(player, targetId);
+            if (defender == null) {
+                source.sendFailure(Component.literal(
+                    "Поселение с villageId '" + targetId + "' не найдено."
+                ));
+                return 0;
+            }
+
+            if (MilitaryWarSavedData.get(player.server)
+                .isAtWar(attacker.stateKey(), defender.stateKey())) {
+                source.sendFailure(Component.literal(
+                    "Эти поселения уже находятся в состоянии войны."
+                ));
+                return 0;
+            }
+
+            if (!MilitaryAiService.debugForceStartWar(
+                player.server,
+                attacker,
+                defender
+            )) {
+                source.sendFailure(Component.literal(
+                    "Не удалось начать debug-войну."
+                ));
+                return 0;
+            }
+
+            source.sendSuccess(() -> Component.literal(
+                "§cDebug-война начата: §f"
+                    + attacker.name() + " §c→ §f" + defender.name()
+            ), true);
+            return 1;
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("Не удалось начать debug-войну."));
+            return 0;
+        }
+    }
+
+    private static int showWars(CommandSourceStack source) {
+        try {
+            List<MilitaryWarSavedData.War> wars =
+                MilitaryWarSavedData.get(source.getServer()).wars();
+            if (wars.isEmpty()) {
+                source.sendSuccess(() -> Component.literal(
+                    "§7Активных войн нет."), false);
+                return 1;
+            }
+
+            source.sendSuccess(() -> Component.literal(
+                "§6=== Активные войны ==="), false);
+            for (MilitaryWarSavedData.War war : wars) {
+                String attacker = MillenaireIntegration.displayName(
+                    source.getServer(), war.attacker());
+                String defender = MillenaireIntegration.displayName(
+                    source.getServer(), war.defender());
+                source.sendSuccess(() -> Component.literal(
+                    "§c" + attacker + " §f→ §c" + defender
+                        + " §7(" + war.type().name()
+                        + ", " + war.cause().name() + ")"
+                ), false);
+            }
+            return 1;
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("Не удалось прочитать список войн."));
+            return 0;
+        }
+    }
+
+    private static int endWar(CommandSourceStack source, String targetId) {
+        try {
+            ServerPlayer player = source.getPlayerOrException();
+            MillenaireIntegration.VillageSnapshot current = currentVillage(player);
+            if (current == null) {
+                source.sendFailure(Component.literal(
+                    "Ты должен находиться на территории поселения Millénaire."
+                ));
+                return 0;
+            }
+
+            MillenaireIntegration.VillageSnapshot target =
+                findVillage(player, targetId);
+            if (target == null) {
+                source.sendFailure(Component.literal(
+                    "Поселение с villageId '" + targetId + "' не найдено."
+                ));
+                return 0;
+            }
+
+            boolean ended = MilitaryWarSavedData.get(player.server)
+                .endWar(current.stateKey(), target.stateKey());
+            if (!ended) {
+                source.sendFailure(Component.literal(
+                    "Война между этими поселениями не найдена."
+                ));
+                return 0;
+            }
+
+            source.sendSuccess(() -> Component.literal(
+                "§aDebug-война завершена: §f"
+                    + current.name() + " §7↔ §f" + target.name()
+            ), true);
+            return 1;
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("Не удалось завершить войну."));
+            return 0;
+        }
     }
 
     private static MillenaireIntegration.VillageSnapshot currentVillage(ServerPlayer player) {
