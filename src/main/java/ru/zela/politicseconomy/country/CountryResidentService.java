@@ -23,7 +23,9 @@ import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 import java.util.Set;
 import java.util.UUID;
 
@@ -220,8 +222,22 @@ public final class CountryResidentService {
         PoliticsManager politics = PoliticsManager.get(server.overworld());
         if (politics == null) return;
 
+        Map<String, List<ChunkPos>> chunksByCountry = new HashMap<>();
+        politics.forEachClaim((chunk, color) -> {
+            String owner = politics.getCountryNameAt(chunk);
+            if (owner != null) {
+                chunksByCountry
+                    .computeIfAbsent(owner, ignored -> new ArrayList<>())
+                    .add(chunk);
+            }
+        });
+
         for (var country : politics.getCountries().values()) {
-            reconcileCountry(server, country.getName());
+            reconcileCountry(
+                server,
+                country.getName(),
+                chunksByCountry.getOrDefault(country.getName(), List.of())
+            );
         }
 
         LAST_RECONCILE_TICK.put(server, server.overworld().getGameTime());
@@ -234,7 +250,11 @@ public final class CountryResidentService {
         }
     }
 
-    private static void reconcileCountry(MinecraftServer server, String countryName) {
+    private static void reconcileCountry(
+        MinecraftServer server,
+        String countryName,
+        List<ChunkPos> countryChunks
+    ) {
         PoliticsManager politics = PoliticsManager.get(server.overworld());
         if (politics == null || politics.getCountry(countryName) == null) return;
 
@@ -253,10 +273,7 @@ public final class CountryResidentService {
 
         // Then discover ordinary villagers living in this country, including
         // villagers imported from a different settlement.
-        politics.forEachClaim((chunk, color) -> {
-            String owner = politics.getCountryNameAt(chunk);
-            if (!countryName.equals(owner)) return;
-
+        for (ChunkPos chunk : countryChunks) {
             int minX = chunk.getMinBlockX();
             int minZ = chunk.getMinBlockZ();
 
@@ -276,7 +293,7 @@ public final class CountryResidentService {
 
                 reconcileLoadedVillager(server, politics, data, villager, countryName);
             }
-        });
+        }
 
         data.setDirty();
     }
