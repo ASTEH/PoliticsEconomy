@@ -1,311 +1,355 @@
 package ru.zela.politicseconomy.integration;
 
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.Mob;
-import net.minecraft.world.level.ChunkPos;
-import net.minecraft.world.phys.Vec3;
-import net.minecraft.world.phys.AABB;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
+import ru.zela.politicseconomy.country.CountryResearchService;
 import ru.zela.politicseconomy.country.CountryWorkforceService;
 import ru.zela.politicseconomy.country.WorkforceSector;
+import ru.zela.politicseconomy.economy.NationalMaterialConsumptionService;
 
-import java.util.HashMap;
-import java.util.HashSet;
+import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
 
-/** First real ground-combat layer for Millénaire settlements. */
+/**
+ * PoliticsEconomy-native war resolution.
+ *
+ * <p>Millénaire remains an economic/statistical data source only. No Millénaire
+ * NPC is spawned, moved, damaged, or placed into a native Millénaire raid.
+ * Wars are resolved from military workforce, readiness, supply, development,
+ * research and population.</p>
+ */
 public final class GroundWarService {
-    private static final long TICK_INTERVAL = 1L;
-    private static final long ATTACK_COOLDOWN = 20L;
-    private static final double RALLY_RADIUS = 56.0D;
-    private static final double PARTY_TRACK_RADIUS = 4096.0D;
-    private static final double TARGET_RADIUS = 5.5D;
-    private static final int MAX_PARTY = 12;
-    private static final String PARTY_PREFIX = "pewar:";
-    private static final Map<UUID, Long> NEXT_ATTACK_TICK = new HashMap<>();
+    private static final long BATTLE_INTERVAL_TICKS = 100L;
+    private static final double BASE_BATTLE_POWER = 18.0D;
+    private static final double MAX_ROUND_LOSS = 6.0D;
 
     private GroundWarService() {}
 
     public static void onServerTick(ServerTickEvent.Post event) {
         MinecraftServer server = event.getServer();
-        if (server.overworld() == null) return;
-        long now = server.overworld().getGameTime();
-        if (now % TICK_INTERVAL != 0L) return;
+        ServerLevel level = server.overworld();
+        if (level == null) return;
+
+        long now = level.getGameTime();
+        if (now % BATTLE_INTERVAL_TICKS != 0L) return;
 
         MilitaryWarSavedData wars = MilitaryWarSavedData.get(server);
-        Set<String> activePartyTags = new HashSet<>();
-
         for (MilitaryWarSavedData.War war : wars.wars()) {
             if (war.type() != MilitaryWarSavedData.WarType.GROUND) continue;
-            activePartyTags.add(partyTag(war, true));
-            activePartyTags.add(partyTag(war, false));
-            processWar(server, wars, war, now);
+            resolveRound(server, wars, war, now);
         }
-
-        MillenaireCombatBridge.cleanupWarNavigation(activePartyTags);
     }
 
-    private static void processWar(MinecraftServer server, MilitaryWarSavedData wars,
-                                   MilitaryWarSavedData.War war, long now) {
-        MillenaireIntegration.VillageSnapshot attacker =
-            MillenaireIntegration.snapshotForStateKey(server, war.attacker());
-        MillenaireIntegration.VillageSnapshot defender =
-            MillenaireIntegration.snapshotForStateKey(server, war.defender());
-        if (attacker == null || defender == null) return;
+    private static void resolveRound(
+        MinecraftServer server,
+        MilitaryWarSavedData wars,
+        MilitaryWarSavedData.War war,
+        long now
+    ) {
+        if (war.attacker().isBlank() || war.defender().isBlank()) return;
 
-        int attackerPartySize = Math.min(MAX_PARTY,
-            Math.max(3, partySize(attacker, server, true)));
-        int defenderPartySize = Math.min(MAX_PARTY,
-            Math.max(3, partySize(defender, server, false)));
+        double attackerPower = militaryPower(server, war.attacker());
+        double defenderPower = militaryPower(server, war.defender());
 
-        MillenaireCombatBridge.mobilizeForWar(server, attacker, attackerPartySize);
-        MillenaireCombatBridge.mobilizeForWar(server, defender, defenderPartySize);
-
-        MillenaireCombatBridge.Result nativeResult =
-            MillenaireCombatBridge.startWar(server, war.attacker(), war.defender());
-        if (nativeResult.raidTriggered()) return;
-
-        ServerLevel level = server.overworld();
-        Set<LivingEntity> attackers = party(level, attacker, war);
-        Set<LivingEntity> defenders = ensureDefenderParty(level, defender, war);
-        if (attackers.isEmpty()) return;
-
-        Vec3 defenderCenter = defender.center().getCenter();
-        for (LivingEntity mob : attackers) {
-            if (!mob.isAlive()) continue;
-            double distance = mob.position().distanceTo(defenderCenter);
-            if (distance > TARGET_RADIUS) {
-                moveToward(mob, defenderCenter, movementSpeed(attacker, defender));
-            } else {
-                LivingEntity target = nearestAlive(defenders, mob);
-                if (target != null) attack(mob, target, now);
-            }
+        if (attackerPower <= 0.0D || defenderPower <= 0.0D) {
+            finishIfDisarmed(server, wars, war, attackerPower, defenderPower);
+            return;
         }
 
-        for (LivingEntity mob : defenders) {
-            if (!mob.isAlive()) continue;
-            LivingEntity target = nearestAlive(attackers, mob);
-            if (target == null) continue;
-            double distance = mob.position().distanceTo(target.position());
-            if (distance > TARGET_RADIUS) {
-                moveToward(mob, target.position(), 1.05D);
-            } else {
-                attack(mob, target, now);
-            }
+        double total = attackerPower + defenderPower;
+        double attackerShare = attackerPower / total;
+        double defenderShare = defenderPower / total;
+
+        // The weaker side takes heavier losses; the winner still pays a
+        // meaningful cost so wars cannot become free infinite damage.
+        double attackerLoss = clamp(
+            BASE_BATTLE_POWER * (0.35D + defenderShare),
+            0.5D,
+            MAX_ROUND_LOSS
+        );
+        double defenderLoss = clamp(
+            BASE_BATTLE_POWER * (0.35D + attackerShare),
+            0.5D,
+            MAX_ROUND_LOSS
+        );
+
+        double attackerPressure = relativePressure(attackerPower, defenderPower);
+        double defenderPressure = relativePressure(defenderPower, attackerPower);
+
+        MilitaryReadinessSavedData readiness =
+            MilitaryReadinessSavedData.get(server);
+
+        readiness.ensureState(war.attacker());
+        readiness.ensureState(war.defender());
+
+        readiness.reduceReadiness(
+            war.attacker(),
+            attackerLoss * 1.15D
+        );
+        readiness.reduceReadiness(
+            war.defender(),
+            defenderLoss * 1.15D
+        );
+
+        readiness.addCasualties(
+            war.attacker(),
+            Math.max(1L, Math.round(attackerLoss))
+        );
+        readiness.addCasualties(
+            war.defender(),
+            Math.max(1L, Math.round(defenderLoss))
+        );
+
+        long attackerTreasuryDamage = Math.max(
+            2L,
+            Math.round(attackerLoss * 3.0D)
+        );
+        long defenderTreasuryDamage = Math.max(
+            2L,
+            Math.round(defenderLoss * 3.0D)
+        );
+
+        applyWarCost(server, war.attacker(), attackerTreasuryDamage);
+        applyWarCost(server, war.defender(), defenderTreasuryDamage);
+
+        // A round pushes a war toward a decisive front. The target chunk is
+        // considered captured only after a sustained advantage, keeping
+        // territorial changes separate from ordinary economic statistics.
+        long startedForRound = war.startedTick();
+        long elapsedRounds = Math.max(
+            1L,
+            (now - startedForRound) / BATTLE_INTERVAL_TICKS
+        );
+
+        double attackerControl =
+            attackerPressure * Math.min(1.0D, elapsedRounds / 20.0D);
+        double defenderControl =
+            defenderPressure * Math.min(1.0D, elapsedRounds / 20.0D);
+
+        if (attackerControl >= 1.0D && attackerPower > defenderPower * 1.20D) {
+            resolveVictory(server, wars, war, true);
+            return;
         }
 
-        cleanupAttackCooldowns(now);
+        if (defenderControl >= 1.0D && defenderPower > attackerPower * 1.20D) {
+            resolveVictory(server, wars, war, false);
+            return;
+        }
+
         wars.setDirty();
     }
 
-    private static Set<LivingEntity> party(ServerLevel level,
-                                           MillenaireIntegration.VillageSnapshot state,
-                                           MilitaryWarSavedData.War war) {
-        String tag = partyTag(war, true);
-        Set<LivingEntity> result = new HashSet<>();
+    private static double militaryPower(
+        MinecraftServer server,
+        String stateKey
+    ) {
+        if (stateKey == null || stateKey.isBlank()) return 0.0D;
 
-        for (LivingEntity mob : candidates(level, state.center().getX(), state.center().getY(),
-                state.center().getZ(), PARTY_TRACK_RADIUS)) {
-            // Once a villager has joined a war party, it is allowed to leave
-            // the village territory. Keep tracking it until the war ends.
-            if (mob.getTags().contains(tag)) result.add(mob);
+        boolean millenaire = MillenaireIntegration.isStateKey(stateKey);
+
+        int population;
+        int militaryWorkers;
+        int development;
+
+        if (millenaire) {
+            MillenaireIntegration.VillageSnapshot state =
+                MillenaireIntegration.snapshotForStateKey(server, stateKey);
+            if (state == null) return 0.0D;
+            population = state.population();
+            militaryWorkers = CountryWorkforceService.sectorWorkers(
+                server,
+                stateKey,
+                WorkforceSector.MILITARY
+            );
+            development = 0;
+        } else {
+            population = ru.zela.politicseconomy.country.CountryPopulationService.population(
+                server,
+                stateKey
+            );
+            militaryWorkers = CountryWorkforceService.sectorWorkers(
+                server,
+                stateKey,
+                WorkforceSector.MILITARY
+            );
+            development = ru.zela.politicseconomy.country.CountryDevelopmentService.level(
+                server,
+                stateKey
+            );
         }
 
-        int limit = partySize(state, level.getServer(), true);
-        for (LivingEntity mob : candidates(level, state.center().getX(), state.center().getY(),
-                state.center().getZ(), RALLY_RADIUS)) {
-            if (result.size() >= limit) break;
-            if (!mob.isAlive() || !isInVillage(mob, state) || !isMilitaryVillager(mob)) continue;
-            if (mob.getTags().stream().anyMatch(existing -> existing.startsWith(PARTY_PREFIX))) continue;
-            mob.addTag(tag);
-            result.add(mob);
+        double readiness =
+            MilitaryEconomyService.readiness(server, stateKey);
+        double supply =
+            MilitaryEconomyService.supplyPercent(server, stateKey);
+
+        double populationPower =
+            Math.sqrt(Math.max(0.0D, population)) * 8.0D;
+        double workforcePower =
+            Math.max(0, militaryWorkers) * 10.0D;
+        double readinessPower =
+            Math.max(0.0D, readiness) * 0.70D;
+        double supplyPower =
+            Math.max(0.0D, supply) * 0.35D;
+        double developmentPower =
+            Math.max(0, development) * 8.0D;
+
+        double researchPower = researchBonus(server, stateKey);
+        double debtPenalty =
+            NationalMaterialConsumptionService.getLedger(server)
+                .hasAnyDebt(stateKey)
+                ? 0.35D
+                : 1.0D;
+
+        return Math.max(
+            0.0D,
+            (
+                populationPower
+                    + workforcePower
+                    + readinessPower
+                    + supplyPower
+                    + developmentPower
+                    + researchPower
+            ) * debtPenalty
+        );
+    }
+
+    private static double researchBonus(
+        MinecraftServer server,
+        String stateKey
+    ) {
+        double bonus = 0.0D;
+        java.util.Set<String> completed =
+            CountryResearchService.completed(server, stateKey);
+
+        if (completed.contains("industrial_military")) {
+            bonus += 18.0D;
         }
-        return result;
-    }
-
-    private static Set<LivingEntity> ensureDefenderParty(ServerLevel level,
-                                                         MillenaireIntegration.VillageSnapshot state,
-                                                         MilitaryWarSavedData.War war) {
-        String tag = partyTag(war, false);
-        Set<LivingEntity> result = new HashSet<>();
-
-        for (LivingEntity mob : candidates(level, state.center().getX(), state.center().getY(),
-                state.center().getZ(), PARTY_TRACK_RADIUS)) {
-            if (mob.getTags().contains(tag)) result.add(mob);
+        if (completed.contains("industrial_radar")) {
+            bonus += 8.0D;
         }
-
-        int limit = partySize(state, level.getServer(), false);
-        for (LivingEntity mob : candidates(level, state.center().getX(), state.center().getY(),
-                state.center().getZ(), RALLY_RADIUS)) {
-            if (result.size() >= limit) break;
-            if (!mob.isAlive() || !isInVillage(mob, state) || !isMilitaryVillager(mob)) continue;
-            if (mob.getTags().stream().anyMatch(existing -> existing.startsWith(PARTY_PREFIX))) continue;
-            mob.addTag(tag);
-            result.add(mob);
-        }
-        return result;
+        return bonus;
     }
 
-    private static List<LivingEntity> candidates(ServerLevel level, double x, double y, double z, double radius) {
-        AABB box = new AABB(x - radius, y - 24.0D, z - radius,
-            x + radius, y + 24.0D, z + radius);
-        return level.getEntitiesOfClass(LivingEntity.class, box,
-            mob -> mob.isAlive() && isMillenaireLivingEntity(mob));
+    private static double relativePressure(
+        double power,
+        double enemyPower
+    ) {
+        if (enemyPower <= 0.0D) return 1.0D;
+        return clamp(
+            (power / enemyPower - 0.70D) / 1.00D,
+            0.0D,
+            1.0D
+        );
     }
 
-    private static boolean isMillenaireLivingEntity(LivingEntity entity) {
-        if (entity == null) return false;
-        String className = entity.getClass().getName().toLowerCase(java.util.Locale.ROOT);
-        if (className.startsWith("org.millenaire.")) return true;
-        try {
-            var key = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
-            return key != null && "millenaire".equals(key.getNamespace());
-        } catch (Throwable ignored) {
-            return false;
-        }
-    }
+    private static void applyWarCost(
+        MinecraftServer server,
+        String stateKey,
+        long amount
+    ) {
+        if (amount <= 0L) return;
 
-    private static boolean isInVillage(LivingEntity entity,
-                                       MillenaireIntegration.VillageSnapshot state) {
-        return state.territory().contains(new ChunkPos(entity.blockPosition()));
-    }
-
-    private static boolean isMilitaryVillager(LivingEntity entity) {
-        if (!isMillenaireLivingEntity(entity)) return false;
-        Object typeId = invoke(entity, "getVillagerTypeId");
-        if (!(typeId instanceof net.minecraft.resources.ResourceLocation id)) return false;
-        try {
-            Class<?> cultures = Class.forName("org.millenaire.culture.ModCultures");
-            java.lang.reflect.Method getType = cultures.getMethod("getVillagerType",
-                net.minecraft.resources.ResourceLocation.class);
-            Object type = getType.invoke(null, id);
-            return type != null && (booleanResult(type, "hasTag", "isRaider")
-                || booleanResult(type, "hasTag", "helpInAttacks"));
-        } catch (Throwable ignored) {
-            return false;
-        }
-    }
-
-    private static boolean booleanResult(Object target, String methodName, Object argument) {
-        if (target == null) return false;
-        try {
-            for (java.lang.reflect.Method method : target.getClass().getMethods()) {
-                if (!method.getName().equals(methodName) || method.getParameterCount() != 1) continue;
-                Object value = method.invoke(target, argument);
-                return value instanceof Boolean && (Boolean) value;
+        if (MillenaireIntegration.isStateKey(stateKey)) {
+            var snapshot =
+                MillenaireIntegration.snapshotForStateKey(server, stateKey);
+            if (snapshot != null) {
+                MillenaireStateSavedData.get(server)
+                    .addTreasury(snapshot.villageId(), -amount);
             }
-        } catch (Throwable ignored) {}
-        return false;
-    }
-
-    private static int partySize(MillenaireIntegration.VillageSnapshot state,
-                                 MinecraftServer server, boolean attacker) {
-        int militaryWorkers = CountryWorkforceService.sectorWorkers(server, state.stateKey(), WorkforceSector.MILITARY);
-        int size = Math.max(2, militaryWorkers * 2 + 2);
-        if (!attacker) size += 2;
-        return Math.min(MAX_PARTY, size);
-    }
-
-    private static double movementSpeed(MillenaireIntegration.VillageSnapshot attacker,
-                                        MillenaireIntegration.VillageSnapshot defender) {
-        return 1.10D;
-    }
-
-    /**
-     * Millénaire's own AI can overwrite setDeltaMovement. Re-issuing a
-     * navigation goal after its AI has ticked is much more reliable than
-     * calling navigation.stop() and manually pushing the entity.
-     */
-    private static void moveToward(LivingEntity entity, Vec3 target, double speed) {
-        if (isMillenaireLivingEntity(entity)) {
-            MillenaireCombatBridge.forceWarNavigation(entity, target, speed);
             return;
         }
 
-        if (entity instanceof Mob mob) {
-            mob.getLookControl().setLookAt(target.x, target.y, target.z);
-            mob.getNavigation().moveTo(target.x, target.y, target.z, speed);
+        try {
+            var ledger =
+                ru.zela.politicseconomy.economy.NationalEconomySavedData.get(server);
+            ledger.addMoney(stateKey, -amount);
+        } catch (Throwable ignored) {
+            // Some PoliticsMod-only states may not have a PE treasury mirror.
+            // Military readiness and casualties remain authoritative regardless.
+        }
+    }
+
+    private static void finishIfDisarmed(
+        MinecraftServer server,
+        MilitaryWarSavedData wars,
+        MilitaryWarSavedData.War war,
+        double attackerPower,
+        double defenderPower
+    ) {
+        if (attackerPower <= 0.0D && defenderPower <= 0.0D) {
+            endWithPeace(server, wars, war);
             return;
         }
 
-        Vec3 delta = target.subtract(entity.position());
-        double horizontal = Math.sqrt(delta.x * delta.x + delta.z * delta.z);
-        if (horizontal < 0.25D) return;
-        double step = Math.min(0.28D, Math.max(0.10D, speed * 0.12D));
-        entity.setDeltaMovement(delta.x / horizontal * step, entity.getDeltaMovement().y,
-            delta.z / horizontal * step);
-        entity.hasImpulse = true;
+        resolveVictory(
+            server,
+            wars,
+            war,
+            attackerPower > defenderPower
+        );
     }
 
-    private static LivingEntity nearestAlive(Set<LivingEntity> entities, LivingEntity from) {
-        LivingEntity best = null;
-        double bestDistance = Double.MAX_VALUE;
-        for (LivingEntity entity : entities) {
-            if (entity == null || !entity.isAlive()) continue;
-            double distance = from.distanceToSqr(entity);
-            if (distance < bestDistance) {
-                bestDistance = distance;
-                best = entity;
-            }
-        }
-        return best;
+    private static void resolveVictory(
+        MinecraftServer server,
+        MilitaryWarSavedData wars,
+        MilitaryWarSavedData.War war,
+        boolean attackerWins
+    ) {
+        String winner = attackerWins ? war.attacker() : war.defender();
+        String loser = attackerWins ? war.defender() : war.attacker();
+
+        MilitaryReadinessSavedData readiness =
+            MilitaryReadinessSavedData.get(server);
+        readiness.reduceReadiness(winner, 2.0D);
+        readiness.reduceReadiness(loser, 12.0D);
+
+        endWithPeace(server, wars, war);
+
+        // Future territorial warfare can replace this with explicit
+        // chunk-by-chunk occupation. For now the winner is persisted in the
+        // war resolution notification and no Millénaire territory is mutated.
+        notifyWarResult(server, winner, loser);
     }
 
-    private static void attack(LivingEntity attacker, LivingEntity target, long now) {
-        if (target == null || !target.isAlive()) return;
-        long next = NEXT_ATTACK_TICK.getOrDefault(attacker.getUUID(), 0L);
-        if (now < next) return;
-        double damage = 2.5D;
-        boolean hit = target.hurt(attacker.level().damageSources().mobAttack(attacker), (float) damage);
-        if (!hit) return;
-        NEXT_ATTACK_TICK.put(attacker.getUUID(), now + ATTACK_COOLDOWN);
-        MilitaryEconomyService.recordMillCombatHit(target, damage, !target.isAlive());
+    private static void endWithPeace(
+        MinecraftServer server,
+        MilitaryWarSavedData wars,
+        MilitaryWarSavedData.War war
+    ) {
+        wars.endWar(war.attacker(), war.defender());
+        MilitaryDiplomacyBridge.setPeace(
+            server,
+            war.attacker(),
+            war.defender()
+        );
     }
 
-    private static void cleanupAttackCooldowns(long now) {
-        if (NEXT_ATTACK_TICK.size() < 1024) return;
-        NEXT_ATTACK_TICK.entrySet().removeIf(entry -> entry.getValue() + 200L < now);
+    private static void notifyWarResult(
+        MinecraftServer server,
+        String winner,
+        String loser
+    ) {
+        String winnerName =
+            MillenaireIntegration.displayName(server, winner);
+        String loserName =
+            MillenaireIntegration.displayName(server, loser);
+
+        server.getPlayerList().broadcastSystemMessage(
+            net.minecraft.network.chat.Component.literal(
+                "§6" + winnerName + " §fпобеждает в войне против §c"
+                    + loserName + "§f."
+            ),
+            false
+        );
     }
 
-    private static String partyTag(MilitaryWarSavedData.War war, boolean attacker) {
-        int hash = java.util.Objects.hash(war.attacker(), war.defender(), attacker);
-        return PARTY_PREFIX + Integer.toHexString(hash);
-    }
-
-    private static Object invoke(Object target, String name, Object... args) {
-        if (target == null) return null;
-        try {
-            for (java.lang.reflect.Method method : target.getClass().getMethods()) {
-                if (!method.getName().equals(name) || method.getParameterCount() != args.length) continue;
-                Class<?>[] params = method.getParameterTypes();
-                boolean compatible = true;
-                for (int i = 0; i < params.length; i++) {
-                    if (args[i] == null) continue;
-                    Class<?> type = params[i].isPrimitive() ? wrap(params[i]) : params[i];
-                    if (!type.isInstance(args[i])) { compatible = false; break; }
-                }
-                if (compatible) return method.invoke(target, args);
-            }
-        } catch (Throwable ignored) {}
-        return null;
-    }
-
-    private static Class<?> wrap(Class<?> type) {
-        if (!type.isPrimitive()) return type;
-        if (type == boolean.class) return Boolean.class;
-        if (type == int.class) return Integer.class;
-        if (type == long.class) return Long.class;
-        if (type == double.class) return Double.class;
-        if (type == float.class) return Float.class;
-        if (type == short.class) return Short.class;
-        if (type == byte.class) return Byte.class;
-        if (type == char.class) return Character.class;
-        return type;
+    private static double clamp(
+        double value,
+        double min,
+        double max
+    ) {
+        return Math.max(min, Math.min(max, value));
     }
 }
