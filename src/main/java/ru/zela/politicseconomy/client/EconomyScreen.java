@@ -2132,6 +2132,46 @@ public final class EconomyScreen extends Screen {
         if (button != 0) return super.mouseClicked(mouseX, mouseY, button);
 
         if (modalAction != null) {
+            if ("war_declare".equals(modalAction)) {
+                int w = Math.min(650, width - 24);
+                int h = Math.min(430, height - 24);
+                int left = (width - w) / 2;
+                int top = (height - h) / 2;
+                int buttonY = top + h - 42;
+
+                if (warSearch != null
+                    && inside(mouseX, mouseY, left + 18, top + 52, left + w - 18, top + 75)) {
+                    warSearch.mouseClicked(mouseX, mouseY, button);
+                    return true;
+                }
+
+                if (inside(mouseX, mouseY, left + w - 196, buttonY, left + w - 104, buttonY + 27)) {
+                    closeModal();
+                    return true;
+                }
+
+                if (inside(mouseX, mouseY, left + w - 95, buttonY, left + w - 18, buttonY + 27)) {
+                    if (warTargetName != null && warTargetType != null) {
+                        EconomyNetwork.sendAction(
+                            "war_declare",
+                            warTargetType + "|" + warTargetName
+                        );
+                        closeModal();
+                    }
+                    return true;
+                }
+
+                for (int i = targets.size() - 1; i >= 0; i--) {
+                    ClickTarget click = targets.get(i);
+                    if (click.contains(mouseX, mouseY)) {
+                        click.action.run();
+                        return true;
+                    }
+                }
+
+                return true;
+            }
+
             boolean cancelDialog = "trade_cancel".equals(modalAction);
             int w = Math.min(cancelDialog ? 600 : 580, width - 32);
             int h = modalHeight(cancelDialog);
