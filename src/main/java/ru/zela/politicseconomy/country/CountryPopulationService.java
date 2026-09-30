@@ -242,7 +242,7 @@ public final class CountryPopulationService {
             }
         }
 
-        data.setResidents(legacyBeds * RESIDENTS_PER_BED_LEGACY);
+        data.setResidents(countryName, legacyBeds * RESIDENTS_PER_BED_LEGACY);
         data.setFedCycles(countryName, 0);
         data.setStarvationCycles(countryName, 0);
         data.setDevelopmentProgress(countryName, 0);
@@ -391,7 +391,7 @@ public final class CountryPopulationService {
                 totalBeds += Math.max(0, entry.getValue());
             }
         }
-        return totalBeds * RESIDENTS_PER_BED;
+        return population(server, countryName);
     }
 
     private static int calculateCity(
