@@ -120,30 +120,27 @@ public final class MillenaireCombatBridge {
         int adults = 0;
         int entities = 0;
 
-        for (ChunkPos chunk : state.territory()) {
-            double minX = chunk.getMinBlockX();
-            double minZ = chunk.getMinBlockZ();
-            AABB box = new AABB(
-                minX,
-                level.getMinBuildHeight(),
-                minZ,
-                minX + 16.0D,
-                level.getMaxBuildHeight(),
-                minZ + 16.0D
-            );
+        double radius = 64.0D;
+        AABB box = new AABB(
+            state.center().getX() - radius,
+            level.getMinBuildHeight(),
+            state.center().getZ() - radius,
+            state.center().getX() + radius,
+            level.getMaxBuildHeight(),
+            state.center().getZ() + radius
+        );
 
-            for (LivingEntity entity : level.getEntitiesOfClass(
-                LivingEntity.class,
-                box,
-                candidate -> candidate.isAlive()
-                    && isMillenaireEntity(candidate)
-            )) {
-                if (!seen.add(entity.getUUID())) continue;
+        for (LivingEntity entity : level.getEntitiesOfClass(
+            LivingEntity.class,
+            box,
+            candidate -> candidate.isAlive()
+                && isMillenaireEntity(candidate)
+        )) {
+            if (!seen.add(entity.getUUID())) continue;
 
-                entities++;
-                if (isMilitaryEntity(entity)) military++;
-                if (isAdult(entity)) adults++;
-            }
+            entities++;
+            if (isMilitaryEntity(entity)) military++;
+            if (isAdult(entity)) adults++;
         }
 
         return new ArmyReport(
