@@ -1,8 +1,13 @@
 package ru.zela.politicseconomy.integration;
 
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.phys.AABB;
 
 import java.lang.reflect.Method;
+import java.util.HashSet;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -50,6 +55,57 @@ public final class MillenaireCombatBridge {
                 : "no_native_raid_api_found";
 
         return new Result(relationChanged, raidTriggered, detail);
+    }
+
+    public record ArmyReport(
+        int roleRecords,
+        int liveMilitary,
+        int liveAdults,
+        int liveEntities
+    ) {}
+
+    public static ArmyReport armyReport(
+        MinecraftServer server,
+        MillenaireIntegration.VillageSnapshot state
+    ) {
+        if (server == null || state == null) {
+            return new ArmyReport(0, 0, 0, 0);
+        }
+
+        int roleRecords = state.workersBySector()
+            .getOrDefault(
+                ru.zela.politicseconomy.country.WorkforceSector.MILITARY,
+                0
+            );
+
+        ServerLevel level = server.overworld();
+        Set<UUID> seen = new HashSet<>();
+        int military = 0;
+        int adults = 0;
+        int entities = 0;
+
+        for (ChunkPos chunk : state.territory()) {
+            double minX = chunk.getMinBlockX();
+            double minZ = chunk.getMinBlockZ();
+            AABB box = new AABB(
+                minX, level.getMinBuildHeight(), minZ,
+                minX + 16.0D, level.getMaxBuildHeight(), minZ + 16.0D
+            );
+
+            for (LivingEntity entity : level.getEntitiesOfClass(
+                LivingEntity.class,
+                box,
+                candidate -> candidate.isAlive()
+                    && isMillenaireEntity(candidate)
+            )) {
+                if (!seen.add(entity.getUUID())) continue;
+                entities++;
+                if (isMilitaryEntity(entity)) military++;
+                if (isAdult(entity)) adults++;
+            }
+        }
+
+        return new ArmyReport(roleRecords, military, adults, entities);
     }
 
     public static List<String> discoverCombatApi(
@@ -169,6 +225,78 @@ public final class MillenaireCombatBridge {
         }
 
         return args;
+    }
+
+    private static boolean isMillenaireEntity(LivingEntity entity) {
+        if (entity == null) return false;
+        String className = entity.getClass().getName().toLowerCase(java.util.Locale.ROOT);
+        if (className.startsWith("org.millenaire.")) return true;
+
+        try {
+            var key = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE
+                .getKey(entity.getType());
+            return key != null && "millenaire".equals(key.getNamespace());
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static boolean isMilitaryEntity(LivingEntity entity) {
+        StringBuilder text = new StringBuilder()
+            .append(entity.getClass().getName()).append(' ')
+            .append(String.valueOf(invoke(entity, "getRoleName"))).append(' ')
+            .append(String.valueOf(invoke(entity, "getVillagerTypeId")))
+            .append(' ')
+            .append(String.valueOf(invoke(entity, "getTypeId")));
+
+        Object record = invoke(entity, "getVillagerRecord");
+        if (record == null) record = invoke(entity, "getRecord");
+        if (record != null) {
+            text.append(' ')
+                .append(String.valueOf(invoke(record, "getRoleName")))
+                .append(' ')
+                .append(String.valueOf(invoke(record, "getVillagerTypeId")));
+        }
+
+        String value = text.toString().toLowerCase(java.util.Locale.ROOT);
+        return value.contains("soldier")
+            || value.contains("guard")
+            || value.contains("warrior")
+            || value.contains("general")
+            || value.contains("army");
+    }
+
+    private static boolean isAdult(LivingEntity entity) {
+        Object baby = invoke(entity, "isBaby");
+        if (baby instanceof Boolean) return !((Boolean) baby);
+
+        String value = entity.getClass().getName().toLowerCase(java.util.Locale.ROOT);
+        return !value.contains("child")
+            && !value.contains("boy")
+            && !value.contains("girl");
+    }
+
+    private static Object invoke(Object target, String name, Object... args) {
+        if (target == null) return null;
+        try {
+            for (Method method : target.getClass().getMethods()) {
+                if (!method.getName().equals(name)
+                    || method.getParameterCount() != args.length) continue;
+
+                Class<?>[] params = method.getParameterTypes();
+                boolean compatible = true;
+                for (int i = 0; i < params.length; i++) {
+                    if (args[i] == null) continue;
+                    if (!wrap(params[i]).isInstance(args[i])) {
+                        compatible = false;
+                        break;
+                    }
+                }
+                if (compatible) return method.invoke(target, args);
+            }
+        } catch (Throwable ignored) {
+        }
+        return null;
     }
 
     private static UUID villageUuid(Object village) {
