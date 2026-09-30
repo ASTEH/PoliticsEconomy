@@ -166,7 +166,7 @@ public final class GroundWarService {
         String tag = partyTag(war, false);
         Set<LivingEntity> result = new HashSet<>();
 
-        for (Mob mob : candidates(
+        for (LivingEntity mob : candidates(
             level,
             state.center().getX(),
             state.center().getY(),
@@ -179,7 +179,7 @@ public final class GroundWarService {
 
         int limit = partySize(state, level.getServer(), false);
         if (result.size() < limit) {
-            for (Mob mob : candidates(
+            for (LivingEntity mob : candidates(
                 level,
                 state.center().getX(),
                 state.center().getY(),
