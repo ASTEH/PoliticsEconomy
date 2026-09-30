@@ -290,7 +290,7 @@ public final class GroundWarService {
 
         double damage = 2.5D;
         boolean hit = target.hurt(
-            server.damageSources().mobAttack(attacker),
+            attacker.level().damageSources().mobAttack(attacker),
             (float) damage
         );
         if (!hit) return;
