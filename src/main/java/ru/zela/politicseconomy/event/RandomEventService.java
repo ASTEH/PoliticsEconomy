@@ -20,8 +20,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.Set;
-import java.util.UUID;
 
 /** Periodic random national events for player states. */
 public final class RandomEventService {
@@ -29,8 +27,8 @@ public final class RandomEventService {
     private static final long MIN_DELAY = 7000L;
     private static final long MAX_DELAY = 18000L;
     private static final Random RANDOM = new Random();
-    private static final Map<UUID, List<BurningBlock>> ACTIVE_FIRES = new HashMap<>();
-    private static final Map<UUID, Long> LAST_FIRE_NOTICE = new HashMap<>();
+    private static final Map<MinecraftServer, List<BurningBlock>> ACTIVE_FIRES = new HashMap<>();
+    private static final Map<MinecraftServer, Long> LAST_FIRE_NOTICE = new HashMap<>();
 
     private RandomEventService() {}
 
@@ -151,7 +149,7 @@ public final class RandomEventService {
         }
 
         List<BurningBlock> fire = ACTIVE_FIRES.computeIfAbsent(
-            serverId(server),
+            server,
             ignored -> new ArrayList<>()
         );
 
@@ -173,7 +171,7 @@ public final class RandomEventService {
 
         if (count == 0) return;
 
-        LAST_FIRE_NOTICE.put(serverId(server), now);
+        LAST_FIRE_NOTICE.put(server, now);
         NewsService.add(
             server,
             now,
@@ -233,7 +231,7 @@ public final class RandomEventService {
     }
 
     private static void tickFires(MinecraftServer server, long now) {
-        List<BurningBlock> fire = ACTIVE_FIRES.get(serverId(server));
+        List<BurningBlock> fire = ACTIVE_FIRES.get(server);
         if (fire == null || fire.isEmpty()) return;
 
         List<BurningBlock> next = new ArrayList<>();
@@ -297,13 +295,6 @@ public final class RandomEventService {
         if (country == null) return false;
         Country owner = politics.getCountryAt(new ChunkPos(pos));
         return owner != null && stateKey.equals(owner.getName());
-    }
-
-    private static UUID serverId(MinecraftServer server) {
-        // Server lifetime UUID is sufficient for in-memory event state.
-        return UUID.nameUUIDFromBytes(
-            server.getLocalIp().getBytes(java.nio.charset.StandardCharsets.UTF_8)
-        );
     }
 
     private static String displayName(MinecraftServer server, String stateKey) {
