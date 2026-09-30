@@ -258,17 +258,10 @@ public final class GroundWarService {
                 MillenaireStateSavedData.get(server)
                     .addTreasury(snapshot.villageId(), -amount);
             }
-            return;
         }
-
-        try {
-            var ledger =
-                ru.zela.politicseconomy.economy.NationalEconomySavedData.get(server);
-            ledger.addMoney(stateKey, -amount);
-        } catch (Throwable ignored) {
-            // Some PoliticsMod-only states may not have a PE treasury mirror.
-            // Military readiness and casualties remain authoritative regardless.
-        }
+        // PoliticsMod countries do not use the Millénaire treasury. Their war
+        // costs are represented by readiness, supply and casualties until a
+        // dedicated PE military treasury is introduced.
     }
 
     private static void finishIfDisarmed(
