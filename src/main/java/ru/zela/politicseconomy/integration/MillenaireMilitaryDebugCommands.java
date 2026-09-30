@@ -38,6 +38,8 @@ public final class MillenaireMilitaryDebugCommands {
                             .executes(context -> showArmy(context.getSource())))
                         .then(Commands.literal("combatapi")
                             .executes(context -> showCombatApi(context.getSource())))
+                        .then(Commands.literal("raidstatus")
+                            .executes(context -> showRaidStatus(context.getSource())))
                         .then(Commands.literal("readiness")
                             .executes(context -> showReadiness(context.getSource()))
                             .then(Commands.argument("value", DoubleArgumentType.doubleArg(0.0D, 100.0D))
@@ -356,6 +358,55 @@ public final class MillenaireMilitaryDebugCommands {
         } catch (Exception e) {
             source.sendFailure(Component.literal(
                 "Не удалось прочитать combat API."
+            ));
+            return 0;
+        }
+    }
+
+    private static int showRaidStatus(CommandSourceStack source) {
+        try {
+            ServerPlayer player = source.getPlayerOrException();
+            MillenaireIntegration.VillageSnapshot current = currentVillage(player);
+            if (current == null) {
+                source.sendFailure(Component.literal(
+                    "Ты должен находиться на территории поселения Millénaire."
+                ));
+                return 0;
+            }
+
+            MillenaireCombatBridge.RaidStatus status =
+                MillenaireCombatBridge.raidStatus(
+                    player.server,
+                    current.stateKey()
+                );
+
+            source.sendSuccess(() -> Component.literal(
+                "§6=== Состояние рейда ==="
+            ), false);
+            source.sendSuccess(() -> Component.literal(
+                "§7Поселение: §f" + current.name()
+            ), false);
+            source.sendSuccess(() -> Component.literal(
+                "§7Отношение к цели: §f" + status.relation()
+            ), false);
+            source.sendSuccess(() -> Component.literal(
+                "§7Цель рейда: §f"
+                    + (status.target().isBlank() ? "нет" : status.target())
+            ), false);
+            source.sendSuccess(() -> Component.literal(
+                "§7Планирование рейда: §f" + status.planningStart()
+            ), false);
+            source.sendSuccess(() -> Component.literal(
+                "§7Начало рейда: §f" + status.start()
+                    + " §8(gameTime=" + status.startGameTime() + ")"
+            ), false);
+            source.sendSuccess(() -> Component.literal(
+                "§7Сила рейда: §f" + status.strength()
+            ), false);
+            return 1;
+        } catch (Exception e) {
+            source.sendFailure(Component.literal(
+                "Не удалось прочитать состояние рейда."
             ));
             return 0;
         }
