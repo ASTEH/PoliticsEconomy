@@ -103,10 +103,15 @@ public final class RandomEventService {
         }
 
         if (roll < 0.80D) {
-            MilitaryEconomyService.readiness(
-                server,
-                stateKey
-            );
+            if (!stateKey.startsWith("millenaire:")) {
+                var politics = ru.zela.politicseconomy.country.CountryPoliticalService.get(server);
+                politics.setUnrest(
+                    stateKey,
+                    Math.min(100, politics.getUnrest(stateKey) + 12)
+                );
+            }
+            var military = ru.zela.politicseconomy.integration.MilitaryReadinessSavedData.get(server);
+            military.reduceReadiness(stateKey, 4.0D);
             NewsService.add(
                 server,
                 now,
