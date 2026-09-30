@@ -179,6 +179,11 @@ public final class CountryPopulationService {
             }
         }
 
+        // The resident layer uses normal Minecraft villagers as the physical
+        // representation of the persisted population. Calling this here makes
+        // newly founded countries receive their four residents immediately.
+        CountryResidentService.ensureStarterResidents(server, countryName);
+
         data.setDirty();
         invalidate(server);
     }
