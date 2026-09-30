@@ -26,8 +26,8 @@ public final class EconomyScreen extends Screen {
         OVERVIEW("Обзор", "minecraft:emerald"),
         COUNTRY("Государство", "minecraft:compass"),
         EFFECTS("Эффекты", "minecraft:redstone"),
-        CITIES("Страны", "minecraft:globe"),
-        NEWS("Новости", "minecraft:writable_book"),
+        CITIES("Страны", "minecraft:map"),
+        NEWS("Новости", "minecraft:written_book"),
         MARKET("Рынок", "minecraft:emerald"),
         TRADE("Торговля", "minecraft:chest"),
         TRADE_HISTORY("История заказов", "minecraft:written_book"),
@@ -912,11 +912,8 @@ public final class EconomyScreen extends Screen {
 
             g.drawString(
                 font,
-                "$" + format(valueAt(snapshot.cityTreasuries(), i))
-                    + "  •  Военные: " + format(valueAt(snapshot.cityTaxBlocks(), i))
-                    + "  •  Готовность: " + formatDouble(
-                        score <= 0 ? 0.0D : 0.0D
-                    ),
+                "Казна: $" + format(valueAt(snapshot.cityTreasuries(), i))
+                    + "  •  Военные рабочие: " + format(valueAt(snapshot.cityTaxBlocks(), i)),
                 right - 290,
                 rankY + 58,
                 MUTED,
